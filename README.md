@@ -18,3 +18,9 @@ py manage.py startapp app_main
 py ui/manage.py makemigrations
 py ui/manage.py migrate
 ```
+
+
+Run django-server:
+```bash
+py ui/manage.py runserver
+```
