@@ -1,5 +1,5 @@
 # aideex
-AI-delivery-excellence
+AI-deex
 
 ```bash
 django-admin startproject ui
