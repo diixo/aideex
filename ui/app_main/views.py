@@ -19,4 +19,14 @@ def confluence(request):
         "title": "AIdeex - Confluence",
         "description": "AIdeex confluence description"})
 
-# Create your views here.
+
+def codebeamer(request):
+    return render(request, "app_main/codebeamer.html", context={
+        "title": "AIdeex - Codebeamer",
+        "description": "AIdeex codebeamer description"})
+
+
+def diagramming(request):
+    return render(request, "app_main/diagramming.html", context={
+        "title": "AIdeex - Diagramming",
+        "description": "AIdeex diagramming description"})

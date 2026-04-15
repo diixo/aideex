@@ -8,4 +8,6 @@ urlpatterns = [
     path("", views.main, name="main"),
     path("dashboard", views.dashboard, name="dashboard"),
     path("confluence", views.confluence, name="confluence"),
+    path("codebeamer", views.codebeamer, name="codebeamer"),
+    path("diagramming", views.diagramming, name="diagramming"),
 ]
