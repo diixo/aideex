@@ -35,8 +35,6 @@
         <link rel="stylesheet" href="{% static 'app_main/assets/icons/materialicons/materialicons.css' %}">
         <!-- Fontawesome Icons -->
         <link rel="stylesheet" href="{% static 'app_main/assets/icons/webfonts/fontawesome.css' %}">
-        <!-- Custom css -->
-        <link rel="stylesheet" href="{% static 'app_main/assets/css/styles.css' %}">
 
         <link rel="stylesheet" href="{% static 'app_main/css/dashboard.css' %}">
 
@@ -116,9 +114,28 @@
       .bd-mode-toggle .dropdown-menu .active .bi {
         display: block !important;
       }
+      html,
+      body {
+        height: 100%;
+        min-height: 100%;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      .app-full-height {
+        min-height: calc(100vh - 56px);
+        height: calc(100vh - 56px);
+      }
+      .app-full-height .row,
+      .app-full-height .sidebar,
+      .app-full-height main {
+        height: 100%;
+      }
     </style>
   </head>
-  <body>
+  <body class="d-flex flex-column min-vh-100">
     <svg xmlns="http://www.w3.org/2000/svg" class="d-none">
       <symbol id="check2" viewBox="0 0 16 16">
         <path
@@ -350,13 +367,13 @@
         />
       </div>
     </header>
-    <div class="container-fluid">
-      <div class="row">
+    <div class="container-fluid app-full-height flex-grow-1 h-100">
+      <div class="row h-100">
         <div
-          class="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary"
+          class="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary h-100"
         >
           <div
-            class="offcanvas-md offcanvas-end bg-body-tertiary"
+            class="offcanvas-md offcanvas-end bg-body-tertiary h-100"
             tabindex="-1"
             id="sidebarMenu"
             aria-labelledby="sidebarMenuLabel"
@@ -484,7 +501,7 @@
             </div>
           </div>
         </div>
-        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 h-100 d-flex flex-column">
 
           <h2>Section title</h2>
 
