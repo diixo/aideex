@@ -1,14 +1,17 @@
 /* Fonts */
+@import url('../assets/css/fonts/public-sans/public-sans.css');
+
+/*
 @import url('../assets/css/fonts/noto-sans/noto-sans.css');
 
 @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+*/
 
 body {
   font-size: 16px;
   /*font-family: 'Noto Sans', sans-serif;*/
-  /*font-family: 'DM Sans', sans-serif;*/
-  font-family: 'Source Sans 3', sans-serif;
-  font-weight: 500;
+  font-family: 'Public Sans', sans-serif;
+  font-weight: 400;
 }
 
 .bi {
@@ -49,7 +52,7 @@ body {
 }
 
 .sidebar .nav-link {
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #687070;
 }
