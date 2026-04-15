@@ -1,4 +1,4 @@
-# aideex
+# aidelix
 AI-delivery-excellence
 
 ```bash

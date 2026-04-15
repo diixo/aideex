@@ -4,29 +4,29 @@ from django.shortcuts import render, redirect
 def main(request):
     return redirect(to="app_main:confluence")
     return render(request, "app_main/index.html", context={
-        "title": "AIdeex",
-        "description": "AIdeex description"})
+        "title": "AIdelix",
+        "description": "AIdelix description"})
 
 def dashboard(request):
 
     return render(request, "app_main/dashboard.html", context={
-        "title": "AIdeex - Dashboard",
-        "description": "AIdeex dashboard description"})
+        "title": "AIdelix - Dashboard",
+        "description": "AIdelix dashboard description"})
 
 
 def confluence(request):
     return render(request, "app_main/confluence.html", context={
-        "title": "AIdeex - Confluence",
-        "description": "AIdeex confluence description"})
+        "title": "AIdelix - Confluence",
+        "description": "AIdelix confluence description"})
 
 
 def codebeamer(request):
     return render(request, "app_main/codebeamer.html", context={
-        "title": "AIdeex - Codebeamer",
-        "description": "AIdeex codebeamer description"})
+        "title": "AIdelix - Codebeamer",
+        "description": "AIdelix codebeamer description"})
 
 
 def diagramming(request):
     return render(request, "app_main/diagramming.html", context={
-        "title": "AIdeex - Diagramming",
-        "description": "AIdeex diagramming description"})
+        "title": "AIdelix - Diagramming",
+        "description": "AIdelix diagramming description"})
