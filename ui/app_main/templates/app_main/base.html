@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="" />
-    <meta name="author" content="Bootstrap contributors"/>
-    <meta name="generator" content="Astro v5.13.2" />
-    <title>Dashboard Template · Bootstrap v5.3</title>
+
+    <title>AIdelix - delivery impossible excellence</title>
+
         {% block meta %}
         {% endblock %}
 
@@ -40,77 +40,6 @@
 
     {% block extra_style %}
     {% endblock %}
-
-    <style>
-      .bd-placeholder-img {
-        font-size: 1.125rem;
-        text-anchor: middle;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        user-select: none;
-      }
-      @media (min-width: 768px) {
-        .bd-placeholder-img-lg {
-          font-size: 3.5rem;
-        }
-      }
-      .b-example-divider {
-        width: 100%;
-        height: 3rem;
-        background-color: #0000001a;
-        border: solid rgba(0, 0, 0, 0.15);
-        border-width: 1px 0;
-        box-shadow:
-          inset 0 0.5em 1.5em #0000001a,
-          inset 0 0.125em 0.5em #00000026;
-      }
-      .b-example-vr {
-        flex-shrink: 0;
-        width: 1.5rem;
-        height: 100vh;
-      }
-      .bi {
-        vertical-align: -0.125em;
-        fill: #505050;
-      }
-      .nav-scroller {
-        position: relative;
-        z-index: 2;
-        height: 2.75rem;
-        overflow-y: hidden;
-      }
-      .nav-scroller .nav {
-        display: flex;
-        flex-wrap: nowrap;
-        padding-bottom: 1rem;
-        margin-top: -1px;
-        overflow-x: auto;
-        text-align: center;
-        white-space: nowrap;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      html,
-      body {
-        height: 100%;
-        min-height: 100%;
-      }
-      body {
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-      }
-      .app-full-height {
-        flex: 1 1 auto;
-        min-height: 0;
-      }
-      .app-full-height .row,
-      .app-full-height .sidebar,
-      .app-full-height main {
-        min-height: 0;
-        height: 100%;
-      }
-    </style>
   </head>
 
   <body class="d-flex flex-column min-vh-100">
@@ -129,9 +58,11 @@
       </symbol>
     </svg>
     <header class="navbar sticky-top bg-white flex-md-nowrap p-0 shadow-sm" data-bs-theme="light">
-      <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 text-body" href="{% url 'app_main:main' %}">
+      <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6 d-flex justify-content-center align-items-center"
+        href="{% url 'app_main:main' %}"
+      >
         <img src="/static/app_main/logos/logo-dxc-new.svg" 
-            class="img-fluid" alt="brand-logo" style="height:24px;" title="viix-ai app">
+            class="img-fluid" alt="brand-logo" style="height:24px;" title="AIdelix">
       </a>
       <ul class="navbar-nav flex-row d-md-none">
         <li class="nav-item text-nowrap">
@@ -186,9 +117,7 @@
             aria-labelledby="sidebarMenuLabel"
           >
             <div class="offcanvas-header">
-              <h5 class="offcanvas-title" id="sidebarMenuLabel">
-                Company name
-              </h5>
+              <h5 class="offcanvas-title" id="sidebarMenuLabel">AIdelix</h5>
               <button
                 type="button"
                 class="btn-close"
@@ -198,7 +127,7 @@
               ></button>
             </div>
             <div
-              class="offcanvas-body d-md-flex flex-column p-0 pt-lg-3 overflow-y-auto"
+              class="offcanvas-body d-md-flex flex-column p-0 pt-lg-4 overflow-y-auto"
             >
               <ul class="nav flex-column">
                 <li class="nav-item">
@@ -226,6 +155,7 @@
                   </a>
                 </li>
               </ul>
+
               <h6
                 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-body-secondary text-uppercase"
               >
@@ -271,10 +201,8 @@
       </div>
     </div>
 
-
     {% load static %}
     <script src="{% static 'app_main/assets/js/bootstrap.bundle.min.js' %}" class="astro-vvvwv3sm"></script>
-
 
   </body>
 </html>
