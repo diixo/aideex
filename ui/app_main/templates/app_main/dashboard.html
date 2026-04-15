@@ -125,12 +125,13 @@
         min-height: 100vh;
       }
       .app-full-height {
-        min-height: calc(100vh - 56px);
-        height: calc(100vh - 56px);
+        flex: 1 1 auto;
+        min-height: 0;
       }
       .app-full-height .row,
       .app-full-height .sidebar,
       .app-full-height main {
+        min-height: 0;
         height: 100%;
       }
     </style>
