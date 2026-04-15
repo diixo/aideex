@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 
 
 def main(request):
-    return redirect(to="app_main:confluence")
+    #return redirect(to="app_main:confluence")
     return render(request, "app_main/index.html", context={
         "title": "AIdelix",
         "description": "AIdelix description"})
