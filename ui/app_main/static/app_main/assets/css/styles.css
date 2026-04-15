@@ -1,8 +1,5 @@
 /* Fonts */
-@import url('fonts/dm-sans/dm-sans.css');
-@import url('fonts/gilroy/Gilroy.css');
 @import url('fonts/noto-sans/noto-sans.css');
-@import url('fonts/public-sans/public-sans.css');
 
 
 :root {
@@ -382,12 +379,12 @@ https://code.visualstudio.com/docs/
 
 body {
   font-size: 16px;
-  /*font-family: 'Noto Sans', sans-serif;*/
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
+  /*font-family: 'DM Sans', sans-serif;*/
 }
 
 .h1, .h2, .h3, .h4, .h5, .h6, h1, h2, h3, h4, h5, h6 {
-  font-family: 'Gilroy', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .article {
@@ -395,7 +392,7 @@ body {
 }
 
 .demo-public-sans {
-  font-family: 'Public Sans', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   font-size: 16px;
   line-height: 1.75;
 }
