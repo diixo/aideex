@@ -1,5 +1,13 @@
 # aideex
-AI-deex
+
+
+## Run django-server:
+```bash
+py ui/manage.py runserver
+```
+
+
+## Create repository structure
 
 ```bash
 django-admin startproject ui
@@ -19,8 +27,3 @@ py ui/manage.py makemigrations
 py ui/manage.py migrate
 ```
 
-
-Run django-server:
-```bash
-py ui/manage.py runserver
-```
