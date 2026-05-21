@@ -30,3 +30,15 @@ def diagramming(request):
     return render(request, "app_main/diagramming.html", context={
         "title": "AIdelix - Diagramming",
         "description": "AIdelix diagramming description"})
+
+
+def aspice_pipeline_dataset(request):
+    return render(request, "app_main/aspice-pipeline-dataset.html", context={
+        "title": "AIdelix - Aspice Pipeline Dataset",
+        "description": "AIdelix aspice pipeline dataset description"})
+
+
+def aspice_pipeline_dataset_bp(request):
+    return render(request, "app_main/aspice-pipeline-dataset-bp.html", context={
+        "title": "AIdelix - Aspice Pipeline Dataset with Base Practices",
+        "description": "AIdelix aspice pipeline dataset description"})
