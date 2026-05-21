@@ -283,9 +283,9 @@ def print_report(records: list[dict[str, Any]], include_expected_checks: bool = 
 def main() -> None:
     records = load_jsonl(DATASET_PATH)
 
-    with open("data.json", "w", encoding="utf-8") as f:
-        items = list(load_jsonl(Path("aspice_pipeline_dataset.jsonl")))
-        json.dump(items, f, ensure_ascii=False, indent=2)
+    # with open("data.json", "w", encoding="utf-8") as f:
+    #     items = list(load_jsonl(Path("aspice_pipeline_dataset.jsonl")))
+    #     json.dump(items, f, ensure_ascii=False, indent=2)
 
 
     # include_expected_checks=False means:
