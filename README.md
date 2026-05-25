@@ -1,6 +1,9 @@
 # aideex
 
 
+Adaptation for ASPICE
+
+
 ## Run django-server:
 ```bash
 py ui/manage.py runserver
