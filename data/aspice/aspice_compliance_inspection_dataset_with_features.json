@@ -1,0 +1,488 @@
+{
+  "schema_version": "0.2",
+  "dataset_type": "aspice_compliance_inspection_with_features",
+  "description": "Dataset for testing ASPICE compliance inspection over feature-level requirement sets.",
+  "id_conventions": {
+    "FEAT": "Feature",
+    "STK": "Stakeholder Requirement",
+    "SYS": "System Requirement / SYS.2",
+    "SWE": "Software Requirement / SWE.1",
+    "TC": "Test Case",
+    "EV": "Evidence Source",
+    "FIND": "Inspection Finding"
+  },
+  "inspection_rules": [
+    {
+      "rule_id": "RULE-FEATURE-HAS-REQUIREMENTS",
+      "description": "Every feature should have linked requirements.",
+      "severity_if_failed": "error"
+    },
+    {
+      "rule_id": "RULE-SYS2-HAS-UPSTREAM-STK",
+      "description": "Every SYS.2 system requirement should be derived from a stakeholder requirement or approved stakeholder source.",
+      "severity_if_failed": "error"
+    },
+    {
+      "rule_id": "RULE-SYS2-HAS-SOURCE-EVIDENCE",
+      "description": "Every SYS.2 system requirement should have source evidence.",
+      "severity_if_failed": "error"
+    },
+    {
+      "rule_id": "RULE-SYS2-HAS-VERIFICATION",
+      "description": "Every SYS.2 system requirement should have verification criteria or a linked system qualification test case.",
+      "severity_if_failed": "error"
+    },
+    {
+      "rule_id": "RULE-SYS2-IS-SPECIFIC",
+      "description": "A system requirement should avoid vague terms such as low, fast, suitable, appropriate, or as needed unless they are defined.",
+      "severity_if_failed": "warning"
+    },
+    {
+      "rule_id": "RULE-SWE1-HAS-UPSTREAM-SYS2",
+      "description": "Every SWE.1 software requirement should be linked to an upstream SYS.2 system requirement.",
+      "severity_if_failed": "error"
+    },
+    {
+      "rule_id": "RULE-SAFETY-RELEVANCE-CLASSIFIED",
+      "description": "Safety relevance should not remain TBD before approval.",
+      "severity_if_failed": "warning"
+    },
+    {
+      "rule_id": "RULE-SAFETY-HAS-FAULT-REACTION",
+      "description": "Safety-relevant fault detection requirements should define the system reaction, degraded mode, warning, or safe behavior.",
+      "severity_if_failed": "warning"
+    },
+    {
+      "rule_id": "RULE-SAFETY-REQUIRES-REVIEW",
+      "description": "Safety-relevant requirements should be reviewed before approval.",
+      "severity_if_failed": "warning"
+    }
+  ],
+  "records": [
+    {
+      "sample_id": "SCN-COMPLIANCE-BATTERY-001",
+      "scenario_type": "aspice_compliance_inspection",
+      "feature": {
+        "id": "FEAT-BATTERY-WARNING-001",
+        "name": "Low Battery Warning",
+        "description": "The rider shall be warned when the vehicle battery state of charge is low.",
+        "feature_owner": "System Engineering",
+        "source_evidence": [
+          "EV-CONF-BATTERY-001"
+        ],
+        "safety_relevance": "TBD",
+        "status": "Draft"
+      },
+      "input_evidence": [
+        {
+          "source_id": "EV-CONF-BATTERY-001",
+          "source_type": "confluence",
+          "title": "Battery Warning Feature Description",
+          "text": "When the vehicle battery state of charge becomes low, the rider shall be warned on the display. The warning shall remain visible until the battery level is restored or the vehicle is powered off."
+        },
+        {
+          "source_id": "EV-CODE-BATTERY-001",
+          "source_type": "code",
+          "path": "src/display/BatteryWarningController.cpp",
+          "text": "BatteryWarningController::update() checks batterySocPercent and activates LOW_BATTERY_TELLTALE when batterySocPercent < configuredLowBatteryThreshold."
+        }
+      ],
+      "input_requirements": [
+        {
+          "id": "STK-REQ-BAT-001",
+          "feature_id": "FEAT-BATTERY-WARNING-001",
+          "type": "stakeholder_requirement",
+          "statement": "The rider shall be warned when the vehicle battery state of charge is low.",
+          "source_evidence": [
+            "EV-CONF-BATTERY-001"
+          ],
+          "status": "Draft"
+        },
+        {
+          "id": "SYS-REQ-BAT-001",
+          "feature_id": "FEAT-BATTERY-WARNING-001",
+          "type": "system_requirement",
+          "aspice_process": "SYS.2",
+          "statement": "The system shall warn the rider when the battery is low.",
+          "derived_from": [
+            "STK-REQ-BAT-001"
+          ],
+          "source_evidence": [
+            "EV-CONF-BATTERY-001"
+          ],
+          "verification_criteria": "",
+          "safety_relevance": "TBD",
+          "review_state": "Not reviewed",
+          "status": "Draft"
+        },
+        {
+          "id": "SWE-REQ-BAT-001",
+          "feature_id": "FEAT-BATTERY-WARNING-001",
+          "type": "software_requirement",
+          "aspice_process": "SWE.1",
+          "statement": "The display software shall activate LOW_BATTERY_TELLTALE when batterySocPercent is below configuredLowBatteryThreshold.",
+          "derived_from": [
+            "SYS-REQ-BAT-001"
+          ],
+          "source_evidence": [
+            "EV-CODE-BATTERY-001"
+          ],
+          "verification_criteria": "Set batterySocPercent below configuredLowBatteryThreshold and verify that LOW_BATTERY_TELLTALE is activated.",
+          "safety_relevance": "TBD",
+          "review_state": "Not reviewed",
+          "status": "Draft"
+        }
+      ],
+      "input_trace_links": [
+        {
+          "id": "TRACE-BAT-STK-SYS-001",
+          "from": "STK-REQ-BAT-001",
+          "to": "SYS-REQ-BAT-001",
+          "link_type": "derived_by"
+        },
+        {
+          "id": "TRACE-BAT-SYS-SWE-001",
+          "from": "SYS-REQ-BAT-001",
+          "to": "SWE-REQ-BAT-001",
+          "link_type": "allocated_to_software"
+        }
+      ],
+      "input_test_cases": [],
+      "expected_inspection_findings": [
+        {
+          "id": "FIND-BAT-001",
+          "feature_id": "FEAT-BATTERY-WARNING-001",
+          "requirement_id": "SYS-REQ-BAT-001",
+          "rule_id": "RULE-SYS2-HAS-VERIFICATION",
+          "severity": "error",
+          "finding": "The system requirement has no verification criteria and no linked SYS.5 qualification test case."
+        },
+        {
+          "id": "FIND-BAT-002",
+          "feature_id": "FEAT-BATTERY-WARNING-001",
+          "requirement_id": "SYS-REQ-BAT-001",
+          "rule_id": "RULE-SYS2-IS-SPECIFIC",
+          "severity": "warning",
+          "finding": "The phrase 'battery is low' is ambiguous. The low-battery threshold should be defined or referenced."
+        },
+        {
+          "id": "FIND-BAT-003",
+          "feature_id": "FEAT-BATTERY-WARNING-001",
+          "requirement_id": "SYS-REQ-BAT-001",
+          "rule_id": "RULE-SAFETY-RELEVANCE-CLASSIFIED",
+          "severity": "warning",
+          "finding": "Safety relevance is TBD and should be classified before approval."
+        }
+      ]
+    },
+    {
+      "sample_id": "SCN-COMPLIANCE-MENU-001",
+      "scenario_type": "aspice_compliance_inspection",
+      "feature": {
+        "id": "FEAT-MENU-NAVIGATION-001",
+        "name": "Settings Menu Navigation",
+        "description": "The rider can open and navigate the Settings menu from the main display screen.",
+        "feature_owner": "HMI Engineering",
+        "source_evidence": [
+          "EV-CONF-MENU-001"
+        ],
+        "safety_relevance": "No",
+        "status": "Draft"
+      },
+      "input_evidence": [
+        {
+          "source_id": "EV-CONF-MENU-001",
+          "source_type": "confluence",
+          "title": "Display Menu Requirements",
+          "text": "The rider can open the Settings menu from the main display screen. The menu shall allow navigation between Display, Connectivity, and Vehicle Info sections."
+        },
+        {
+          "source_id": "EV-CODE-MENU-001",
+          "source_type": "code",
+          "path": "src/ui/MenuRouter.cpp",
+          "text": "MenuRouter maps SETTINGS_ROOT to DISPLAY_SETTINGS, CONNECTIVITY_SETTINGS, and VEHICLE_INFO. Navigation events are handled by handleMenuInput()."
+        }
+      ],
+      "input_requirements": [
+        {
+          "id": "STK-REQ-MENU-001",
+          "feature_id": "FEAT-MENU-NAVIGATION-001",
+          "type": "stakeholder_requirement",
+          "statement": "The rider shall be able to access and navigate the Settings menu from the main display screen.",
+          "source_evidence": [
+            "EV-CONF-MENU-001"
+          ],
+          "status": "Draft"
+        },
+        {
+          "id": "SYS-REQ-MENU-001",
+          "feature_id": "FEAT-MENU-NAVIGATION-001",
+          "type": "system_requirement",
+          "aspice_process": "SYS.2",
+          "statement": "The system shall provide a Settings menu accessible from the main display screen with Display, Connectivity, and Vehicle Info sections.",
+          "derived_from": [
+            "STK-REQ-MENU-001"
+          ],
+          "source_evidence": [
+            "EV-CONF-MENU-001"
+          ],
+          "verification_criteria": "Open the Settings menu from the main display screen and verify that Display, Connectivity, and Vehicle Info sections are available.",
+          "safety_relevance": "No",
+          "review_state": "Not reviewed",
+          "status": "Draft"
+        },
+        {
+          "id": "SWE-REQ-MENU-001",
+          "feature_id": "FEAT-MENU-NAVIGATION-001",
+          "type": "software_requirement",
+          "aspice_process": "SWE.1",
+          "statement": "The menu routing software shall map the Settings root menu to Display Settings, Connectivity Settings, and Vehicle Info menu states.",
+          "derived_from": [],
+          "source_evidence": [
+            "EV-CODE-MENU-001"
+          ],
+          "verification_criteria": "Verify that menu routing maps the Settings root to all required submenu states.",
+          "safety_relevance": "No",
+          "review_state": "Not reviewed",
+          "status": "Draft"
+        }
+      ],
+      "input_trace_links": [
+        {
+          "id": "TRACE-MENU-STK-SYS-001",
+          "from": "STK-REQ-MENU-001",
+          "to": "SYS-REQ-MENU-001",
+          "link_type": "derived_by"
+        }
+      ],
+      "input_test_cases": [
+        {
+          "id": "TC-MENU-001",
+          "feature_id": "FEAT-MENU-NAVIGATION-001",
+          "type": "test_case",
+          "aspice_process": "SYS.5",
+          "title": "Verify Settings menu sections",
+          "verifies": [
+            "SYS-REQ-MENU-001"
+          ],
+          "test_steps": [
+            "Open the main display screen.",
+            "Open the Settings menu.",
+            "Verify that Display, Connectivity, and Vehicle Info sections are available."
+          ],
+          "expected_result": "The Settings menu contains Display, Connectivity, and Vehicle Info sections."
+        }
+      ],
+      "expected_inspection_findings": [
+        {
+          "id": "FIND-MENU-001",
+          "feature_id": "FEAT-MENU-NAVIGATION-001",
+          "requirement_id": "SWE-REQ-MENU-001",
+          "rule_id": "RULE-SWE1-HAS-UPSTREAM-SYS2",
+          "severity": "error",
+          "finding": "The software requirement is not linked to an upstream SYS.2 system requirement."
+        }
+      ]
+    },
+    {
+      "sample_id": "SCN-COMPLIANCE-DIAG-001",
+      "scenario_type": "aspice_compliance_inspection",
+      "feature": {
+        "id": "FEAT-DISPLAY-DIAG-001",
+        "name": "Display Communication Fault Handling",
+        "description": "The rider is informed when display communication is lost and stale critical values are not shown as valid.",
+        "feature_owner": "System Safety Engineering",
+        "source_evidence": [
+          "EV-CONF-DIAG-001",
+          "EV-CODE-DIAG-001"
+        ],
+        "safety_relevance": "Yes",
+        "status": "Draft"
+      },
+      "input_evidence": [
+        {
+          "source_id": "EV-CONF-DIAG-001",
+          "source_type": "confluence",
+          "title": "Diagnostic Fault Handling",
+          "text": "If a display communication fault is detected, the rider shall be informed by a warning state. The system shall avoid showing stale critical values as valid values."
+        },
+        {
+          "source_id": "EV-CODE-DIAG-001",
+          "source_type": "code",
+          "path": "src/diagnostics/DisplayComMonitor.cpp",
+          "text": "DisplayComMonitor reports DISPLAY_COM_LOSS when no valid display communication frame is received within the configured timeout. The UI enters degraded mode."
+        }
+      ],
+      "input_requirements": [
+        {
+          "id": "STK-REQ-DIAG-001",
+          "feature_id": "FEAT-DISPLAY-DIAG-001",
+          "type": "stakeholder_requirement",
+          "statement": "The rider shall be informed when a display communication fault prevents reliable presentation of information.",
+          "source_evidence": [
+            "EV-CONF-DIAG-001"
+          ],
+          "status": "Draft"
+        },
+        {
+          "id": "SYS-REQ-DIAG-001",
+          "feature_id": "FEAT-DISPLAY-DIAG-001",
+          "type": "system_requirement",
+          "aspice_process": "SYS.2",
+          "statement": "The system shall detect display communication loss.",
+          "derived_from": [
+            "STK-REQ-DIAG-001"
+          ],
+          "source_evidence": [
+            "EV-CONF-DIAG-001",
+            "EV-CODE-DIAG-001"
+          ],
+          "verification_criteria": "Disconnect display communication and verify that communication loss is detected.",
+          "safety_relevance": "Yes",
+          "review_state": "Not reviewed",
+          "status": "Draft"
+        },
+        {
+          "id": "SYS-REQ-DIAG-002",
+          "feature_id": "FEAT-DISPLAY-DIAG-001",
+          "type": "system_requirement",
+          "aspice_process": "SYS.2",
+          "statement": "The system shall enter a display warning or degraded state when display communication is lost for longer than the configured timeout and shall prevent stale critical values from being presented as valid.",
+          "derived_from": [
+            "STK-REQ-DIAG-001"
+          ],
+          "source_evidence": [
+            "EV-CONF-DIAG-001",
+            "EV-CODE-DIAG-001"
+          ],
+          "verification_criteria": "Inject display communication loss longer than the configured timeout and verify that the system enters the warning or degraded state and does not present stale critical values as valid.",
+          "safety_relevance": "Yes",
+          "review_state": "Reviewed",
+          "status": "Approved"
+        }
+      ],
+      "input_trace_links": [
+        {
+          "id": "TRACE-DIAG-STK-SYS-001",
+          "from": "STK-REQ-DIAG-001",
+          "to": "SYS-REQ-DIAG-001",
+          "link_type": "derived_by"
+        },
+        {
+          "id": "TRACE-DIAG-STK-SYS-002",
+          "from": "STK-REQ-DIAG-001",
+          "to": "SYS-REQ-DIAG-002",
+          "link_type": "derived_by"
+        }
+      ],
+      "input_test_cases": [
+        {
+          "id": "TC-DIAG-001",
+          "feature_id": "FEAT-DISPLAY-DIAG-001",
+          "type": "test_case",
+          "aspice_process": "SYS.5",
+          "title": "Verify display degraded mode on communication loss",
+          "verifies": [
+            "SYS-REQ-DIAG-002"
+          ],
+          "test_steps": [
+            "Start the system with valid display communication.",
+            "Interrupt display communication longer than the configured timeout.",
+            "Observe the display state and critical value presentation."
+          ],
+          "expected_result": "The system enters display warning or degraded state and stale critical values are not presented as valid."
+        }
+      ],
+      "expected_inspection_findings": [
+        {
+          "id": "FIND-DIAG-001",
+          "feature_id": "FEAT-DISPLAY-DIAG-001",
+          "requirement_id": "SYS-REQ-DIAG-001",
+          "rule_id": "RULE-SAFETY-HAS-FAULT-REACTION",
+          "severity": "warning",
+          "finding": "The requirement detects display communication loss but does not define the required system reaction, degraded mode, warning, or safe behavior."
+        },
+        {
+          "id": "FIND-DIAG-002",
+          "feature_id": "FEAT-DISPLAY-DIAG-001",
+          "requirement_id": "SYS-REQ-DIAG-001",
+          "rule_id": "RULE-SAFETY-REQUIRES-REVIEW",
+          "severity": "warning",
+          "finding": "The safety-relevant requirement is not reviewed."
+        }
+      ]
+    },
+    {
+      "sample_id": "SCN-COMPLIANCE-SERVICE-MODE-001",
+      "scenario_type": "aspice_compliance_inspection",
+      "feature": {
+        "id": "FEAT-SERVICE-MODE-001",
+        "name": "Service Mode Indicator",
+        "description": "The display shows a service mode indicator when service mode is active.",
+        "feature_owner": "TBD",
+        "source_evidence": [],
+        "safety_relevance": "TBD",
+        "status": "Draft"
+      },
+      "input_evidence": [
+        {
+          "source_id": "EV-NOTE-SERVICE-001",
+          "source_type": "manual_note",
+          "title": "Unverified display requirement note",
+          "text": "The display should probably show a special service mode indicator."
+        }
+      ],
+      "input_requirements": [
+        {
+          "id": "SYS-REQ-SERVICE-001",
+          "feature_id": "FEAT-SERVICE-MODE-001",
+          "type": "system_requirement",
+          "aspice_process": "SYS.2",
+          "statement": "The system shall display a service mode indicator when service mode is active.",
+          "derived_from": [],
+          "source_evidence": [],
+          "verification_criteria": "",
+          "safety_relevance": "TBD",
+          "review_state": "Not reviewed",
+          "status": "Draft"
+        }
+      ],
+      "input_trace_links": [],
+      "input_test_cases": [],
+      "expected_inspection_findings": [
+        {
+          "id": "FIND-SERVICE-001",
+          "feature_id": "FEAT-SERVICE-MODE-001",
+          "requirement_id": "SYS-REQ-SERVICE-001",
+          "rule_id": "RULE-SYS2-HAS-UPSTREAM-STK",
+          "severity": "error",
+          "finding": "The system requirement is not derived from a stakeholder requirement or approved stakeholder source."
+        },
+        {
+          "id": "FIND-SERVICE-002",
+          "feature_id": "FEAT-SERVICE-MODE-001",
+          "requirement_id": "SYS-REQ-SERVICE-001",
+          "rule_id": "RULE-SYS2-HAS-SOURCE-EVIDENCE",
+          "severity": "error",
+          "finding": "The system requirement has no source evidence."
+        },
+        {
+          "id": "FIND-SERVICE-003",
+          "feature_id": "FEAT-SERVICE-MODE-001",
+          "requirement_id": "SYS-REQ-SERVICE-001",
+          "rule_id": "RULE-SYS2-HAS-VERIFICATION",
+          "severity": "error",
+          "finding": "The system requirement has no verification criteria and no linked SYS.5 qualification test case."
+        },
+        {
+          "id": "FIND-SERVICE-004",
+          "feature_id": "FEAT-SERVICE-MODE-001",
+          "requirement_id": "SYS-REQ-SERVICE-001",
+          "rule_id": "RULE-SAFETY-RELEVANCE-CLASSIFIED",
+          "severity": "warning",
+          "finding": "Safety relevance is TBD and should be classified before approval."
+        }
+      ]
+    }
+  ]
+}
