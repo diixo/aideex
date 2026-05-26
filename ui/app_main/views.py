@@ -153,6 +153,52 @@ def requirements(request):
     return render(request, "app_main/requirements.html", context)
 
 
+def _build_feature_tree(record):
+    reqs_by_id = {}
+    test_cases = []
+
+    for r in record.get("input_requirements", []):
+        reqs_by_id[r["id"]] = {**r, "children": [], "test_cases": [], "findings": []}
+
+    for tc in record.get("input_test_cases", []):
+        test_cases.append(tc)
+        for rid in tc.get("verifies", []):
+            if rid in reqs_by_id:
+                reqs_by_id[rid]["test_cases"].append(tc)
+
+    for f in record.get("expected_inspection_findings", []):
+        rid = f.get("requirement_id")
+        if rid and rid in reqs_by_id:
+            reqs_by_id[rid]["findings"].append(f)
+
+    roots = []
+    for rid, node in reqs_by_id.items():
+        parent_found = False
+        for pid in node.get("derived_from", []):
+            if pid in reqs_by_id:
+                reqs_by_id[pid]["children"].append(node)
+                parent_found = True
+        if not parent_found:
+            roots.append(node)
+
+    return roots
+
+
+def featured(request):
+    dataset_path = os.path.join(
+        settings.BASE_DIR, "..", "data", "aspice",
+        "aspice_compliance_inspection_dataset_with_features.json",
+    )
+    with open(dataset_path, encoding="utf-8") as f:
+        dataset = json.load(f)
+
+    return render(request, "app_main/featured.html", context={
+        "title": "AIdelix - Features",
+        "description": "Feature-level ASPICE compliance inspection",
+        "dataset_json": json.dumps(dataset, ensure_ascii=False),
+    })
+
+
 def gap_analysis(request):
     context = {
         "title": "AIdelix - Gap Analysis",
