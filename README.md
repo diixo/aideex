@@ -1,7 +1,6 @@
 # aideex
 
-
-Adaptation for ASPICE
+ASPICE compliance checker for software development projects.
 
 
 ## Run django-server:

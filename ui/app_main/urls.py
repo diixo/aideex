@@ -8,4 +8,5 @@ urlpatterns = [
     path("", views.main, name="main"),
     path("dashboard", views.dashboard, name="dashboard"),
     path("requirements", views.requirements, name="requirements"),
+    path("gap-analysis", views.gap_analysis, name="gap_analysis"),
 ]
