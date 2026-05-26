@@ -195,7 +195,23 @@ def featured(request):
     features = {}
     for record in dataset.get("records", []):
         name = record.get("feature", {}).get("name", record.get("sample_id", "Unknown"))
-        features[name] = record
+        rec = dict(record)
+        rec["input_evidence"] = {
+            e["source_id"]: e for e in rec.get("input_evidence", []) if "source_id" in e
+        }
+        rec["input_requirements"] = {
+            r["id"]: r for r in rec.get("input_requirements", []) if "id" in r
+        }
+        rec["input_trace_links"] = {
+            t["id"]: t for t in rec.get("input_trace_links", []) if "id" in t
+        }
+        rec["input_test_cases"] = {
+            t["id"]: t for t in rec.get("input_test_cases", []) if "id" in t
+        }
+        rec["expected_inspection_findings"] = {
+            f["id"]: f for f in rec.get("expected_inspection_findings", []) if "id" in f
+        }
+        features[name] = rec
 
     rules = {}
     for rule in dataset.get("inspection_rules", []):
