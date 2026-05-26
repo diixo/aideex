@@ -1,0 +1,172 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+<meta property="og:title" content="{{ title }}">
+<meta name="description" content="{{ description }}">
+{% endblock %}
+
+{% block extra_style %}
+<style>
+  .jt { font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .82rem; }
+  .jt ul { list-style: none; padding-left: 1.25rem; border-left: 1px solid #dee2e6; margin: 0; }
+  .jt > ul { border-left: none; padding-left: 0; }
+  .jt li { position: relative; padding: 1px 0; }
+  .jt-key { color: #0d6efd; font-weight: 600; }
+  .jt-str { color: #198754; }
+  .jt-num { color: #6f42c1; }
+  .jt-bool { color: #d63384; font-weight: 600; }
+  .jt-null { color: #6c757d; font-style: italic; }
+  .jt-idx { color: #6c757d; font-size: .75rem; }
+  .jt-bracket { color: #6c757d; }
+  .jt-count { color: #adb5bd; font-size: .75rem; margin-left: .25rem; }
+  .jt-toggle { cursor: pointer; user-select: none; display: inline-flex; align-items: center; }
+  .jt-toggle:hover { background: #f0f0f0; border-radius: 3px; }
+  .jt-toggle .arrow { display: inline-block; width: 1em; text-align: center; transition: transform .12s; color: #6c757d; }
+  .jt-toggle.closed .arrow { transform: rotate(-90deg); }
+  .jt-hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h5 class="fw-bold mb-4 mt-3 text-center">Features v04 — ASPICE Compliance Checker</h5>
+
+{% if entity_counts %}
+<div class="d-flex flex-wrap justify-content-center gap-2 mb-4">
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-primary">{{ entity_counts.inspection_cases }}</div>
+    <div class="small text-muted">Cases</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-primary">{{ entity_counts.features }}</div>
+    <div class="small text-muted">Features</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-dark">{{ entity_counts.rules }}</div>
+    <div class="small text-muted">Rules</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-secondary">{{ entity_counts.inspection_dimensions }}</div>
+    <div class="small text-muted">Dimensions</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-success">{{ entity_counts.requirements }}</div>
+    <div class="small text-muted">Requirements</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-info">{{ entity_counts.trace_links }}</div>
+    <div class="small text-muted">Trace Links</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-warning">{{ entity_counts.test_cases }}</div>
+    <div class="small text-muted">Test Cases</div>
+  </div>
+  <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
+    <div class="fs-5 fw-bold text-danger">{{ entity_counts.expected_findings }}</div>
+    <div class="small text-muted">Findings</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-end gap-2 py-2">
+    <button class="btn btn-sm btn-outline-secondary" id="btn-expand-all">Expand All</button>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-collapse-all">Collapse All</button>
+  </div>
+  <div class="card-body jt" id="json-tree"></div>
+</div>
+
+{% if feature_catalog %}
+<h6 class="fw-bold mt-4 mb-3 text-muted text-uppercase" style="letter-spacing:.05em; font-size:.75rem;">Feature Catalog</h6>
+<ul class="list-group mb-4">
+  {% for feat in feature_catalog %}
+  <li class="list-group-item">
+    <div class="mb-1"><strong>{{ feat.name }}</strong></div>
+    <div class="small text-muted"><span class="text-body-secondary me-1">id:</span><code class="text-primary">{{ feat.id }}</code></div>
+    <div class="small text-muted"><span class="text-body-secondary me-1">feature_type:</span>{{ feat.feature_type }}</div>
+    <div class="small text-muted"><span class="text-body-secondary me-1">description:</span>{{ feat.description }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<script>
+var DATA = {{ dataset_json|safe }};
+
+function buildTree(val, key, isLast, depth) {
+  var li = document.createElement('li');
+  if (val === null) {
+    li.innerHTML = renderLeaf(key, '<span class="jt-null">null</span>', isLast);
+    return li;
+  }
+  var type = Array.isArray(val) ? 'array' : typeof val;
+  if (type === 'object' || type === 'array') {
+    var len = type === 'array' ? val.length : Object.keys(val).length;
+    var open = type === 'array' ? '[' : '{';
+    var close = type === 'array' ? ']' : '}';
+    var toggle = document.createElement('span');
+    toggle.className = 'jt-toggle';
+    var startCollapsed = depth >= 2;
+    if (startCollapsed) toggle.classList.add('closed');
+    var keyHtml = key !== null ? '<span class="jt-key">"' + esc(String(key)) + '"</span>: ' : '';
+    toggle.innerHTML = '<span class="arrow">&#9660;</span> ' + keyHtml
+      + '<span class="jt-bracket">' + open + '</span>'
+      + '<span class="jt-count">' + len + (type === 'array' ? ' items' : ' keys') + '</span>';
+    li.appendChild(toggle);
+    var ul = document.createElement('ul');
+    if (startCollapsed) ul.classList.add('jt-hidden');
+    if (type === 'array') {
+      for (var i = 0; i < val.length; i++) ul.appendChild(buildTree(val[i], i, i === val.length - 1, depth + 1));
+    } else {
+      var keys = Object.keys(val);
+      for (var j = 0; j < keys.length; j++) ul.appendChild(buildTree(val[keys[j]], keys[j], j === keys.length - 1, depth + 1));
+    }
+    li.appendChild(ul);
+    var cl = document.createElement('span');
+    cl.className = 'jt-bracket';
+    cl.textContent = close + (isLast ? '' : ',');
+    if (startCollapsed) cl.classList.add('jt-hidden');
+    cl.setAttribute('data-role', 'close');
+    li.appendChild(cl);
+    toggle.addEventListener('click', function() {
+      var c = toggle.classList.toggle('closed');
+      ul.classList.toggle('jt-hidden', c);
+      cl.classList.toggle('jt-hidden', c);
+    });
+    return li;
+  }
+  var rendered;
+  if (type === 'string') rendered = '<span class="jt-str">"' + esc(val) + '"</span>';
+  else if (type === 'number') rendered = '<span class="jt-num">' + val + '</span>';
+  else if (type === 'boolean') rendered = '<span class="jt-bool">' + val + '</span>';
+  else rendered = esc(String(val));
+  if (typeof key === 'number') {
+    li.innerHTML = '<span class="jt-idx">' + key + ':</span> ' + rendered + (isLast ? '' : ',');
+  } else {
+    li.innerHTML = renderLeaf(key, rendered, isLast);
+  }
+  return li;
+}
+
+function renderLeaf(key, valueHtml, isLast) {
+  var k = key !== null ? '<span class="jt-key">"' + esc(String(key)) + '"</span>: ' : '';
+  return k + valueHtml + (isLast ? '' : ',');
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+var root = document.getElementById('json-tree');
+var ul = document.createElement('ul');
+ul.appendChild(buildTree(DATA, null, true, 0));
+root.appendChild(ul);
+
+document.getElementById('btn-expand-all').addEventListener('click', function() {
+  root.querySelectorAll('.jt-toggle.closed').forEach(function(t) { t.click(); });
+});
+document.getElementById('btn-collapse-all').addEventListener('click', function() {
+  root.querySelectorAll('.jt-toggle:not(.closed)').forEach(function(t) { t.click(); });
+});
+</script>
+
+{% endblock %}

@@ -318,6 +318,77 @@ def featured(request):
     })
 
 
+_FEATURES_04_DATASET = os.path.join(
+    settings.BASE_DIR, "..", "data", "aspice-new",
+    "aspice_compliance_checker_test_dataset_v04.json",
+)
+
+
+def _collect_features_04_counts(dataset):
+    cases = dataset.get("inspection_cases", [])
+    unique_features = {
+        case.get("feature", {}).get("id") or case.get("target_feature_id")
+        for case in cases
+        if case.get("feature", {}).get("id") or case.get("target_feature_id")
+    }
+    counts = {
+        "inspection_cases": len(cases),
+        "features": len(unique_features),
+        "inspection_dimensions": len(dataset.get("inspection_dimensions", [])),
+        "rules": len(dataset.get("rule_catalog", [])),
+        "requirements": 0,
+        "trace_links": 0,
+        "test_cases": 0,
+        "expected_findings": 0,
+    }
+    for case in cases:
+        counts["requirements"] += len(case.get("requirements", []))
+        counts["trace_links"] += len(case.get("trace_links", []))
+        counts["test_cases"] += len(case.get("test_cases", []))
+        counts["expected_findings"] += len(case.get("expected_findings", []))
+    return counts
+
+
+def features_04(request):
+    with open(_FEATURES_04_DATASET, encoding="utf-8") as f:
+        dataset = json.load(f)
+
+    entity_counts = _collect_features_04_counts(dataset)
+
+    # transform for JSON treeview: key by ID instead of array index
+    cases = {}
+    for case in dataset.get("inspection_cases", []):
+        cid = case.get("inspection_case_id", case.get("target_feature_id", "unknown"))
+        c = dict(case)
+        c["input_evidence"] = {e["id"]: e for e in c.get("input_evidence", []) if "id" in e}
+        c["requirements"] = {r["id"]: r for r in c.get("requirements", []) if "id" in r}
+        c["trace_links"] = {t["id"]: t for t in c.get("trace_links", []) if "id" in t}
+        c["test_cases"] = {t["id"]: t for t in c.get("test_cases", []) if "id" in t}
+        c["expected_findings"] = {f["id"]: f for f in c.get("expected_findings", []) if "id" in f}
+        cases[cid] = c
+
+    rules = {r["rule_id"]: r for r in dataset.get("rule_catalog", []) if "rule_id" in r}
+
+    dataset_out = {k: v for k, v in dataset.items() if k not in ("inspection_cases", "rule_catalog")}
+    dataset_out["rule_catalog"] = rules
+    dataset_out["inspection_cases"] = cases
+
+    feature_catalog = {}
+    for case in dataset.get("inspection_cases", []):
+        feat = case.get("feature", {})
+        fid = feat.get("id")
+        if fid and fid not in feature_catalog:
+            feature_catalog[fid] = feat
+
+    return render(request, "app_main/features_04.html", context={
+        "title": "AIdelix - Features v04",
+        "description": "ASPICE compliance checker — dataset v04",
+        "dataset_json": json.dumps(dataset_out, ensure_ascii=False),
+        "entity_counts": entity_counts,
+        "feature_catalog": feature_catalog.values(),
+    })
+
+
 def gap_analysis(request):
     context = {
         "title": "AIdelix - Gap Analysis",

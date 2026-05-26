@@ -10,4 +10,5 @@ urlpatterns = [
     path("requirements", views.requirements, name="requirements"),
     path("featured", views.featured, name="featured"),
     path("gap-analysis", views.gap_analysis, name="gap_analysis"),
+    path("features-04", views.features_04, name="features_04"),
 ]
