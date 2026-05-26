@@ -192,10 +192,23 @@ def featured(request):
     with open(dataset_path, encoding="utf-8") as f:
         dataset = json.load(f)
 
+    features = {}
+    for record in dataset.get("records", []):
+        name = record.get("feature", {}).get("name", record.get("sample_id", "Unknown"))
+        features[name] = record
+
+    rules = {}
+    for rule in dataset.get("inspection_rules", []):
+        rules[rule.get("rule_id", "unknown")] = rule
+
+    dataset_out = {k: v for k, v in dataset.items() if k not in ("records", "inspection_rules")}
+    dataset_out["inspection_rules"] = rules
+    dataset_out["features"] = features
+
     return render(request, "app_main/featured.html", context={
         "title": "AIdelix - Features",
         "description": "Feature-level ASPICE compliance inspection",
-        "dataset_json": json.dumps(dataset, ensure_ascii=False),
+        "dataset_json": json.dumps(dataset_out, ensure_ascii=False),
     })
 
 
