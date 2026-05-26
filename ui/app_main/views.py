@@ -6,6 +6,8 @@ from django.shortcuts import render, redirect
 
 from .aspice_gap_detector import detect_gaps
 from .check_aspice_bp_dataset import validate_record
+from .aspice_v04_compliance_checker import inspect_case
+from .validate_aspice_v04_dataset import validate_dataset, summarize_issues
 
 
 def main(request):
@@ -355,7 +357,35 @@ def features_04(request):
 
     entity_counts = _collect_features_04_counts(dataset)
 
-    # transform for JSON treeview: key by ID instead of array index
+    # --- POST actions ---
+    action = ""
+    gap_results = []
+    gap_total_errors = 0
+    gap_total_warnings = 0
+    validation_issues = []
+    validation_summary = {}
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action == "detect_gaps":
+            for case in dataset.get("inspection_cases", []):
+                findings = inspect_case(case)
+                errors = [f for f in findings if f["severity"] == "error"]
+                warnings = [f for f in findings if f["severity"] == "warning"]
+                gap_total_errors += len(errors)
+                gap_total_warnings += len(warnings)
+                gap_results.append({
+                    "case_id": case.get("inspection_case_id"),
+                    "feature_name": case.get("feature", {}).get("name"),
+                    "findings": findings,
+                    "errors": errors,
+                    "warnings": warnings,
+                })
+        elif action == "validate":
+            validation_issues = validate_dataset(dataset)
+            validation_summary = summarize_issues(validation_issues)
+
+    # --- transform for JSON treeview ---
     cases = {}
     for case in dataset.get("inspection_cases", []):
         cid = case.get("inspection_case_id", case.get("target_feature_id", "unknown"))
@@ -386,6 +416,12 @@ def features_04(request):
         "dataset_json": json.dumps(dataset_out, ensure_ascii=False),
         "entity_counts": entity_counts,
         "feature_catalog": feature_catalog.values(),
+        "action": action,
+        "gap_results": gap_results,
+        "gap_total_errors": gap_total_errors,
+        "gap_total_warnings": gap_total_warnings,
+        "validation_issues": validation_issues,
+        "validation_summary": validation_summary,
     })
 
 

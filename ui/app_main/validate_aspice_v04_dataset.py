@@ -50,6 +50,10 @@ ValidationIssue = dict[str, Any]
 InspectionCase = dict[str, Any]
 
 
+def by_id(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {item["id"]: item for item in items if "id" in item}
+
+
 def issue(
     *,
     severity: str,

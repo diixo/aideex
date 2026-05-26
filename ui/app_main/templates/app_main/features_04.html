@@ -69,6 +69,84 @@
 </div>
 {% endif %}
 
+<div class="d-flex gap-2 mb-4">
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="detect_gaps"
+      class="btn px-3 {% if action == 'detect_gaps' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      <i class="bi bi-search me-1"></i>Detect Gaps
+    </button>
+  </form>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="validate"
+      class="btn px-3 {% if action == 'validate' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+      <i class="bi bi-check2-circle me-1"></i>Validate Dataset
+    </button>
+  </form>
+</div>
+
+{% if action == 'detect_gaps' and gap_results %}
+<div class="mb-4">
+  <div class="d-flex gap-2 align-items-center mb-3">
+    <span class="badge bg-danger fs-6">{{ gap_total_errors }} errors</span>
+    <span class="badge bg-warning text-dark fs-6">{{ gap_total_warnings }} warnings</span>
+  </div>
+  {% for cr in gap_results %}
+  {% if cr.findings %}
+  <div class="card shadow-sm mb-2">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <strong class="small">{{ cr.feature_name }}</strong>
+      <div class="d-flex gap-1">
+        <code class="small text-muted me-2">{{ cr.case_id }}</code>
+        {% if cr.errors %}<span class="badge bg-danger">{{ cr.errors|length }} err</span>{% endif %}
+        {% if cr.warnings %}<span class="badge bg-warning text-dark">{{ cr.warnings|length }} warn</span>{% endif %}
+      </div>
+    </div>
+    <ul class="list-group list-group-flush">
+      {% for f in cr.findings %}
+      <li class="list-group-item py-1 px-3 small d-flex align-items-start gap-2">
+        <span class="badge {% if f.severity == 'error' %}bg-danger{% else %}bg-warning text-dark{% endif %} mt-1 flex-shrink-0">{{ f.severity }}</span>
+        <span class="text-muted me-1">{{ f.dimension }}</span>
+        <code class="me-1 text-primary">{{ f.target_id }}</code>
+        <span>{{ f.message }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if action == 'validate' and validation_summary %}
+<div class="mb-4">
+  <div class="d-flex gap-2 align-items-center mb-3">
+    <span class="badge bg-danger fs-6">{{ validation_summary.errors }} errors</span>
+    <span class="badge bg-warning text-dark fs-6">{{ validation_summary.warnings }} warnings</span>
+    <span class="badge bg-info text-dark fs-6">{{ validation_summary.info }} info</span>
+    <span class="badge bg-light text-dark border fs-6">{{ validation_summary.total }} total</span>
+  </div>
+  {% if validation_issues %}
+  <div class="card shadow-sm">
+    <ul class="list-group list-group-flush">
+      {% for iss in validation_issues %}
+      <li class="list-group-item py-1 px-3 small d-flex align-items-start gap-2">
+        <span class="badge {% if iss.severity == 'error' %}bg-danger{% elif iss.severity == 'warning' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %} mt-1 flex-shrink-0">{{ iss.severity }}</span>
+        <code class="me-1 text-secondary">{{ iss.code }}</code>
+        {% if iss.inspection_case_id %}<code class="me-1 text-muted">{{ iss.inspection_case_id }}</code>{% endif %}
+        {% if iss.path %}<span class="me-1 text-muted small fst-italic">{{ iss.path }}</span>{% endif %}
+        <span>{{ iss.message }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="alert alert-success py-2">Dataset is structurally valid.</div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card shadow-sm">
   <div class="card-header bg-white d-flex justify-content-end gap-2 py-2">
     <button class="btn btn-sm btn-outline-secondary" id="btn-expand-all">Expand All</button>
