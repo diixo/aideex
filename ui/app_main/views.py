@@ -184,6 +184,72 @@ def _build_feature_tree(record):
     return roots
 
 
+def _detect_feature_gaps(record):
+    gaps = []
+    reqs = {r["id"]: r for r in record.get("input_requirements", []) if "id" in r}
+    trace_links = record.get("input_trace_links", [])
+
+    def has_outgoing(artifact_id, link_type=None):
+        return any(
+            lnk.get("from") == artifact_id and (link_type is None or lnk.get("link_type") == link_type)
+            for lnk in trace_links
+        )
+
+    def has_incoming(artifact_id, link_type=None):
+        return any(
+            lnk.get("to") == artifact_id and (link_type is None or lnk.get("link_type") == link_type)
+            for lnk in trace_links
+        )
+
+    for rid, req in reqs.items():
+        rtype = req.get("type")
+        if rtype not in {"system_requirement", "software_requirement"}:
+            continue
+
+        if not req.get("source_evidence"):
+            gaps.append({"severity": "error", "category": "evidence", "artifact_id": rid,
+                         "message": f"{rid} has no source evidence."})
+
+        if not req.get("derived_from") and not has_incoming(rid):
+            gaps.append({"severity": "error", "category": "traceability", "artifact_id": rid,
+                         "message": f"{rid} has no upstream traceability."})
+
+        if rtype == "system_requirement":
+            if not req.get("verification_criteria") and not has_outgoing(rid, "verified_by"):
+                gaps.append({"severity": "error", "category": "verification", "artifact_id": rid,
+                             "message": f"{rid} has no verification criteria and no linked test case."})
+
+            safety = req.get("safety_relevance")
+            if safety == "TBD":
+                gaps.append({"severity": "warning", "category": "safety", "artifact_id": rid,
+                             "message": f"{rid} safety relevance is TBD."})
+            if safety == "Yes" and req.get("review_state") != "Reviewed":
+                gaps.append({"severity": "warning", "category": "review", "artifact_id": rid,
+                             "message": f"{rid} is safety-relevant but review_state is '{req.get('review_state')}'."})
+
+    return gaps
+
+
+def _collect_feature_counts(dataset):
+    records = dataset.get("records", [])
+    counts = {
+        "features": len(records),
+        "inspection_rules": len(dataset.get("inspection_rules", [])),
+        "input_evidence": 0,
+        "input_requirements": 0,
+        "input_trace_links": 0,
+        "input_test_cases": 0,
+        "expected_findings": 0,
+    }
+    for rec in records:
+        counts["input_evidence"] += len(rec.get("input_evidence", []))
+        counts["input_requirements"] += len(rec.get("input_requirements", []))
+        counts["input_trace_links"] += len(rec.get("input_trace_links", []))
+        counts["input_test_cases"] += len(rec.get("input_test_cases", []))
+        counts["expected_findings"] += len(rec.get("expected_inspection_findings", []))
+    return counts
+
+
 def featured(request):
     dataset_path = os.path.join(
         settings.BASE_DIR, "..", "data", "aspice",
@@ -191,6 +257,26 @@ def featured(request):
     )
     with open(dataset_path, encoding="utf-8") as f:
         dataset = json.load(f)
+
+    feature_counts = _collect_feature_counts(dataset)
+
+    gap_results = []
+    gap_total_errors = 0
+    gap_total_warnings = 0
+    if request.method == "POST" and request.POST.get("action") == "detect_gaps":
+        for record in dataset.get("records", []):
+            gaps = _detect_feature_gaps(record)
+            errors = [g for g in gaps if g["severity"] == "error"]
+            warnings = [g for g in gaps if g["severity"] == "warning"]
+            gap_total_errors += len(errors)
+            gap_total_warnings += len(warnings)
+            gap_results.append({
+                "name": record.get("feature", {}).get("name", record.get("sample_id", "Unknown")),
+                "sample_id": record.get("sample_id"),
+                "gaps": gaps,
+                "errors": errors,
+                "warnings": warnings,
+            })
 
     features = {}
     for record in dataset.get("records", []):
@@ -225,6 +311,10 @@ def featured(request):
         "title": "AIdelix - Features",
         "description": "Feature-level ASPICE compliance inspection",
         "dataset_json": json.dumps(dataset_out, ensure_ascii=False),
+        "feature_counts": feature_counts,
+        "gap_results": gap_results,
+        "gap_total_errors": gap_total_errors,
+        "gap_total_warnings": gap_total_warnings,
     })
 
 

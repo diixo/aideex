@@ -1,0 +1,87 @@
+{
+  "schema_version": "0.4",
+  "inspection_dimensions": [
+    "source_evidence",
+    "upstream_traceability",
+    "downstream_traceability",
+    "verification_criteria",
+    "linked_test_case",
+    "review_status",
+    "safety_classification",
+    "cross_level_consistency"
+  ],
+  "rule_catalog": [
+    {
+      "rule_id": "RULE-REQ-HAS-SOURCE-EVIDENCE",
+      "dimension": "source_evidence",
+      "severity_if_failed": "error",
+      "description": "Each requirement should have source evidence or be derived from a requirement with source evidence."
+    },
+    {
+      "rule_id": "RULE-SYS2-HAS-UPSTREAM-TRACEABILITY",
+      "dimension": "upstream_traceability",
+      "severity_if_failed": "error",
+      "description": "Each SYS.2 requirement should be linked to a stakeholder requirement or approved stakeholder source."
+    },
+    {
+      "rule_id": "RULE-SYS2-HAS-DOWNSTREAM-TRACEABILITY",
+      "dimension": "downstream_traceability",
+      "severity_if_failed": "warning",
+      "description": "Each SYS.2 requirement should be linked downstream to architecture, software requirement, or verification artifact."
+    },
+    {
+      "rule_id": "RULE-SWE1-HAS-UPSTREAM-SYS2",
+      "dimension": "upstream_traceability",
+      "severity_if_failed": "error",
+      "description": "Each SWE.1 requirement should be linked to an upstream SYS.2 requirement."
+    },
+    {
+      "rule_id": "RULE-REQ-HAS-VERIFICATION-CRITERIA",
+      "dimension": "verification_criteria",
+      "severity_if_failed": "error",
+      "description": "Each verifiable requirement should define verification criteria."
+    },
+    {
+      "rule_id": "RULE-SYS2-HAS-LINKED-TEST-CASE",
+      "dimension": "linked_test_case",
+      "severity_if_failed": "error",
+      "description": "Each SYS.2 requirement should be verified by at least one linked SYS.5 test case or equivalent verification artifact."
+    },
+    {
+      "rule_id": "RULE-REVIEW-STATUS-DEFINED",
+      "dimension": "review_status",
+      "severity_if_failed": "warning",
+      "description": "Requirements should have a defined review state."
+    },
+    {
+      "rule_id": "RULE-SAFETY-CLASSIFIED",
+      "dimension": "safety_classification",
+      "severity_if_failed": "warning",
+      "description": "Safety relevance should be classified as Yes or No before approval."
+    },
+    {
+      "rule_id": "RULE-SAFETY-REQUIRES-REVIEW",
+      "dimension": "review_status",
+      "severity_if_failed": "warning",
+      "description": "Safety-relevant requirements should be reviewed before approval."
+    },
+    {
+      "rule_id": "RULE-CONSISTENCY-STK-SYS",
+      "dimension": "cross_level_consistency",
+      "severity_if_failed": "warning",
+      "description": "SYS.2 requirements should preserve the intent of upstream stakeholder requirements."
+    },
+    {
+      "rule_id": "RULE-CONSISTENCY-SYS-SWE",
+      "dimension": "cross_level_consistency",
+      "severity_if_failed": "warning",
+      "description": "SWE.1 requirements should implement the behavior defined by linked SYS.2 requirements without changing its meaning."
+    },
+    {
+      "rule_id": "RULE-CONSISTENCY-SYS-TEST",
+      "dimension": "cross_level_consistency",
+      "severity_if_failed": "warning",
+      "description": "Test cases should verify the behavior and conditions specified in linked SYS.2 requirements."
+    }
+  ]
+}

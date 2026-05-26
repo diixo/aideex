@@ -34,12 +34,55 @@
 
 <h5 class="fw-bold mb-4 mt-3 text-center">Features &amp; Requirements — Tree View</h5>
 
-<div class="mb-3 d-flex gap-2 justify-content-center">
-  <button class="btn btn-sm btn-outline-secondary" id="btn-expand-all">Expand All</button>
-  <button class="btn btn-sm btn-outline-secondary" id="btn-collapse-all">Collapse All</button>
+{% include "app_main/includes/feature_counts.html" %}
+
+<div class="mb-3">
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="detect_gaps"
+      class="btn btn-sm {% if gap_results %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      <i class="bi bi-search me-1"></i>Detect Gaps
+    </button>
+  </form>
 </div>
 
+{% if gap_results %}
+<div class="mb-4">
+  <div class="d-flex gap-3 align-items-center mb-3">
+    <span class="badge bg-danger fs-6">{{ gap_total_errors }} errors</span>
+    <span class="badge bg-warning text-dark fs-6">{{ gap_total_warnings }} warnings</span>
+  </div>
+  {% for fr in gap_results %}
+  {% if fr.gaps %}
+  <div class="card shadow-sm mb-2">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <strong class="small">{{ fr.name }}</strong>
+      <div class="d-flex gap-1">
+        {% if fr.errors %}<span class="badge bg-danger">{{ fr.errors|length }} err</span>{% endif %}
+        {% if fr.warnings %}<span class="badge bg-warning text-dark">{{ fr.warnings|length }} warn</span>{% endif %}
+      </div>
+    </div>
+    <ul class="list-group list-group-flush">
+      {% for g in fr.gaps %}
+      <li class="list-group-item py-1 px-3 small d-flex align-items-start gap-2">
+        <span class="badge {% if g.severity == 'error' %}bg-danger{% else %}bg-warning text-dark{% endif %} mt-1 flex-shrink-0">{{ g.severity }}</span>
+        <span class="text-muted me-1">{{ g.category }}</span>
+        <code class="me-1">{{ g.artifact_id }}</code>
+        <span>{{ g.message }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="card shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-end gap-2 py-2">
+    <button class="btn btn-sm btn-outline-secondary" id="btn-expand-all">Expand All</button>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-collapse-all">Collapse All</button>
+  </div>
   <div class="card-body jt" id="json-tree"></div>
 </div>
 
