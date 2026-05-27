@@ -2,14 +2,160 @@
 
 {% block meta %}
 <title>{{ title }}</title>
+<meta name="description" content="{{ description }}">
+{% endblock %}
+
+{% block extra_style %}
+<style>
+  .lc-pipeline { position: relative; }
+  .lc-row { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 0; }
+  .lc-spine {
+    display: flex; flex-direction: column; align-items: center;
+    flex-shrink: 0; width: 80px;
+  }
+  .lc-badge {
+    font-size: .75rem; font-weight: 700; padding: .35rem .6rem;
+    border-radius: .375rem; white-space: nowrap; text-align: center;
+    width: 100%; z-index: 1;
+  }
+  .lc-connector {
+    display: flex; flex-direction: column; align-items: center; flex-grow: 1; min-height: 24px;
+  }
+  .lc-connector-line {
+    width: 2px; background: #dee2e6; flex-grow: 1; min-height: 12px;
+  }
+  .lc-connector-arrow {
+    font-size: .95rem !important; color: #adb5bd; line-height: 1;
+  }
+  .lc-content { flex: 1; padding-bottom: 0; min-height: 48px; padding-top: .2rem; }
+  .lc-empty { color: #adb5bd; font-size: .82rem; font-style: italic; padding-top: .4rem; }
+
+  /* item cards */
+  .lc-item { border-radius: .375rem; padding: .5rem .75rem; margin-bottom: .4rem; font-size: .85rem; }
+  .lc-item-feature  { background: #f3f0ff; border-left: 3px solid #6f42c1; }
+  .lc-item-evidence { background: #f8f9fa; border-left: 3px solid #6c757d; }
+  .lc-item-sys1     { background: #f0fff4; border-left: 3px solid #198754; }
+  .lc-item-sys2     { background: #e8f0fe; border-left: 3px solid #0d6efd; }
+  .lc-item-sys3     { background: #e8f8ff; border-left: 3px solid #0dcaf0; }
+  .lc-item-swe1     { background: #e8f0fe; border-left: 3px solid #0d6efd; }
+  .lc-item-swe2     { background: #e8f8ff; border-left: 3px solid #0dcaf0; }
+  .lc-item-swe3     { background: #e8f8ff; border-left: 3px solid #0dcaf0; }
+  .lc-item-test     { background: #fffbe6; border-left: 3px solid #ffc107; }
+  .lc-item-findings { background: #fff0f0; border-left: 3px solid #dc3545; }
+
+  .lc-item code { font-size: .78rem; }
+  .lc-process-label { font-size: .7rem; color: #6c757d; margin-bottom: .4rem; }
+
+  /* badge colors */
+  .lc-badge-purple    { background: #6f42c1; color: #fff; }
+  .lc-badge-secondary { background: #6c757d; color: #fff; }
+  .lc-badge-success   { background: #198754; color: #fff; }
+  .lc-badge-primary   { background: #0d6efd; color: #fff; }
+  .lc-badge-info      { background: #0dcaf0; color: #000; }
+  .lc-badge-warning   { background: #ffc107; color: #000; }
+  .lc-badge-danger    { background: #dc3545; color: #fff; }
+</style>
 {% endblock %}
 
 {% block content %}
-<h5 class="fw-bold mb-4 mt-3 text-center">Lifecycle Scenario</h5>
-{% if case %}
-<p class="text-center text-muted">{{ case.feature.name }} &mdash; <code>{{ feature_id }}</code></p>
+
+<div class="d-flex align-items-center gap-2 mt-3 mb-4">
+  <a href="{% url 'app_main:features_04' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">Lifecycle Scenario</h5>
+  {% if case %}
+  <span class="badge bg-light text-dark border">{{ case.feature.name }}</span>
+  <code class="small text-muted">{{ feature_id }}</code>
+  {% endif %}
+</div>
+
+{% if not case %}
+<div class="alert alert-warning">Feature <code>{{ feature_id }}</code> not found in dataset.</div>
 {% else %}
-<p class="text-center text-danger">Feature <code>{{ feature_id }}</code> not found.</p>
+
+<div class="lc-pipeline">
+  {% for stage in pipeline %}
+  <div class="lc-row">
+
+    <div class="lc-spine">
+      <span class="lc-badge lc-badge-{{ stage.color }}">{{ stage.label }}</span>
+      {% if not forloop.last %}
+      <div class="lc-connector">
+        <div class="lc-connector-line"></div>
+        <span class="material-icons lc-connector-arrow">arrow_downward</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="lc-content">
+      {% if stage.process %}<div class="lc-process-label">{{ stage.process }}</div>{% endif %}
+
+      {% if stage.items %}
+
+        {% if stage.item_type == "feature" %}
+          {% with feat=stage.items.0 %}
+          <div class="lc-item lc-item-feature">
+            <strong>{{ feat.name }}</strong>
+            <code class="ms-2 text-muted">{{ feat.id }}</code>
+            {% if feat.feature_type %}<span class="badge bg-light text-dark border ms-1 small">{{ feat.feature_type }}</span>{% endif %}
+            <p class="mb-0 mt-1 small text-body-secondary">{{ feat.description }}</p>
+          </div>
+          {% endwith %}
+
+        {% elif stage.item_type == "evidence" %}
+          {% for ev in stage.items %}
+          <div class="lc-item lc-item-evidence">
+            <code class="text-secondary">{{ ev.id }}</code>
+            <span class="badge bg-light text-dark border ms-1 small">{{ ev.type }}</span>
+            <p class="mb-0 mt-1 small text-body-secondary">{{ ev.text }}</p>
+          </div>
+          {% endfor %}
+
+        {% elif stage.item_type == "requirement" %}
+          {% for req in stage.items %}
+          <div class="lc-item lc-item-{{ stage.stage_id }}">
+            <div class="d-flex align-items-center gap-1 flex-wrap">
+              <code>{{ req.id }}</code>
+              <span class="badge bg-light text-dark border small">{{ req.status }}</span>
+              {% if req.safety_relevance == "Yes" %}<span class="badge bg-danger small">Safety</span>{% elif req.safety_relevance == "TBD" %}<span class="badge bg-warning text-dark small">Safety TBD</span>{% endif %}
+              {% if req.review_state %}<span class="badge bg-light text-secondary border small">{{ req.review_state }}</span>{% endif %}
+            </div>
+            <p class="mb-0 mt-1 small">{{ req.statement }}</p>
+            {% if req.verification_criteria %}<p class="mb-0 mt-1 small text-body-secondary"><i class="bi bi-check2-square me-1"></i>{{ req.verification_criteria }}</p>{% endif %}
+          </div>
+          {% endfor %}
+
+        {% elif stage.item_type == "test_case" %}
+          {% for tc in stage.items %}
+          <div class="lc-item lc-item-test">
+            <code>{{ tc.id }}</code>
+            <span class="badge bg-light text-dark border ms-1 small">{{ tc.aspice_process }}</span>
+            <strong class="small ms-1">{{ tc.title }}</strong>
+            {% if tc.expected_result %}<p class="mb-0 mt-1 small text-body-secondary">{{ tc.expected_result }}</p>{% endif %}
+          </div>
+          {% endfor %}
+
+        {% elif stage.item_type == "finding" %}
+          {% for f in stage.items %}
+          <div class="lc-item lc-item-findings">
+            <span class="badge {% if f.severity == 'error' %}bg-danger{% else %}bg-warning text-dark{% endif %} me-1">{{ f.severity }}</span>
+            <span class="small text-muted me-1">{{ f.dimension }}</span>
+            <code class="small">{{ f.target_id }}</code>
+            <p class="mb-0 mt-1 small">{{ f.message }}</p>
+          </div>
+          {% endfor %}
+        {% endif %}
+
+      {% else %}
+        <div class="lc-empty">— not covered in this inspection case</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+
 {% endif %}
-<p class="text-center text-body-secondary">Page layout coming soon.</p>
+
 {% endblock %}
