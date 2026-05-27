@@ -516,6 +516,7 @@ def feature_timeline(request, feature_id):
         "code_evidence": code_evidence,
         "doc_evidence": doc_evidence,
         "view_layers": view_layers,
+        "inspection_findings": case.get("expected_findings", []) if case else [],
     })
 
 

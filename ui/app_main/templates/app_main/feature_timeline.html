@@ -29,7 +29,9 @@
   .tl-node.tl-behavior::before { background: #fd7e14; border-color: #fd7e14; }
   .tl-node.tl-alloc::before    { background: #20c997; border-color: #20c997; }
   .tl-node.tl-view::before     { background: #1971c2; border-color: #1971c2; }
-  .tl-node.tl-evidence::before { background: #495057; border-color: #495057; }
+  .tl-node.tl-evidence::before  { background: #495057; border-color: #495057; }
+  .tl-node.tl-findings::before  { background: #dc3545; border-color: #dc3545; }
+  .tl-label-findings { color: #dc3545; }
 
   .tl-label {
     font-size: .7rem; font-weight: 700; text-transform: uppercase;
@@ -165,6 +167,10 @@
     <div class="stat-mini">
       <div class="num">{{ evidence_count }}</div>
       <div class="lbl">Evidence</div>
+    </div>
+    <div class="stat-mini">
+      <div class="num" style="color:#dc3545;">{{ inspection_findings|length }}</div>
+      <div class="lbl">Findings</div>
     </div>
   </div>
 
@@ -334,6 +340,34 @@
       </div>
     </div>
     {% endif %}
+
+    <!-- ── 7. Inspection Findings ───────────── -->
+    <div class="tl-node tl-findings">
+      <div class="tl-label tl-label-findings {% if not inspection_findings %}collapsed{% endif %}"
+           data-bs-toggle="collapse" data-bs-target="#tl-findings">
+        <span class="material-icons chevron">expand_more</span>
+        Inspection Findings ({{ inspection_findings|length }})
+      </div>
+      <div class="collapse {% if inspection_findings %}show{% endif %}" id="tl-findings">
+        {% if inspection_findings %}
+          {% for f in inspection_findings %}
+          <div class="sc-card" style="border-left: 3px solid {% if f.severity == 'error' %}#dc3545{% else %}#ffc107{% endif %};">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="sc-badge" style="background:{% if f.severity == 'error' %}#ffe3e3;color:#c92a2a;{% else %}#fff3bf;color:#5c3c00;{% endif %}">
+                {{ f.severity }}
+              </span>
+              <span class="sc-card-meta">{{ f.dimension }}</span>
+              <code class="sc-card-id">{{ f.target_id }}</code>
+            </div>
+            <div class="sc-card-desc mt-1">{{ f.message }}</div>
+            {% if f.rule_id %}<div class="sc-card-meta mt-1">{{ f.rule_id }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="sc-card-meta fst-italic" style="color:#adb5bd;">— no findings for this feature</div>
+        {% endif %}
+      </div>
+    </div>
 
   </div><!-- /scenario-timeline -->
 
