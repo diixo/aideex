@@ -464,6 +464,61 @@ def lifecycle_scenario(request, feature_id):
     })
 
 
+def feature_timeline(request, feature_id):
+    with open(_FEATURES_04_DATASET, encoding="utf-8") as f:
+        dataset = json.load(f)
+
+    case = next(
+        (c for c in dataset.get("inspection_cases", [])
+         if c.get("feature", {}).get("id") == feature_id),
+        None,
+    )
+
+    customer_seeds = []
+    view_layers = []
+    code_evidence = []
+    doc_evidence = []
+
+    if case:
+        reqs_by_type = {}
+        for req in case.get("requirements", []):
+            reqs_by_type.setdefault(req.get("type", "unknown"), []).append(req)
+
+        customer_seeds = reqs_by_type.get("stakeholder_requirement", [])
+
+        sys_reqs = reqs_by_type.get("system_requirement", [])
+        swe_reqs = reqs_by_type.get("software_requirement", [])
+        view_layers = [
+            {"label": "SYS.2 — System Requirements Analysis",  "short": "sys2", "count": len(sys_reqs), "requirements": sys_reqs},
+            {"label": "SYS.3 — System Architectural Design",   "short": "sys3", "count": 0,             "requirements": []},
+            {"label": "SWE.1 — Software Requirements Analysis","short": "swe1", "count": len(swe_reqs), "requirements": swe_reqs},
+            {"label": "SWE.2 — Software Architectural Design", "short": "swe2", "count": 0,             "requirements": []},
+            {"label": "SWE.3 — Software Detailed Design",      "short": "swe3", "count": 0,             "requirements": []},
+        ]
+
+        for ev in case.get("input_evidence", []):
+            if ev.get("type") == "code":
+                code_evidence.append(ev)
+            else:
+                doc_evidence.append(ev)
+
+    return render(request, "app_main/feature_timeline.html", context={
+        "title": f"AIdelix — Timeline: {feature_id}",
+        "description": "Feature timeline",
+        "feature_id": feature_id,
+        "case": case,
+        "feature": case.get("feature", {}) if case else {},
+        "customer_seeds": customer_seeds,
+        "behaviors": [],
+        "owner_elements": [],
+        "total_reqs": len(case.get("requirements", [])) if case else 0,
+        "evidence_count": len(case.get("input_evidence", [])) if case else 0,
+        "code_evidence": code_evidence,
+        "doc_evidence": doc_evidence,
+        "view_layers": view_layers,
+    })
+
+
 def gap_analysis(request):
     context = {
         "title": "AIdelix - Gap Analysis",

@@ -12,4 +12,5 @@ urlpatterns = [
     path("gap-analysis", views.gap_analysis, name="gap_analysis"),
     path("features-04", views.features_04, name="features_04"),
     path("features-04/<str:feature_id>/lifecycle", views.lifecycle_scenario, name="lifecycle_scenario"),
+    path("features-04/<str:feature_id>/timeline", views.feature_timeline, name="feature_timeline"),
 ]

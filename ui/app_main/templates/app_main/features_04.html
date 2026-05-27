@@ -162,11 +162,18 @@
     <div class="small text-muted"><span class="text-body-secondary me-1">id:</span><code class="text-primary">{{ feat.id }}</code></div>
     <div class="small text-muted"><span class="text-body-secondary me-1">feature_type:</span>{{ feat.feature_type }}</div>
     <div class="small text-muted mb-2"><span class="text-body-secondary me-1">description:</span>{{ feat.description }}</div>
-    <a href="{% url 'app_main:lifecycle_scenario' feat.id %}"
-       class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
-      <span class="material-icons" style="font-size:1.1rem;">route</span>
-      Lifecycle Scenario
-    </a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'app_main:lifecycle_scenario' feat.id %}"
+         class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+        <span class="material-icons" style="font-size:1.1rem;">route</span>
+        Lifecycle Scenario
+      </a>
+      <a href="{% url 'app_main:feature_timeline' feat.id %}"
+         class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+        <span class="material-icons" style="font-size:1.1rem;">timeline</span>
+        Timeline
+      </a>
+    </div>
   </li>
   {% endfor %}
 </ul>

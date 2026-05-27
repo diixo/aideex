@@ -107,6 +107,7 @@
   .stat-mini {
     text-align: center; padding: .5rem .75rem;
     background: #fff; border: 1px solid #dee2e6; border-radius: .5rem;
+    flex: 1; min-width: 80px;
   }
   .stat-mini .num { font-size: 1.3rem; font-weight: 700; color: #1864ab; }
   .stat-mini .lbl { font-size: .68rem; color: #6c757d; text-transform: uppercase; }
@@ -124,9 +125,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="col-md-12 col-12 pt-4 pb-4" style="font-size: 16px;">
+<div class="pt-3 pb-4">
 
-  <a href="{% url 'app_main:view_artifact' 'feature_catalog' %}"
+  <a href="{% url 'app_main:features_04' %}"
      class="btn btn-sm btn-secondary d-inline-flex align-items-center gap-1 mb-3">
     <span class="material-icons" style="font-size:1rem;">arrow_back</span>
     Feature Catalog
@@ -144,36 +145,26 @@
   <p class="text-muted small mb-3">{{ feature.type }}</p>
 
   <!-- ── Stats ───────────────────────────────── -->
-  <div class="row g-2 mb-4">
-    <div class="col">
-      <div class="stat-mini">
-        <div class="num">{{ customer_seeds|length }}</div>
-        <div class="lbl">Customer Needs</div>
-      </div>
+  <div class="d-flex flex-wrap gap-2 mb-4 justify-content-between">
+    <div class="stat-mini">
+      <div class="num">{{ customer_seeds|length }}</div>
+      <div class="lbl">Customer Needs</div>
     </div>
-    <div class="col">
-      <div class="stat-mini">
-        <div class="num">{{ behaviors|length }}</div>
-        <div class="lbl">Behaviors</div>
-      </div>
+    <div class="stat-mini">
+      <div class="num">{{ behaviors|length }}</div>
+      <div class="lbl">Behaviors</div>
     </div>
-    <div class="col">
-      <div class="stat-mini">
-        <div class="num">{{ owner_elements|length }}</div>
-        <div class="lbl">Owner Elements</div>
-      </div>
+    <div class="stat-mini">
+      <div class="num">{{ owner_elements|length }}</div>
+      <div class="lbl">Owner Elements</div>
     </div>
-    <div class="col">
-      <div class="stat-mini">
-        <div class="num">{{ total_reqs }}</div>
-        <div class="lbl">Requirements</div>
-      </div>
+    <div class="stat-mini">
+      <div class="num">{{ total_reqs }}</div>
+      <div class="lbl">Requirements</div>
     </div>
-    <div class="col">
-      <div class="stat-mini">
-        <div class="num">{{ evidence_count }}</div>
-        <div class="lbl">Evidence</div>
-      </div>
+    <div class="stat-mini">
+      <div class="num">{{ evidence_count }}</div>
+      <div class="lbl">Evidence</div>
     </div>
   </div>
 
@@ -231,79 +222,49 @@
         <span class="material-icons chevron">expand_more</span> Behaviors ({{ behaviors|length }})
       </div>
       <div class="collapse" id="tl-behaviors">
-      {% for b in behaviors %}
-      <div class="sc-card">
-        <div class="d-flex align-items-center gap-2">
-          <span class="sc-card-id">{{ b.behavior_id }}</span>
-          {% if b.owner_element %}
-          <span class="sc-pill pill-el">{{ b.owner_element.element_id }}</span>
-          {% endif %}
-        </div>
-        <div class="sc-card-title">{{ b.name }}</div>
-        <div class="trigger-line mt-1">{{ b.trigger }}</div>
-
-        {% if b.inputs or b.outputs %}
-        <div class="row g-2 mt-1">
-          {% if b.inputs %}
-          <div class="col-md-6">
-            <div class="sc-card-meta fw-bold">Inputs</div>
-            {% for i in b.inputs %}
-            <div class="io-row"><span class="sc-pill pill-term">{{ i.term_id }}</span> <span class="io-value">{{ i.value_or_state }}</span></div>
-            {% endfor %}
+      {% if behaviors %}
+        {% for b in behaviors %}
+        <div class="sc-card">
+          <div class="d-flex align-items-center gap-2">
+            <span class="sc-card-id">{{ b.behavior_id }}</span>
+            {% if b.owner_element %}<span class="sc-pill pill-el">{{ b.owner_element.element_id }}</span>{% endif %}
           </div>
-          {% endif %}
-          {% if b.outputs %}
-          <div class="col-md-6">
-            <div class="sc-card-meta fw-bold">Outputs</div>
-            {% for o in b.outputs %}
-            <div class="io-row"><span class="sc-pill pill-term">{{ o.term_id }}</span> <span class="io-value">{{ o.value_or_state }}</span></div>
-            {% endfor %}
-          </div>
-          {% endif %}
+          <div class="sc-card-title">{{ b.name }}</div>
+          <div class="trigger-line mt-1">{{ b.trigger }}</div>
         </div>
-        {% endif %}
-
-        {% if b.acceptance_criteria %}
-        <div class="mt-2">
-          <div class="sc-card-meta fw-bold mb-1">Acceptance Criteria</div>
-          {% for ac in b.acceptance_criteria %}
-          <div class="ac-card">
-            <strong>Given</strong> {{ ac.given|default:"—" }}
-            <strong>when</strong> {{ ac.when|default:"—" }}
-            <strong>then</strong> {{ ac.then|default:"—" }}
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% endfor %}
+        {% endfor %}
+      {% else %}
+        <div class="sc-card-meta fst-italic" style="color:#adb5bd;">— not covered in this inspection case</div>
+      {% endif %}
       </div>
     </div>
 
     <!-- ── 4. Allocation ─────────────────────── -->
-    {% if owner_elements %}
     <div class="tl-node tl-alloc">
       <div class="tl-label tl-label-alloc collapsed" data-bs-toggle="collapse" data-bs-target="#tl-alloc">
         <span class="material-icons chevron">expand_more</span> Allocated To ({{ owner_elements|length }})
       </div>
       <div class="collapse" id="tl-alloc">
-      {% for el in owner_elements %}
-      <div class="sc-card">
-        <div class="d-flex align-items-center gap-2">
-          <span class="sc-card-id">{{ el.element_id }}</span>
-          <span class="sc-badge badge-kind-{{ el.kind }}">{{ el.kind }}</span>
+      {% if owner_elements %}
+        {% for el in owner_elements %}
+        <div class="sc-card">
+          <div class="d-flex align-items-center gap-2">
+            <span class="sc-card-id">{{ el.element_id }}</span>
+            <span class="sc-badge badge-kind-{{ el.kind }}">{{ el.kind }}</span>
+          </div>
+          <div class="sc-card-title">{{ el.name }}</div>
+          {% if el.responsibilities %}
+          <div class="sc-card-meta mt-1">
+            {% for r in el.responsibilities %}{{ r }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+          </div>
+          {% endif %}
         </div>
-        <div class="sc-card-title">{{ el.name }}</div>
-        {% if el.responsibilities %}
-        <div class="sc-card-meta mt-1">
-          {% for r in el.responsibilities %}{{ r }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% endfor %}
+        {% endfor %}
+      {% else %}
+        <div class="sc-card-meta fst-italic" style="color:#adb5bd;">— not covered in this inspection case</div>
+      {% endif %}
       </div>
     </div>
-    {% endif %}
 
     <!-- ── 5. View-level requirements ────────── -->
     {% for vl in view_layers %}
@@ -312,31 +273,22 @@
         <span class="material-icons chevron">expand_more</span> {{ vl.label }} ({{ vl.count }})
       </div>
       <div class="collapse" id="tl-{{ vl.short }}">
-      {% for r in vl.requirements %}
-      <div class="sc-card">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <span class="sc-card-id">{{ r.id }}</span>
-          {% if r.source_behavior_id %}
-          <span class="sc-pill pill-beh" title="Source behavior">{{ r.source_behavior_id }}</span>
-          {% endif %}
-          {% if r.source_element_id %}
-          <span class="sc-pill pill-el" title="Allocated element">{{ r.source_element_id }}</span>
-          {% endif %}
-          {% if r.verification_method %}
-          <span class="sc-card-meta ms-auto">{{ r.verification_method }}</span>
-          {% endif %}
+      {% if vl.requirements %}
+        {% for r in vl.requirements %}
+        <div class="sc-card">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="sc-card-id">{{ r.id }}</span>
+            <span class="sc-pill pill-ev">{{ r.status }}</span>
+            {% if r.safety_relevance == "Yes" %}<span class="sc-badge" style="background:#ffe3e3;color:#c92a2a;">Safety</span>{% elif r.safety_relevance == "TBD" %}<span class="sc-badge" style="background:#fff3bf;color:#5c3c00;">Safety TBD</span>{% endif %}
+            {% if r.review_state %}<span class="sc-card-meta ms-auto">{{ r.review_state }}</span>{% endif %}
+          </div>
+          <div class="sc-card-desc">{{ r.statement }}</div>
+          {% if r.verification_criteria %}<div class="sc-card-meta mt-1"><i class="bi bi-check2-square me-1"></i>{{ r.verification_criteria }}</div>{% endif %}
         </div>
-        <div class="sc-card-title">{{ r.title }}</div>
-        <div class="sc-card-desc">{{ r.description }}</div>
-        {% if r.acceptance_criteria %}
-        <div class="mt-1">
-          {% for ac in r.acceptance_criteria %}
-          <div class="ac-card">{{ ac }}</div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% endfor %}
+        {% endfor %}
+      {% else %}
+        <div class="sc-card-meta fst-italic" style="color:#adb5bd;">— not covered in this inspection case</div>
+      {% endif %}
       </div>
     </div>
     {% endfor %}
@@ -354,11 +306,11 @@
       {% for e in code_evidence %}
       <div class="ev-card">
         <div class="d-flex align-items-center gap-2">
-          <span class="sc-pill pill-ev">{{ e.evidence_id }}</span>
-          <span class="ev-path">{{ e.source_path }}</span>
+          <span class="sc-pill pill-ev">{{ e.id }}</span>
+          <span class="ev-path">{{ e.type }}</span>
         </div>
-        {% if e.excerpt %}
-        <div class="ev-excerpt">{{ e.excerpt|truncatechars:200 }}</div>
+        {% if e.text %}
+        <div class="ev-excerpt">{{ e.text|truncatechars:200 }}</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -369,11 +321,11 @@
       {% for e in doc_evidence %}
       <div class="ev-card">
         <div class="d-flex align-items-center gap-2">
-          <span class="sc-pill pill-ev">{{ e.evidence_id }}</span>
-          <span class="ev-path">{{ e.source_path }}</span>
+          <span class="sc-pill pill-ev">{{ e.id }}</span>
+          <span class="ev-path">{{ e.type }}</span>
         </div>
-        {% if e.excerpt %}
-        <div class="ev-excerpt">{{ e.excerpt|truncatechars:200 }}</div>
+        {% if e.text %}
+        <div class="ev-excerpt">{{ e.text|truncatechars:200 }}</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -389,17 +341,24 @@
 
 <script>
 (function() {
+  // Sync chevron rotation with collapse state
+  document.querySelectorAll('.scenario-timeline .collapse').forEach(function(collapseEl) {
+    var label = document.querySelector('[data-bs-target="#' + collapseEl.id + '"]');
+    if (!label) return;
+    collapseEl.addEventListener('show.bs.collapse', function() { label.classList.remove('collapsed'); });
+    collapseEl.addEventListener('hide.bs.collapse', function() { label.classList.add('collapsed'); });
+  });
+
+  // Expand / Collapse all
   var btn = document.getElementById('toggleAll');
   var targets = document.querySelectorAll('.scenario-timeline .collapse');
   btn.addEventListener('click', function() {
     var anyHidden = Array.from(targets).some(function(el) { return !el.classList.contains('show'); });
     targets.forEach(function(el) {
-      var bsCollapse = bootstrap.Collapse.getOrCreateInstance(el, {toggle: false});
-      if (anyHidden) bsCollapse.show(); else bsCollapse.hide();
+      bootstrap.Collapse.getOrCreateInstance(el, {toggle: false})[anyHidden ? 'show' : 'hide']();
     });
-    var icon = btn.querySelector('.material-icons');
-    icon.textContent = anyHidden ? 'unfold_less' : 'unfold_more';
-    btn.lastChild.textContent = anyHidden ? ' Collapse all' : ' Expand all';
+    btn.querySelector('.material-icons').textContent = anyHidden ? 'unfold_less' : 'unfold_more';
+    btn.childNodes[btn.childNodes.length - 1].textContent = anyHidden ? ' Collapse all' : ' Expand all';
   });
 })();
 </script>
