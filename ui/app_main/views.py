@@ -13,14 +13,14 @@ from .validate_aspice_v04_dataset import validate_dataset, summarize_issues
 def main(request):
     #return redirect(to="app_main:confluence")
     return render(request, "app_main/index.html", context={
-        "title": "AIdelix",
-        "description": "AIdelix description"})
+        "title": "AI-delix",
+        "description": "AI-delix description"})
 
 
 def dashboard(request):
     return render(request, "app_main/dashboard.html", context={
-        "title": "AIdelix - Dashboard",
-        "description": "AIdelix dashboard description"})
+        "title": "AI-delix - Dashboard",
+        "description": "AI-delix dashboard description"})
 
 
 _REQ_TYPES = {"stakeholder_requirement", "system_requirement", "software_requirement"}
@@ -216,8 +216,8 @@ def aispice(request):
             feature_catalog[fid] = feat
 
     return render(request, "app_main/aspice.html", context={
-        "title": "AIdelix - Features v04",
-        "description": "ASPICE compliance checker — dataset v04",
+        "title": "AI-delix - ASPICE Compliance Checker",
+        "description": "ASPICE compliance checker",
         "dataset_json": json.dumps(dataset_out, ensure_ascii=False),
         "entity_counts": entity_counts,
         "feature_catalog": feature_catalog.values(),
@@ -261,7 +261,7 @@ def lifecycle_scenario(request, feature_id):
         ]
 
     return render(request, "app_main/lifecycle_scenario.html", context={
-        "title": f"AIdelix — Lifecycle: {feature_id}",
+        "title": f"AI-delix — Lifecycle: {feature_id}",
         "description": "Feature lifecycle scenario",
         "feature_id": feature_id,
         "case": case,
@@ -308,7 +308,7 @@ def feature_timeline(request, feature_id):
                 doc_evidence.append(ev)
 
     return render(request, "app_main/feature_timeline.html", context={
-        "title": f"AIdelix — Timeline: {feature_id}",
+        "title": f"AI-delix — Timeline: {feature_id}",
         "description": "Feature timeline",
         "feature_id": feature_id,
         "case": case,
