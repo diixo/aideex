@@ -38,6 +38,19 @@
 
         <link rel="stylesheet" href="{% static 'app_main/css/dashboard.css' %}">
 
+        <style>
+          .sidebar .nav-link.active::after {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #0091da;
+            margin-left: auto;
+            flex-shrink: 0;
+          }
+        </style>
+
     {% block extra_style %}
     {% endblock %}
   </head>
@@ -108,7 +121,7 @@
     <div class="container-fluid app-full-height flex-grow-1 h-100">
       <div class="row h-100">
         <div
-          class="sidebar border border-right col-md-3 col-lg-2 p-0 bg-body-tertiary h-100"
+          class="sidebar border border-right col-md-3 col-lg-2 px-3 py-0 bg-body-tertiary h-100"
         >
           <div
             class="offcanvas-md offcanvas-end bg-body-tertiary h-100"
@@ -131,10 +144,10 @@
             >
               <ul class="nav flex-column">
                 <li class="nav-item">
-                  <a class="nav-link d-flex align-items-center gap-2"
-                    href="{% url 'app_main:features_04' %}">
+                  <a class="nav-link d-flex align-items-center gap-2 active"
+                    href="{% url 'app_main:aispice' %}">
                     <span class="material-icons">checklist</span>
-                    Features v04
+                    ASPICE
                   </a>
                 </li>
               </ul>
@@ -142,14 +155,8 @@
               <h6
                 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-body-secondary text-uppercase"
               >
-                <span>Saved reports</span>
-                <a
-                  class="link-secondary"
-                  href="#"
-                  aria-label="Add a new report"
-                >
-                  <span class="material-icons">add_circle_outline</span>
-                </a>
+                <span>Saved</span>
+
               </h6>
               <ul class="nav flex-column mb-auto">
                 <li class="nav-item">

@@ -54,7 +54,7 @@ body {
 .sidebar .nav-link {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #687070;
+  color: rgba(33, 37, 41, 0.75);
 }
 
 .sidebar .nav-link.active {

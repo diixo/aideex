@@ -131,7 +131,7 @@ _FEATURES_04_DATASET = os.path.join(
 )
 
 
-def _collect_features_04_counts(dataset):
+def _collect_aspice_counts(dataset):
     cases = dataset.get("inspection_cases", [])
     unique_features = {
         case.get("feature", {}).get("id") or case.get("target_feature_id")
@@ -156,11 +156,11 @@ def _collect_features_04_counts(dataset):
     return counts
 
 
-def features_04(request):
+def aispice(request):
     with open(_FEATURES_04_DATASET, encoding="utf-8") as f:
         dataset = json.load(f)
 
-    entity_counts = _collect_features_04_counts(dataset)
+    entity_counts = _collect_aspice_counts(dataset)
 
     # --- POST actions ---
     action = ""
@@ -215,7 +215,7 @@ def features_04(request):
         if fid and fid not in feature_catalog:
             feature_catalog[fid] = feat
 
-    return render(request, "app_main/features_04.html", context={
+    return render(request, "app_main/aspice.html", context={
         "title": "AIdelix - Features v04",
         "description": "ASPICE compliance checker — dataset v04",
         "dataset_json": json.dumps(dataset_out, ensure_ascii=False),
