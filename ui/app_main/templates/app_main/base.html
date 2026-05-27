@@ -144,16 +144,16 @@
             >
               <ul class="nav flex-column">
                 <li class="nav-item">
-                  <a class="nav-link d-flex align-items-center gap-2 active"
+                  <a class="nav-link d-flex align-items-center gap-2 {% if request.resolver_match.url_name in 'aispice lifecycle_scenario feature_timeline' %}active{% endif %}"
                     href="{% url 'app_main:aispice' %}">
                     <span class="material-icons">checklist</span>
                     ASPICE
                   </a>
                 </li>
                 <li class="nav-item">
-                  <a class="nav-link d-flex align-items-center gap-2"
+                  <a class="nav-link d-flex align-items-center gap-2 {% if request.resolver_match.url_name == 'codebeamer' %}active{% endif %}"
                     href="{% url 'app_main:codebeamer' %}">
-                    <span class="material-icons">hub</span>
+                    <span class="material-icons">add_chart</span>
                     Codebeamer
                   </a>
                 </li>
