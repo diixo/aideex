@@ -1,0 +1,406 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+<meta property="og:title" content="Scenario: {{ feature.name }}">
+<meta name="description" content="ASPICE traceability scenario for {{ feature.name }}">
+{% endblock %}
+
+{% block extra_style %}
+<style>
+  /* ── Timeline ───────────────────────────────── */
+  .scenario-timeline {
+    position: relative; padding-left: 2.2rem;
+  }
+  .scenario-timeline::before {
+    content: ''; position: absolute; left: calc(.65rem + 5px); top: 0; bottom: 0;
+    width: 3px; background: #dee2e6; border-radius: 2px;
+  }
+  .tl-node {
+    position: relative; margin-bottom: 1.5rem;
+  }
+  .tl-node::before {
+    content: ''; position: absolute; left: -1.55rem; top: .375rem;
+    width: 13px; height: 13px; border-radius: 50%;
+    border: 3px solid #1864ab; background: #fff; z-index: 1;
+  }
+  .tl-node.tl-feature::before  { background: #1864ab; border-color: #1864ab; }
+  .tl-node.tl-customer::before { background: #6f42c1; border-color: #6f42c1; }
+  .tl-node.tl-behavior::before { background: #fd7e14; border-color: #fd7e14; }
+  .tl-node.tl-alloc::before    { background: #20c997; border-color: #20c997; }
+  .tl-node.tl-view::before     { background: #1971c2; border-color: #1971c2; }
+  .tl-node.tl-evidence::before { background: #495057; border-color: #495057; }
+
+  .tl-label {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .04em; margin-bottom: .25rem;
+    cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: .3rem;
+  }
+  .tl-label .chevron {
+    font-size: .9rem; transition: transform .2s;
+  }
+  .tl-label.collapsed .chevron {
+    transform: rotate(-90deg);
+  }
+  .tl-label-feature  { color: #1864ab; }
+  .tl-label-customer { color: #6f42c1; }
+  .tl-label-behavior { color: #fd7e14; }
+  .tl-label-alloc    { color: #20c997; }
+  .tl-label-view     { color: #1971c2; }
+  .tl-label-evidence { color: #495057; }
+
+  /* ── Cards inside timeline ──────────────────── */
+  .sc-card {
+    border: 1px solid #dee2e6; border-radius: .5rem;
+    background: #fff; padding: .6rem .85rem;
+    margin-bottom: .4rem;
+  }
+  .sc-card-id { font-family: monospace; font-size: .72rem; color: #5c3c00; }
+  .sc-card-title { font-weight: 600; font-size: .92rem; }
+  .sc-card-desc { font-size: .83rem; color: #495057; margin-top: .15rem; }
+  .sc-card-meta { font-size: .72rem; color: #6c757d; margin-top: .2rem; }
+
+  .sc-pill {
+    display: inline-block; font-family: monospace; font-size: .68rem;
+    padding: .02rem .35rem; border-radius: .2rem;
+    margin-right: .15rem; margin-bottom: .1rem;
+  }
+  .pill-feat  { background: #d3f9d8; color: #2b8a3e; }
+  .pill-beh   { background: #fff3bf; color: #5c3c00; }
+  .pill-el    { background: #e7f5ff; color: #1864ab; }
+  .pill-ev    { background: #f1f3f5; color: #495057; }
+  .pill-term  { background: #e7f5ff; color: #1864ab; }
+  .pill-cr    { background: #f3d9fa; color: #6f42c1; }
+
+  .sc-badge {
+    font-size: .68rem; padding: .1rem .4rem; border-radius: .2rem;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .badge-kind-sw_component  { background: #d3f9d8; color: #2b8a3e; }
+  .badge-kind-subsystem     { background: #fff3bf; color: #5c3c00; }
+  .badge-kind-external_system { background: #ffe3e3; color: #c92a2a; }
+
+  .trigger-line {
+    background: #f8f9fa; border-left: 3px solid #fd7e14;
+    padding: .25rem .5rem; border-radius: .2rem; font-size: .83rem;
+  }
+  .io-row { display: flex; gap: .4rem; align-items: baseline; padding: .1rem 0; font-size: .8rem; }
+  .io-value { color: #495057; font-style: italic; }
+  .ac-card {
+    background: #f8f9fa; border-left: 3px solid #2b8a3e;
+    padding: .25rem .5rem; border-radius: .2rem;
+    margin-bottom: .2rem; font-size: .78rem;
+  }
+  .ev-card {
+    border: 1px solid #dee2e6; border-radius: .4rem;
+    background: #fff; padding: .45rem .65rem;
+    margin-bottom: .35rem; font-size: .82rem;
+  }
+  .ev-path { font-family: monospace; font-size: .75rem; color: #1971c2; }
+  .ev-excerpt {
+    font-size: .78rem; color: #495057; font-style: italic;
+    max-height: 4.5rem; overflow: hidden; margin-top: .15rem;
+  }
+
+  /* ── Stats row ──────────────────────────────── */
+  .stat-mini {
+    text-align: center; padding: .5rem .75rem;
+    background: #fff; border: 1px solid #dee2e6; border-radius: .5rem;
+  }
+  .stat-mini .num { font-size: 1.3rem; font-weight: 700; color: #1864ab; }
+  .stat-mini .lbl { font-size: .68rem; color: #6c757d; text-transform: uppercase; }
+
+  /* ── View-level section ─────────────────────── */
+  .view-level-header {
+    font-size: .85rem; font-weight: 700; color: #1971c2;
+    margin-bottom: .4rem;
+  }
+
+  .scenario-timeline .collapsing {
+    transition: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="col-md-12 col-12 pt-4 pb-4" style="font-size: 16px;">
+
+  <a href="{% url 'app_main:view_artifact' 'feature_catalog' %}"
+     class="btn btn-sm btn-secondary d-inline-flex align-items-center gap-1 mb-3">
+    <span class="material-icons" style="font-size:1rem;">arrow_back</span>
+    Feature Catalog
+  </a>
+
+  <!-- ── Feature header ──────────────────────── -->
+  <h4 class="fw-bold mb-3" style="font-family:'Public Sans';">
+    <span class="material-icons align-text-bottom" style="font-size:1.2rem;">route</span>
+    ASPICE Lifecycle Scenario
+  </h4>
+  <div class="d-flex align-items-center gap-2 mb-1">
+    <h5 class="fw-bold mb-0">{{ feature.name }}</h5>
+    <span class="sc-pill pill-feat" style="font-size:.8rem;">{{ feature_id }}</span>
+  </div>
+  <p class="text-muted small mb-3">{{ feature.type }}</p>
+
+  <!-- ── Stats ───────────────────────────────── -->
+  <div class="row g-2 mb-4">
+    <div class="col">
+      <div class="stat-mini">
+        <div class="num">{{ customer_seeds|length }}</div>
+        <div class="lbl">Customer Needs</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="stat-mini">
+        <div class="num">{{ behaviors|length }}</div>
+        <div class="lbl">Behaviors</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="stat-mini">
+        <div class="num">{{ owner_elements|length }}</div>
+        <div class="lbl">Owner Elements</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="stat-mini">
+        <div class="num">{{ total_reqs }}</div>
+        <div class="lbl">Requirements</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="stat-mini">
+        <div class="num">{{ evidence_count }}</div>
+        <div class="lbl">Evidence</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       TIMELINE
+       ═══════════════════════════════════════════ -->
+  <div class="d-flex justify-content-end mb-2">
+    <button id="toggleAll" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1rem;">unfold_more</span>
+      Expand all
+    </button>
+  </div>
+  <div class="scenario-timeline">
+
+    <!-- ── 1. Feature origin ─────────────────── -->
+    <div class="tl-node tl-feature">
+      <div class="tl-label tl-label-feature" data-bs-toggle="collapse" data-bs-target="#tl-feature">
+        <span class="material-icons chevron">expand_more</span> Feature
+      </div>
+      <div class="collapse show" id="tl-feature">
+        <div class="sc-card">
+          <div class="sc-card-id">{{ feature_id }}</div>
+          <div class="sc-card-title">{{ feature.name }}</div>
+          <div class="sc-card-meta">
+            Type: {{ feature.type }}
+            {% if feature.criteria %}
+            &nbsp;&middot;&nbsp;
+            Criteria: {% for c in feature.criteria %}{{ c }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 2. Customer requirement seeds ─────── -->
+    {% if customer_seeds %}
+    <div class="tl-node tl-customer">
+      <div class="tl-label tl-label-customer collapsed" data-bs-toggle="collapse" data-bs-target="#tl-customer">
+        <span class="material-icons chevron">expand_more</span> Customer Needs ({{ customer_seeds|length }})
+      </div>
+      <div class="collapse" id="tl-customer">
+        {% for cr in customer_seeds %}
+        <div class="sc-card">
+          <div class="sc-card-id"><span class="sc-pill pill-cr">{{ cr.id }}</span></div>
+          <div class="sc-card-desc">{{ cr.statement }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── 3. Behaviors ──────────────────────── -->
+    <div class="tl-node tl-behavior">
+      <div class="tl-label tl-label-behavior collapsed" data-bs-toggle="collapse" data-bs-target="#tl-behaviors">
+        <span class="material-icons chevron">expand_more</span> Behaviors ({{ behaviors|length }})
+      </div>
+      <div class="collapse" id="tl-behaviors">
+      {% for b in behaviors %}
+      <div class="sc-card">
+        <div class="d-flex align-items-center gap-2">
+          <span class="sc-card-id">{{ b.behavior_id }}</span>
+          {% if b.owner_element %}
+          <span class="sc-pill pill-el">{{ b.owner_element.element_id }}</span>
+          {% endif %}
+        </div>
+        <div class="sc-card-title">{{ b.name }}</div>
+        <div class="trigger-line mt-1">{{ b.trigger }}</div>
+
+        {% if b.inputs or b.outputs %}
+        <div class="row g-2 mt-1">
+          {% if b.inputs %}
+          <div class="col-md-6">
+            <div class="sc-card-meta fw-bold">Inputs</div>
+            {% for i in b.inputs %}
+            <div class="io-row"><span class="sc-pill pill-term">{{ i.term_id }}</span> <span class="io-value">{{ i.value_or_state }}</span></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if b.outputs %}
+          <div class="col-md-6">
+            <div class="sc-card-meta fw-bold">Outputs</div>
+            {% for o in b.outputs %}
+            <div class="io-row"><span class="sc-pill pill-term">{{ o.term_id }}</span> <span class="io-value">{{ o.value_or_state }}</span></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if b.acceptance_criteria %}
+        <div class="mt-2">
+          <div class="sc-card-meta fw-bold mb-1">Acceptance Criteria</div>
+          {% for ac in b.acceptance_criteria %}
+          <div class="ac-card">
+            <strong>Given</strong> {{ ac.given|default:"—" }}
+            <strong>when</strong> {{ ac.when|default:"—" }}
+            <strong>then</strong> {{ ac.then|default:"—" }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      </div>
+    </div>
+
+    <!-- ── 4. Allocation ─────────────────────── -->
+    {% if owner_elements %}
+    <div class="tl-node tl-alloc">
+      <div class="tl-label tl-label-alloc collapsed" data-bs-toggle="collapse" data-bs-target="#tl-alloc">
+        <span class="material-icons chevron">expand_more</span> Allocated To ({{ owner_elements|length }})
+      </div>
+      <div class="collapse" id="tl-alloc">
+      {% for el in owner_elements %}
+      <div class="sc-card">
+        <div class="d-flex align-items-center gap-2">
+          <span class="sc-card-id">{{ el.element_id }}</span>
+          <span class="sc-badge badge-kind-{{ el.kind }}">{{ el.kind }}</span>
+        </div>
+        <div class="sc-card-title">{{ el.name }}</div>
+        {% if el.responsibilities %}
+        <div class="sc-card-meta mt-1">
+          {% for r in el.responsibilities %}{{ r }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── 5. View-level requirements ────────── -->
+    {% for vl in view_layers %}
+    <div class="tl-node tl-view">
+      <div class="tl-label tl-label-view collapsed" data-bs-toggle="collapse" data-bs-target="#tl-{{ vl.short }}">
+        <span class="material-icons chevron">expand_more</span> {{ vl.label }} ({{ vl.count }})
+      </div>
+      <div class="collapse" id="tl-{{ vl.short }}">
+      {% for r in vl.requirements %}
+      <div class="sc-card">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="sc-card-id">{{ r.id }}</span>
+          {% if r.source_behavior_id %}
+          <span class="sc-pill pill-beh" title="Source behavior">{{ r.source_behavior_id }}</span>
+          {% endif %}
+          {% if r.source_element_id %}
+          <span class="sc-pill pill-el" title="Allocated element">{{ r.source_element_id }}</span>
+          {% endif %}
+          {% if r.verification_method %}
+          <span class="sc-card-meta ms-auto">{{ r.verification_method }}</span>
+          {% endif %}
+        </div>
+        <div class="sc-card-title">{{ r.title }}</div>
+        <div class="sc-card-desc">{{ r.description }}</div>
+        {% if r.acceptance_criteria %}
+        <div class="mt-1">
+          {% for ac in r.acceptance_criteria %}
+          <div class="ac-card">{{ ac }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- ── 6. Evidence ───────────────────────── -->
+    {% if code_evidence or doc_evidence %}
+    <div class="tl-node tl-evidence">
+      <div class="tl-label tl-label-evidence collapsed" data-bs-toggle="collapse" data-bs-target="#tl-evidence">
+        <span class="material-icons chevron">expand_more</span> Evidence ({{ evidence_count }})
+      </div>
+      <div class="collapse" id="tl-evidence">
+
+      {% if code_evidence %}
+      <div class="sc-card-meta fw-bold mb-1">Code evidence ({{ code_evidence|length }})</div>
+      {% for e in code_evidence %}
+      <div class="ev-card">
+        <div class="d-flex align-items-center gap-2">
+          <span class="sc-pill pill-ev">{{ e.evidence_id }}</span>
+          <span class="ev-path">{{ e.source_path }}</span>
+        </div>
+        {% if e.excerpt %}
+        <div class="ev-excerpt">{{ e.excerpt|truncatechars:200 }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {% if doc_evidence %}
+      <div class="sc-card-meta fw-bold mb-1 mt-2">Document evidence ({{ doc_evidence|length }})</div>
+      {% for e in doc_evidence %}
+      <div class="ev-card">
+        <div class="d-flex align-items-center gap-2">
+          <span class="sc-pill pill-ev">{{ e.evidence_id }}</span>
+          <span class="ev-path">{{ e.source_path }}</span>
+        </div>
+        {% if e.excerpt %}
+        <div class="ev-excerpt">{{ e.excerpt|truncatechars:200 }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /scenario-timeline -->
+
+</div>
+
+<script>
+(function() {
+  var btn = document.getElementById('toggleAll');
+  var targets = document.querySelectorAll('.scenario-timeline .collapse');
+  btn.addEventListener('click', function() {
+    var anyHidden = Array.from(targets).some(function(el) { return !el.classList.contains('show'); });
+    targets.forEach(function(el) {
+      var bsCollapse = bootstrap.Collapse.getOrCreateInstance(el, {toggle: false});
+      if (anyHidden) bsCollapse.show(); else bsCollapse.hide();
+    });
+    var icon = btn.querySelector('.material-icons');
+    icon.textContent = anyHidden ? 'unfold_less' : 'unfold_more';
+    btn.lastChild.textContent = anyHidden ? ' Collapse all' : ' Expand all';
+  });
+})();
+</script>
+{% endblock %}
