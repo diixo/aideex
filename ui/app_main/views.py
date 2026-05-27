@@ -156,6 +156,13 @@ def _collect_aspice_counts(dataset):
     return counts
 
 
+def codebeamer(request):
+    return render(request, "app_main/codebeamer.html", context={
+        "title": "AI-delix - Codebeamer",
+        "description": "Codebeamer integration",
+    })
+
+
 def aispice(request):
     with open(_FEATURES_04_DATASET, encoding="utf-8") as f:
         dataset = json.load(f)
