@@ -1,0 +1,15 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+{% endblock %}
+
+{% block content %}
+<h5 class="fw-bold mb-4 mt-3 text-center">Lifecycle Scenario</h5>
+{% if case %}
+<p class="text-center text-muted">{{ case.feature.name }} &mdash; <code>{{ feature_id }}</code></p>
+{% else %}
+<p class="text-center text-danger">Feature <code>{{ feature_id }}</code> not found.</p>
+{% endif %}
+<p class="text-center text-body-secondary">Page layout coming soon.</p>
+{% endblock %}

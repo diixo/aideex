@@ -39,7 +39,7 @@
     <div class="small text-muted">Cases</div>
   </div>
   <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
-    <div class="fs-5 fw-bold text-primary">{{ entity_counts.features }}</div>
+    <div class="fs-5 fw-bold" style="color:#6f42c1;">{{ entity_counts.features }}</div>
     <div class="small text-muted">Features</div>
   </div>
   <div class="bg-light rounded px-3 py-2 text-center" style="min-width:100px;">
@@ -72,15 +72,13 @@
 <div class="d-flex gap-2 mb-4">
   <form method="post">
     {% csrf_token %}
-    <button type="submit" name="action" value="detect_gaps"
-      class="btn px-3 {% if action == 'detect_gaps' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+    <button type="submit" name="action" value="detect_gaps" class="btn btn-primary px-3">
       <i class="bi bi-search me-1"></i>Detect Gaps
     </button>
   </form>
   <form method="post">
     {% csrf_token %}
-    <button type="submit" name="action" value="validate"
-      class="btn px-3 {% if action == 'validate' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+    <button type="submit" name="action" value="validate" class="btn btn-secondary px-3">
       <i class="bi bi-check2-circle me-1"></i>Validate Dataset
     </button>
   </form>
@@ -163,7 +161,12 @@
     <div class="mb-1"><strong>{{ feat.name }}</strong></div>
     <div class="small text-muted"><span class="text-body-secondary me-1">id:</span><code class="text-primary">{{ feat.id }}</code></div>
     <div class="small text-muted"><span class="text-body-secondary me-1">feature_type:</span>{{ feat.feature_type }}</div>
-    <div class="small text-muted"><span class="text-body-secondary me-1">description:</span>{{ feat.description }}</div>
+    <div class="small text-muted mb-2"><span class="text-body-secondary me-1">description:</span>{{ feat.description }}</div>
+    <a href="{% url 'app_main:lifecycle_scenario' feat.id %}"
+       class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1.1rem;">route</span>
+      Lifecycle Scenario
+    </a>
   </li>
   {% endfor %}
 </ul>

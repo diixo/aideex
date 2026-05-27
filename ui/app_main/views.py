@@ -425,6 +425,24 @@ def features_04(request):
     })
 
 
+def lifecycle_scenario(request, feature_id):
+    with open(_FEATURES_04_DATASET, encoding="utf-8") as f:
+        dataset = json.load(f)
+
+    case = next(
+        (c for c in dataset.get("inspection_cases", [])
+         if c.get("feature", {}).get("id") == feature_id),
+        None,
+    )
+
+    return render(request, "app_main/lifecycle_scenario.html", context={
+        "title": f"AIdelix - Lifecycle: {feature_id}",
+        "description": "Feature lifecycle scenario",
+        "feature_id": feature_id,
+        "case": case,
+    })
+
+
 def gap_analysis(request):
     context = {
         "title": "AIdelix - Gap Analysis",
