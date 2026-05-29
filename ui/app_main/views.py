@@ -157,10 +157,41 @@ def _collect_aspice_counts(dataset):
 
 
 def codebeamer(request):
-    return render(request, "app_main/codebeamer.html", context={
+    context = {
         "title": "AI-delix - Codebeamer",
         "description": "Codebeamer integration",
-    })
+    }
+
+    if request.method == "POST":
+        action    = request.POST.get("action", "")
+        cb_url    = request.POST.get("cb_url", "").strip()
+        username  = request.POST.get("username", "").strip()
+        password  = request.POST.get("password", "").strip()
+        context.update({"cb_url": cb_url, "username": username, "password": password})
+
+        if action in ("load_projects", "load_trackers"):
+            try:
+                from pybeamer import Codebeamer
+                cb = Codebeamer(cb_url, username, password, api_root='api/v3')
+
+                if action == "load_projects":
+                    projects = cb.get_projects()
+                    context["projects"] = [{"id": p.id, "name": p.name} for p in projects]
+
+                elif action == "load_trackers":
+                    project_id = int(request.POST.get("project_id", 0))
+                    projects = cb.get_projects()
+                    context["projects"] = [{"id": p.id, "name": p.name} for p in projects]
+                    project = cb.get_project(project_id)
+                    trackers = project.get_trackers()
+                    context["selected_project_id"] = project_id
+                    context["selected_project_name"] = project.name
+                    context["trackers"] = [{"id": t.id, "name": t.name} for t in trackers]
+
+            except Exception as e:
+                context["fetch_error"] = str(e)
+
+    return render(request, "app_main/codebeamer.html", context)
 
 
 def aispice(request):
