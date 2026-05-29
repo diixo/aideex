@@ -10,6 +10,27 @@ from .aspice_v04_compliance_checker import inspect_case
 from .validate_aspice_v04_dataset import validate_dataset, summarize_issues
 
 
+
+# Material Icons name per tracker type_id. Types that don't have an
+# explicit assignment fall back to "label" via the .get() in the view.
+_CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
+    2:   "bug_report",              # Bugs
+    3:   "published_with_changes",  # Change Requests — "changes" arrow cycle
+    5:   "lightbulb",               # Requirement Specifications (CRS / SRS)
+    6:   "check_circle",            # Tasks
+    8:   "schedule",                # Timekeeping — clock face
+    9:   "play_arrow",              # Test Runs — triangle play button
+    10:  "cloud",                   # User Stories
+    11:  "warning",                 # Risks — flame/explosion (no `bomb` in classic Material Icons)
+    102: "science",                 # Test Cases — test tube
+    103: "directions_subway",       # Releases — launch icon
+    107: "phone",                   # Contacts — handset
+    108: "playlist_play",           # Test Sets — collection of tests
+    109: "tune",                    # Test Configurations — sliders
+    150: "groups",                  # Teams — multiple people
+}
+
+
 def main(request):
     #return redirect(to="app_main:confluence")
     return render(request, "app_main/index.html", context={
@@ -186,7 +207,16 @@ def codebeamer(request):
                     trackers = project.get_trackers()
                     context["selected_project_id"] = project_id
                     context["selected_project_name"] = project.name
-                    context["trackers"] = [{"id": t.id, "name": t.name} for t in trackers]
+                    context["trackers"] = [
+                        {
+                            "id": t.id,
+                            "name": t.name,
+                            "type_id": t.type_id,
+                            "type_name": t.type_name,
+                            "icon": _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+                        }
+                        for t in trackers
+                    ]
 
             except Exception as e:
                 context["fetch_error"] = str(e)
