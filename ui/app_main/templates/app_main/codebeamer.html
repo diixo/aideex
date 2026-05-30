@@ -16,7 +16,8 @@
 {% endif %}
 
 <!-- ── Step 0: Credentials ──────────────────────────────────── -->
-<div class="card border-0 shadow-sm mb-4">
+{% if not projects %}
+<div class="card shadow-sm mb-4">
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 1</span>
     <span class="fw-semibold">Connect to Codebeamer</span>
@@ -36,9 +37,12 @@
                value="{{ username }}" style="min-width:160px;" required>
       </div>
       <div>
-        <label class="form-label small mb-1">Password</label>
+        <label class="form-label small mb-1">
+          Password
+          {% if password %}<span class="text-success ms-1" title="Password saved"><span class="material-icons" style="font-size:.9rem;vertical-align:middle;">check_circle</span></span>{% endif %}
+        </label>
         <input type="password" name="password" class="form-control form-control-sm"
-               value="{{ password }}" style="min-width:140px;" required>
+               value="{{ password }}" style="min-width:140px;" required autocomplete="off">
       </div>
       <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
         <span class="material-icons" style="font-size:1rem;">cloud_download</span>
@@ -47,6 +51,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 
 <!-- ── Step 2: Pick a project ──────────────────────────────── -->
 {% if projects %}

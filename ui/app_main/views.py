@@ -22,7 +22,7 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     9:   "play_arrow",              # Test Runs — triangle play button
     10:  "cloud",                   # User Stories
     11:  "warning",                 # Risks — flame/explosion (no `bomb` in classic Material Icons)
-    102: "science",                 # Test Cases — test tube
+    102: "outlined_flag",           # Test Cases — test tube
     103: "directions_subway",       # Releases — launch icon
     107: "phone",                   # Contacts — handset
     108: "playlist_play",           # Test Sets — collection of tests
@@ -177,6 +177,17 @@ def _collect_aspice_counts(dataset):
     return counts
 
 
+def _cb_load_projects(cb):
+    raw = cb._client.get('projects')
+    if isinstance(raw, list):
+        items = raw
+    elif isinstance(raw, dict):
+        items = raw.get('projects', raw.get('items', []))
+    else:
+        raise ValueError(f"Unexpected /projects response: {type(raw).__name__}: {repr(raw)[:300]}")
+    return [{"id": p["id"], "name": p["name"]} for p in items if isinstance(p, dict)]
+
+
 def codebeamer(request):
     context = {
         "title": "AI-delix - Codebeamer",
@@ -184,11 +195,10 @@ def codebeamer(request):
     }
 
     if request.method == "POST":
-        action    = request.POST.get("action", "")
-        cb_url    = request.POST.get("cb_url", "").strip()
-        username  = request.POST.get("username", "").strip()
-        password  = request.POST.get("password", "").strip()
-        context.update({"cb_url": cb_url, "username": username, "password": password})
+        action   = request.POST.get("action", "")
+        cb_url   = request.POST.get("cb_url", "").strip()
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "").strip()
 
         if action in ("load_projects", "load_trackers"):
             try:
@@ -196,30 +206,42 @@ def codebeamer(request):
                 cb = Codebeamer(cb_url, username, password, api_root='api/v3')
 
                 if action == "load_projects":
-                    projects = cb.get_projects()
-                    context["projects"] = [{"id": p.id, "name": p.name} for p in projects]
+                    context["projects"] = _cb_load_projects(cb)
 
                 elif action == "load_trackers":
                     project_id = int(request.POST.get("project_id", 0))
-                    projects = cb.get_projects()
-                    context["projects"] = [{"id": p.id, "name": p.name} for p in projects]
-                    project = cb.get_project(project_id)
-                    trackers = project.get_trackers()
+                    context["projects"] = _cb_load_projects(cb)
+                    raw_t = cb._client.get(f'projects/{project_id}/trackers')
+                    if isinstance(raw_t, list):
+                        tracker_items = raw_t
+                    elif isinstance(raw_t, dict):
+                        tracker_items = raw_t.get('trackers', raw_t.get('items', []))
+                    else:
+                        raise ValueError(f"Unexpected /trackers response: {type(raw_t).__name__}: {repr(raw_t)[:300]}")
+                    project_name = next((p["name"] for p in context["projects"] if p["id"] == project_id), str(project_id))
                     context["selected_project_id"] = project_id
-                    context["selected_project_name"] = project.name
-                    context["trackers"] = [
-                        {
-                            "id": t.id,
-                            "name": t.name,
-                            "type_id": t.type_id,
-                            "type_name": t.type_name,
-                            "icon": _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+                    context["selected_project_name"] = project_name
+                    def _parse_tracker(t):
+                        type_field = t.get("type", {})
+                        if isinstance(type_field, dict):
+                            type_id   = type_field.get("id")
+                            type_name = type_field.get("name", "")
+                        else:
+                            type_id   = None
+                            type_name = str(type_field) if type_field else ""
+                        return {
+                            "id":        t["id"],
+                            "name":      t["name"],
+                            "type_id":   type_id,
+                            "type_name": type_name,
+                            "icon":      _CODEBEAMER_TRACKER_ICONS.get(type_id, "label"),
                         }
-                        for t in trackers
-                    ]
+                    context["trackers"] = [_parse_tracker(t) for t in tracker_items if isinstance(t, dict)]
 
             except Exception as e:
                 context["fetch_error"] = str(e)
+
+        context.update({"cb_url": cb_url, "username": username, "password": password})
 
     return render(request, "app_main/codebeamer.html", context)
 
