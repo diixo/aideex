@@ -254,6 +254,15 @@ def codebeamer(request):
         username = request.POST.get("username", "").strip() or saved.get("username", "")
         password = request.POST.get("password", "").strip() or saved.get("password", "")
 
+        if action == "change_project":
+            saved = _cb_load_credentials()
+            saved.pop("project_id", None)
+            os.makedirs(os.path.dirname(_CB_SECRETS_FILE), exist_ok=True)
+            with open(_CB_SECRETS_FILE, "w", encoding="utf-8") as f:
+                json.dump(saved, f)
+            from django.shortcuts import redirect as _redirect
+            return _redirect("app_main:codebeamer")
+
         if action in ("load_projects", "load_trackers"):
             try:
                 from pybeamer import Codebeamer

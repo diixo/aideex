@@ -6,7 +6,21 @@
 {% endblock %}
 
 {% block content %}
-<h5 class="fw-bold mb-4 mt-3 text-center">Codebeamer</h5>
+<div class="d-flex align-items-center justify-content-center gap-3 mb-4 mt-3">
+  <h5 class="fw-bold mb-0">Codebeamer</h5>
+  {% if selected_project_name %}
+  <span class="text-muted">—</span>
+  <span class="fw-semibold text-primary">{{ selected_project_name }}</span>
+  <form method="post" class="mb-0">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="change_project">
+    <button type="submit" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1rem;">swap_horiz</span>
+      Change Project
+    </button>
+  </form>
+  {% endif %}
+</div>
 
 {% if fetch_error %}
 <div class="alert alert-danger d-flex align-items-center gap-2 py-2">
@@ -93,8 +107,7 @@
 <div class="card shadow-sm mb-4">
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 3</span>
-    <span class="fw-semibold">Trackers in <code>{{ selected_project_name }}</code></span>
-    <small class="text-muted ms-auto">{{ trackers|length }} tracker{{ trackers|length|pluralize }}</small>
+    <span class="fw-semibold">Tracker{{ trackers|length|pluralize }} ({{ trackers|length }})</span>
   </div>
   <div class="card-body py-2">
     <div class="table-responsive">
@@ -111,13 +124,12 @@
           {% for t in trackers %}
           <tr>
             <td><a href="{% url 'app_main:codebeamer_tracker' t.id %}" class="text-decoration-none"><code>{{ t.id }}</code></a></td>
-            <td class="text-center">
-              <span class="material-icons text-secondary" style="font-size:1.15rem;">{{ t.icon }}</span>
+            <td class="text-center" style="vertical-align:middle;">
+              <span class="material-icons text-secondary" style="font-size:1.15rem;vertical-align:middle;">{{ t.icon }}</span>
             </td>
             <td>{{ t.name }}</td>
-            <td class="small text-muted">
-              <span class="me-1">{{ t.type_name }}</span>
-              <code class="text-muted" style="font-size:.7rem;">{{ t.type_id }}</code>
+            <td class="text-muted">
+              <span class="me-1">{{ t.type_name }}:</span><code class="text-muted" style="font-size:14px;">{{ t.type_id }}</code>
             </td>
           </tr>
           {% endfor %}
