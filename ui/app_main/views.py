@@ -177,6 +177,46 @@ def _collect_aspice_counts(dataset):
     return counts
 
 
+_CB_SECRETS_FILE = os.path.join(settings.BASE_DIR, "..", "secret", "codebeamer.json")
+
+
+def _cb_save_credentials(cb_url, username, password, project_id=None):
+    os.makedirs(os.path.dirname(_CB_SECRETS_FILE), exist_ok=True)
+    data = {"cb_url": cb_url, "username": username, "password": password}
+    if project_id is not None:
+        data["project_id"] = project_id
+    with open(_CB_SECRETS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+
+def _cb_load_credentials():
+    try:
+        with open(_CB_SECRETS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _cb_load_tracker_context(cb, project_id, projects):
+    project = cb.get_project(project_id)
+    trackers = project.get_trackers()
+    project_name = next((p["name"] for p in projects if p["id"] == project_id), str(project_id))
+    return {
+        "selected_project_id":   project_id,
+        "selected_project_name": project_name,
+        "trackers": [
+            {
+                "id":        t.id,
+                "name":      t.name,
+                "type_id":   t.type_id,
+                "type_name": t.type_name,
+                "icon":      _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+            }
+            for t in trackers
+        ],
+    }
+
+
 def _cb_load_projects(cb):
     raw = cb._client.get('projects')
     if isinstance(raw, list):
@@ -194,11 +234,25 @@ def codebeamer(request):
         "description": "Codebeamer integration",
     }
 
+    saved = _cb_load_credentials()
+
+    if request.method == "GET" and saved:
+        try:
+            from pybeamer import Codebeamer
+            cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+            context["projects"] = _cb_load_projects(cb)
+            if saved.get("project_id"):
+                context.update(_cb_load_tracker_context(cb, saved["project_id"], context["projects"]))
+        except Exception as e:
+            context["fetch_error"] = str(e)
+        context.update({"cb_url": saved.get("cb_url", ""), "username": saved.get("username", ""), "password": saved.get("password", "")})
+        return render(request, "app_main/codebeamer.html", context)
+
     if request.method == "POST":
         action   = request.POST.get("action", "")
-        cb_url   = request.POST.get("cb_url", "").strip()
-        username = request.POST.get("username", "").strip()
-        password = request.POST.get("password", "").strip()
+        cb_url   = request.POST.get("cb_url", "").strip() or saved.get("cb_url", "")
+        username = request.POST.get("username", "").strip() or saved.get("username", "")
+        password = request.POST.get("password", "").strip() or saved.get("password", "")
 
         if action in ("load_projects", "load_trackers"):
             try:
@@ -207,36 +261,13 @@ def codebeamer(request):
 
                 if action == "load_projects":
                     context["projects"] = _cb_load_projects(cb)
+                    _cb_save_credentials(cb_url, username, password)
 
                 elif action == "load_trackers":
                     project_id = int(request.POST.get("project_id", 0))
                     context["projects"] = _cb_load_projects(cb)
-                    raw_t = cb._client.get(f'projects/{project_id}/trackers')
-                    if isinstance(raw_t, list):
-                        tracker_items = raw_t
-                    elif isinstance(raw_t, dict):
-                        tracker_items = raw_t.get('trackers', raw_t.get('items', []))
-                    else:
-                        raise ValueError(f"Unexpected /trackers response: {type(raw_t).__name__}: {repr(raw_t)[:300]}")
-                    project_name = next((p["name"] for p in context["projects"] if p["id"] == project_id), str(project_id))
-                    context["selected_project_id"] = project_id
-                    context["selected_project_name"] = project_name
-                    def _parse_tracker(t):
-                        type_field = t.get("type", {})
-                        if isinstance(type_field, dict):
-                            type_id   = type_field.get("id")
-                            type_name = type_field.get("name", "")
-                        else:
-                            type_id   = None
-                            type_name = str(type_field) if type_field else ""
-                        return {
-                            "id":        t["id"],
-                            "name":      t["name"],
-                            "type_id":   type_id,
-                            "type_name": type_name,
-                            "icon":      _CODEBEAMER_TRACKER_ICONS.get(type_id, "label"),
-                        }
-                    context["trackers"] = [_parse_tracker(t) for t in tracker_items if isinstance(t, dict)]
+                    _cb_save_credentials(cb_url, username, password, project_id=project_id)
+                    context.update(_cb_load_tracker_context(cb, project_id, context["projects"]))
 
             except Exception as e:
                 context["fetch_error"] = str(e)
