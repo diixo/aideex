@@ -317,6 +317,24 @@ def codebeamer_tracker(request, tracker_id):
             "project_name":tracker.project.name if tracker.project else None,
             "icon":        _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label"),
         }
+        # Fetch items directly from API — itemRefs contains id, name, type
+        raw_items = cb._client.get(f'trackers/{tracker_id}/items', params={"page": 1, "pageSize": 500})
+        if isinstance(raw_items, dict):
+            item_refs = raw_items.get("itemRefs", [])
+            context["items_total"] = raw_items.get("total", len(item_refs))
+        else:
+            item_refs = []
+            context["items_total"] = 0
+        context["items"] = [
+            {
+                "id":        i.get("id"),
+                "name":      i.get("name"),
+                "type_name": (i.get("typeName") or
+                              (i.get("type", {}).get("name") if isinstance(i.get("type"), dict) else None) or
+                              i.get("categories", [{}])[0].get("name") if i.get("categories") else None),
+            }
+            for i in item_refs if isinstance(i, dict)
+        ]
     except Exception as e:
         context["fetch_error"] = str(e)
 

@@ -123,7 +123,7 @@
         <tbody>
           {% for t in trackers %}
           <tr>
-            <td><a href="{% url 'app_main:codebeamer_tracker' t.id %}" class="text-decoration-none"><code>{{ t.id }}</code></a></td>
+            <td><a href="{% url 'app_main:codebeamer_tracker' t.id %}" class="text-decoration-none fw-bold"><code style="font-size:14px;">{{ t.id }}</code></a></td>
             <td class="text-center" style="vertical-align:middle;">
               <span class="material-icons text-secondary" style="font-size:1.15rem;vertical-align:middle;">{{ t.icon }}</span>
             </td>
