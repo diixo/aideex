@@ -210,6 +210,7 @@ def _cb_load_tracker_context(cb, project_id, projects):
                 "name":      t.name,
                 "type_id":   t.type_id,
                 "type_name": t.type_name,
+                "color":     t.color or "#6c757d",
                 "icon":      _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
             }
             for t in trackers
@@ -317,23 +318,14 @@ def codebeamer_tracker(request, tracker_id):
             "project_name":tracker.project.name if tracker.project else None,
             "icon":        _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label"),
         }
-        # Fetch items directly from API — itemRefs contains id, name, type
-        raw_items = cb._client.get(f'trackers/{tracker_id}/items', params={"page": 1, "pageSize": 500})
-        if isinstance(raw_items, dict):
-            item_refs = raw_items.get("itemRefs", [])
-            context["items_total"] = raw_items.get("total", len(item_refs))
-        else:
-            item_refs = []
-            context["items_total"] = 0
+        # get_items() returns TrackerItem refs — accessing .type_name triggers
+        # @loadable which calls _load() → GET /items/{id} → typeName populated
+        tracker_obj = cb.get_tracker(tracker_id)
+        items = tracker_obj.get_items()
+        context["items_total"] = len(items)
         context["items"] = [
-            {
-                "id":        i.get("id"),
-                "name":      i.get("name"),
-                "type_name": (i.get("typeName") or
-                              (i.get("type", {}).get("name") if isinstance(i.get("type"), dict) else None) or
-                              i.get("categories", [{}])[0].get("name") if i.get("categories") else None),
-            }
-            for i in item_refs if isinstance(i, dict)
+            {"id": i.id, "name": i.name, "type_name": i.type_name}
+            for i in items
         ]
     except Exception as e:
         context["fetch_error"] = str(e)
