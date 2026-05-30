@@ -400,7 +400,7 @@ class TrackerItem:
 		custom_fields: list[dict[str, Any]] = data.get('customFields')
 		self._custom_fields = []
 		for custom_field in custom_fields:
-			print(custom_field)
+			#print("@@:", custom_field)
 			field = self.get_field(custom_field.get('fieldId'))
 			if field:
 				self._custom_fields.append(field)
@@ -513,7 +513,7 @@ class TrackerItem:
 		if isinstance(self._categories, list) and self._categories:
 			if len(self._categories) > 0:
 				return self._categories[0]
-		return {'id': 0, 'name': 'Unset', 'type': 'ChoiceOptionReference'}
+		return {'id': -1, 'name': 'Unset', 'type': 'ChoiceOptionReference'}
 	
 	def get_field(self, field: str | int) -> Field:
 		"""Gets the field on the item."""

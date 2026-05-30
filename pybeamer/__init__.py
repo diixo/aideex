@@ -8,7 +8,9 @@ version = '0.1.0'
 
 from .client import Codebeamer
 from .projects import Project
+from .folder import Folder
 
 __all__ = [
 	'Codebeamer',
+	'Folder',
 ]

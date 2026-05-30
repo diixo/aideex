@@ -236,8 +236,15 @@ class Field:
 				other = WikiTextField
 			case 'DateFieldValue':
 				other = DateField
+			case 'DurationFieldValue':
+				other = DurationField
+			case 'DecimalFieldValue':
+				other = DecimalField
+			case 'UrlFieldValue':
+				other = UrlField
 			case _:
-				logger.error(kwargs.get('type'))
+				print(f'[!] Unknown field type: {kwargs.get("type")}')
+				other = cls
 		inst = super().__new__(other)
 		# logger.debug(f'Field returning {type(inst)}')
 		return inst
@@ -526,6 +533,92 @@ class WikiTextField(Field):
 			]
 		}
 		self._client.put(f'items/{self._item_id}/fields?quietMode=true', json_=data)
+
+
+class UrlField(Field):
+	def __init__(self, fieldId: int, name: str, *args, **kwargs):
+		super().__init__(fieldId, name, *args, **kwargs)
+		self._value: str | None = kwargs.get('value')
+
+	@property
+	def value(self) -> str | None:
+		return self._value
+
+	@value.setter
+	def value(self, v: str):
+		if not self._editable:
+			raise Exception('Not editable')
+		self._value = str(v)
+		data = {
+			'fieldValues': [
+				{
+					'fieldId': self.id,
+					'name': self.name,
+					'type': self.type,
+					'value': self._value
+				}
+			]
+		}
+		self._client.put(f'items/{self._item_id}/fields?quietMode=true', json_=data)
+
+
+class DecimalField(Field):
+	def __init__(self, fieldId: int, name: str, *args, **kwargs):
+		super().__init__(fieldId, name, *args, **kwargs)
+		self._value: float | None = kwargs.get('value')
+
+	@property
+	def value(self) -> float | None:
+		return self._value
+
+	@value.setter
+	def value(self, v: float | int):
+		if not self._editable:
+			raise Exception('Not editable')
+		if not isinstance(v, (float, int)):
+			raise TypeError(f'expected float or int, got {type(v)}')
+		self._value = float(v)
+		data = {
+			'fieldValues': [
+				{
+					'fieldId': self.id,
+					'name': self.name,
+					'type': self.type,
+					'value': self._value
+				}
+			]
+		}
+		self._client.put(f'items/{self._item_id}/fields?quietMode=true', json_=data)
+
+
+class DurationField(Field):
+	def __init__(self, fieldId: int, name: str, *args, **kwargs):
+		super().__init__(fieldId, name, *args, **kwargs)
+		self._value: int | None = kwargs.get('value')
+
+	@property
+	def value(self) -> int | None:
+		return self._value
+
+	@value.setter
+	def value(self, v: int):
+		if not self._editable:
+			raise Exception('Not editable')
+		if not isinstance(v, int):
+			raise TypeError(f'expected int, got {type(v)}')
+		self._value = v
+		data = {
+			'fieldValues': [
+				{
+					'fieldId': self.id,
+					'name': self.name,
+					'type': self.type,
+					'value': v
+				}
+			]
+		}
+		self._client.put(f'items/{self._item_id}/fields?quietMode=true', json_=data)
+
 
 class DateField(Field):
 	def __init__(self, fieldId: int, name: str, *args, **kwargs):

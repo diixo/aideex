@@ -7,6 +7,7 @@ from datetime import datetime
 from .rest_client import RestClient
 from .user import User
 from .tracker import Tracker
+from .folder import Folder
 from .utils import loadable
 
 class Project:
@@ -41,7 +42,6 @@ class Project:
 		else:
 			prop_defaults = {k: None for k in self.__class__.__annotations__}
 			self.__dict__.update(prop_defaults)
-
 
 	@property
 	def id(self) -> int:
@@ -288,3 +288,25 @@ class Project:
 			return Tracker(**tracker_data)
 
 		return None
+
+
+	def get_tree(self) -> list[Folder | Tracker]:
+		"""Fetches the project tree — a hierarchical representation of the
+		project's trackers and folders."""
+		tree_data = self._client.get(f'trackers/tree', params={'projectId': self.id})
+		trackers = {t.id: t for t in self.get_trackers()}
+		return self._build_tree(tree_data, trackers)
+
+
+	def _build_tree(self, nodes: list[dict[str, Any]], trackers: dict[int, Tracker]) -> list[Folder | Tracker]:
+		result: list[Folder | Tracker] = []
+		for node in nodes:
+			if node.get('isFolder'):
+				children = self._build_tree(node.get('children', []), trackers)
+				result.append(Folder(name=node['text'], children=children))
+			elif 'trackerId' in node:
+				tracker = trackers.get(node['trackerId'])
+				if tracker:
+					result.append(tracker)
+		return result
+
