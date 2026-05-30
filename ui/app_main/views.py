@@ -277,6 +277,43 @@ def codebeamer(request):
     return render(request, "app_main/codebeamer.html", context)
 
 
+def codebeamer_tracker(request, tracker_id):
+    saved = _cb_load_credentials()
+    if not saved:
+        from django.shortcuts import redirect as _redirect
+        return _redirect("app_main:codebeamer")
+
+    context = {
+        "title": f"AI-delix - Tracker {tracker_id}",
+        "tracker_id": tracker_id,
+        "cb_url": saved.get("cb_url", ""),
+    }
+    try:
+        from pybeamer import Codebeamer
+        cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+        tracker = cb.get_tracker(tracker_id)
+        context["tracker"] = {
+            "id":          tracker.id,
+            "name":        tracker.name,
+            "type_id":     tracker.type_id,
+            "type_name":   tracker.type_name,
+            "description": tracker.description,
+            "key_name":    tracker.key_name,
+            "version":     tracker.version,
+            "created_at":  tracker.created_at,
+            "created_by":  tracker.created_by.name if tracker.created_by else None,
+            "modified_at": tracker.modified_at,
+            "modified_by": tracker.modified_by.name if tracker.modified_by else None,
+            "project_id":  tracker.project.id if tracker.project else None,
+            "project_name":tracker.project.name if tracker.project else None,
+            "icon":        _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label"),
+        }
+    except Exception as e:
+        context["fetch_error"] = str(e)
+
+    return render(request, "app_main/codebeamer_tracker.html", context)
+
+
 def aispice(request):
     with open(_FEATURES_04_DATASET, encoding="utf-8") as f:
         dataset = json.load(f)

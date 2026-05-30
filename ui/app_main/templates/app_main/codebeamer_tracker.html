@@ -1,0 +1,50 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mt-3 mb-4">
+  <a href="{% url 'app_main:codebeamer' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">Tracker</h5>
+  {% if tracker %}
+  <span class="material-icons text-secondary">{{ tracker.icon }}</span>
+  <span class="fw-semibold">{{ tracker.name }}</span>
+  <code class="small text-muted">{{ tracker.id }}</code>
+  {% endif %}
+</div>
+
+{% if fetch_error %}
+<div class="alert alert-danger d-flex align-items-center gap-2 py-2">
+  <span class="material-icons">error</span>
+  {{ fetch_error }}
+</div>
+{% endif %}
+
+{% if tracker %}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <table class="table table-sm mb-0">
+      <tbody>
+        <tr><th style="width:12rem;" class="text-muted fw-normal">ID</th><td><code>{{ tracker.id }}</code></td></tr>
+        <tr><th class="text-muted fw-normal">Name</th><td>{{ tracker.name }}</td></tr>
+        <tr><th class="text-muted fw-normal">Type</th><td>{{ tracker.type_name }} <code class="text-muted small">{{ tracker.type_id }}</code></td></tr>
+        <tr><th class="text-muted fw-normal">Key</th><td><code>{{ tracker.key_name }}</code></td></tr>
+        <tr><th class="text-muted fw-normal">Version</th><td>{{ tracker.version }}</td></tr>
+        <tr><th class="text-muted fw-normal">Project</th><td>{{ tracker.project_name }} <code class="text-muted small">{{ tracker.project_id }}</code></td></tr>
+        <tr><th class="text-muted fw-normal">Created by</th><td>{{ tracker.created_by }} <span class="text-muted small ms-1">{{ tracker.created_at }}</span></td></tr>
+        <tr><th class="text-muted fw-normal">Modified by</th><td>{{ tracker.modified_by }} <span class="text-muted small ms-1">{{ tracker.modified_at }}</span></td></tr>
+        {% if tracker.description %}
+        <tr><th class="text-muted fw-normal">Description</th><td class="small">{{ tracker.description }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

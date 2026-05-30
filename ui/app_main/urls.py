@@ -11,4 +11,5 @@ urlpatterns = [
     path("aispice/<str:feature_id>/lifecycle", views.lifecycle_scenario, name="lifecycle_scenario"),
     path("aispice/<str:feature_id>/timeline", views.feature_timeline, name="feature_timeline"),
     path("codebeamer", views.codebeamer, name="codebeamer"),
+    path("codebeamer/tracker/<int:tracker_id>", views.codebeamer_tracker, name="codebeamer_tracker"),
 ]

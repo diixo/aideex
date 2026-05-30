@@ -55,7 +55,7 @@
 
 <!-- ── Step 2: Pick a project ──────────────────────────────── -->
 {% if projects and not trackers %}
-<div class="card border-0 shadow-sm mb-4">
+<div class="card shadow-sm mb-4">
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 2</span>
     <span class="fw-semibold">Pick a Project</span>
@@ -90,7 +90,7 @@
 
 <!-- ── Step 3: Trackers ─────────────────────────────────────── -->
 {% if trackers %}
-<div class="card border-0 shadow-sm mb-4">
+<div class="card shadow-sm mb-4">
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 3</span>
     <span class="fw-semibold">Trackers in <code>{{ selected_project_name }}</code></span>
@@ -110,7 +110,7 @@
         <tbody>
           {% for t in trackers %}
           <tr>
-            <td><code>{{ t.id }}</code></td>
+            <td><a href="{% url 'app_main:codebeamer_tracker' t.id %}" class="text-decoration-none"><code>{{ t.id }}</code></a></td>
             <td class="text-center">
               <span class="material-icons text-secondary" style="font-size:1.15rem;">{{ t.icon }}</span>
             </td>
