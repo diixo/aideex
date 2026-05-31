@@ -287,6 +287,22 @@ def codebeamer(request):
     return render(request, "app_main/codebeamer.html", context)
 
 
+def _serialize_fields(tracker):
+    fields = []
+    for f in tracker.get_fields():
+        if f.hidden:
+            continue
+        fields.append({
+            "id":             f.id,
+            "name":           f.name,
+            "type":           f._type,
+            "multiple":       f.multiple_values or False,
+            "options":        [{"id": o.id, "name": o.name} for o in f.options] if f.options else [],
+            "tracker_field":  f.tracker_item_field,
+        })
+    return fields
+
+
 def _serialize_tree(nodes):
     from pybeamer.folder import Folder
     from pybeamer.tracker import Tracker
@@ -309,6 +325,36 @@ def _serialize_tree(nodes):
                 "icon":      _CODEBEAMER_TRACKER_ICONS.get(node.type_id, "label"),
             })
     return result
+
+
+def codebeamer_create_item(request, tracker_id):
+    saved = _cb_load_credentials()
+    if not saved:
+        from django.shortcuts import redirect as _redirect
+        return _redirect("app_main:codebeamer")
+
+    if request.method == "POST":
+        try:
+            from pybeamer import Codebeamer
+            cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+            tracker = cb.get_tracker(tracker_id)
+
+            name        = request.POST.get("name", "").strip()
+            description = request.POST.get("description", "").strip()
+            type_name   = request.POST.get("type_name", "").strip()
+
+            item = tracker.create_tracker_item(
+                name=name,
+                description=description,
+                type_name=type_name,
+            )
+            from django.shortcuts import redirect as _redirect
+            return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
+        except Exception as e:
+            pass  # fall through to render error
+
+    from django.shortcuts import redirect as _redirect
+    return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
 
 
 def codebeamer_tree(request):
@@ -364,6 +410,9 @@ def codebeamer_tracker(request, tracker_id):
             "project_name":tracker.project.name if tracker.project else None,
             "icon":        _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label"),
         }
+        from pybeamer.tracker_item import TrackerItem as _TI
+        context["item_type_map"] = list(_TI.TYPE_MAP.keys())
+        context["tracker_fields"] = _serialize_fields(tracker)
         # get_items() returns TrackerItem refs — accessing .type_name triggers
         # @loadable which calls _load() → GET /items/{id} → typeName populated
         tracker_obj = cb.get_tracker(tracker_id)

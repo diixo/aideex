@@ -37,6 +37,11 @@
       {% if items_total %}<span class="badge bg-secondary ms-1">{{ items_total }}</span>{% endif %}
     </button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-new" data-bs-toggle="tab" data-bs-target="#pane-new" type="button" role="tab">
+      <i class="bi bi-plus-circle me-1"></i>New Item
+    </button>
+  </li>
 </ul>
 
 <div class="tab-content">
@@ -94,6 +99,71 @@
         <p class="mb-0">No items found.</p>
       </div>
       {% endif %}
+    </div>
+  </div>
+
+  <!-- New Item -->
+  <div class="tab-pane fade" id="pane-new" role="tabpanel">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form method="post" action="{% url 'app_main:codebeamer_create_item' tracker.id %}">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control form-control-sm" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
+            <select name="type_name" class="form-select form-select-sm" required>
+              <option value="" disabled selected>— select type —</option>
+              {% for t in item_type_map %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description</label>
+            <textarea name="description" class="form-control form-control-sm" rows="3"></textarea>
+          </div>
+
+          {% for f in tracker_fields %}
+          {% if f.type == "ChoiceField" and f.options %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ f.name }}</label>
+            <select name="field_{{ f.id }}" class="form-select form-select-sm" {% if f.multiple %}multiple{% endif %}>
+              {% if not f.multiple %}<option value="">— select —</option>{% endif %}
+              {% for opt in f.options %}
+              <option value="{{ opt.id }}">{{ opt.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% elif f.type == "TextField" or f.type == "WikiTextField" %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ f.name }}</label>
+            <input type="text" name="field_{{ f.id }}" class="form-control form-control-sm">
+          </div>
+          {% elif f.type == "IntegerField" %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ f.name }}</label>
+            <input type="number" name="field_{{ f.id }}" class="form-control form-control-sm">
+          </div>
+          {% elif f.type == "DateField" %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ f.name }}</label>
+            <input type="date" name="field_{{ f.id }}" class="form-control form-control-sm">
+          </div>
+          {% endif %}
+          {% endfor %}
+
+          <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+            <span class="material-icons" style="font-size:1rem;">add</span>
+            Create Item
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 

@@ -12,5 +12,6 @@ urlpatterns = [
     path("aispice/<str:feature_id>/timeline", views.feature_timeline, name="feature_timeline"),
     path("codebeamer", views.codebeamer, name="codebeamer"),
     path("codebeamer/tracker/<int:tracker_id>", views.codebeamer_tracker, name="codebeamer_tracker"),
+    path("codebeamer/tracker/<int:tracker_id>/create-item", views.codebeamer_create_item, name="codebeamer_create_item"),
     path("codebeamer/tree", views.codebeamer_tree, name="codebeamer_tree"),
 ]
