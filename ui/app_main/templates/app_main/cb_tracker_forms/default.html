@@ -25,7 +25,7 @@
   {% if f.type == "ChoiceField" and f.options %}
   <div class="mb-3">
     <label class="form-label fw-semibold">{{ f.name }}</label>
-    <select name="field_{{ f.id }}" class="form-select form-select-sm" {% if f.multiple %}multiple{% endif %}>
+    <select name="field_{{ f.name|lower }}" class="form-select form-select-sm" {% if f.multiple %}multiple{% endif %}>
       {% if not f.multiple %}<option value="">— select —</option>{% endif %}
       {% for opt in f.options %}
       <option value="{{ opt.id }}">{{ opt.name }}</option>
@@ -35,17 +35,17 @@
   {% elif f.type == "TextField" or f.type == "WikiTextField" %}
   <div class="mb-3">
     <label class="form-label fw-semibold">{{ f.name }}</label>
-    <input type="text" name="field_{{ f.id }}" class="form-control form-control-sm">
+    <input type="text" name="field_{{ f.name|lower }}" class="form-control form-control-sm">
   </div>
   {% elif f.type == "IntegerField" %}
   <div class="mb-3">
     <label class="form-label fw-semibold">{{ f.name }}</label>
-    <input type="number" name="field_{{ f.id }}" class="form-control form-control-sm">
+    <input type="number" name="field_{{ f.name|lower }}" class="form-control form-control-sm">
   </div>
   {% elif f.type == "DateField" %}
   <div class="mb-3">
     <label class="form-label fw-semibold">{{ f.name }}</label>
-    <input type="date" name="field_{{ f.id }}" class="form-control form-control-sm">
+    <input type="date" name="field_{{ f.name|lower }}" class="form-control form-control-sm">
   </div>
   {% endif %}
   {% endfor %}
