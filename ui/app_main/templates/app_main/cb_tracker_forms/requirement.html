@@ -1,11 +1,14 @@
 <form method="post" action="{% url 'app_main:codebeamer_create_item' tracker.id %}">
   {% csrf_token %}
 
+  <!-- Row 1: Name -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+    <input type="text" name="name" class="form-control form-control-sm" required>
+  </div>
+
+  <!-- Row 2: Type + Status + Priority -->
   <div class="row g-3 mb-3">
-    <div class="col-md-8">
-      <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
-      <input type="text" name="name" class="form-control form-control-sm" required>
-    </div>
     <div class="col-md-4">
       <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
       <select name="type_name" class="form-select form-select-sm" required>
@@ -15,40 +18,98 @@
         {% endfor %}
       </select>
     </div>
+    {% for f in tracker_fields %}
+    {% if f.name == "Status" and f.options %}
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Status</label>
+      <select name="field_{{ f.id }}" id="status-select" class="form-select form-select-sm" onchange="updateStatusColor(this)">
+        {% for opt in f.options %}
+        <option value="{{ opt.id }}" {% if opt.name == "New" %}selected{% endif %}>{{ opt.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% elif f.name == "Priority" and f.options %}
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Priority</label>
+      <select name="field_{{ f.id }}" class="form-select form-select-sm">
+        <option value="">— select —</option>
+        {% for opt in f.options %}
+        <option value="{{ opt.id }}">{{ opt.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    {% endfor %}
   </div>
 
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Description</label>
-    <textarea name="description" class="form-control form-control-sm" rows="4"></textarea>
-  </div>
-
-  {% for f in tracker_fields %}
-  {% if f.name == "Priority" and f.options %}
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Priority</label>
-    <div class="d-flex gap-2 flex-wrap">
-      {% for opt in f.options %}
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="field_{{ f.id }}" id="prio_{{ opt.id }}" value="{{ opt.id }}">
-        <label class="form-check-label small" for="prio_{{ opt.id }}">{{ opt.name }}</label>
-      </div>
-      {% endfor %}
+  <!-- Row 3: Complexity + Story Points + Business Value -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Complexity</label>
+      <select name="complexity" class="form-select form-select-sm">
+        <option value="">— select —</option>
+        <option value="Simple">Simple</option>
+        <option value="Standard">Standard</option>
+        <option value="Complex">Complex</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Story Points</label>
+      <input type="number" name="story_points" class="form-control form-control-sm" min="0" step="1" placeholder="">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Business Value</label>
+      <select name="business_value" class="form-select form-select-sm">
+        <option value="">— select —</option>
+        <option value="Must have">Must have</option>
+        <option value="Should have">Should have</option>
+        <option value="Nice to have">Nice to have</option>
+      </select>
     </div>
   </div>
-  {% elif f.name == "Status" and f.options %}
+
+  <!-- Row 4: Release Item -->
+  {% if release_items %}
   <div class="mb-3">
-    <label class="form-label fw-semibold">Status</label>
-    <select name="field_{{ f.id }}" class="form-select form-select-sm">
-      {% for opt in f.options %}
-      <option value="{{ opt.id }}">{{ opt.name }}</option>
+    <label class="form-label fw-semibold">Release</label>
+    <select name="release_item_id" class="form-select form-select-sm">
+      <option value="">— not linked —</option>
+      {% for r in release_items %}
+      <option value="{{ r.id }}">{{ r.name }}</option>
       {% endfor %}
     </select>
   </div>
   {% endif %}
-  {% endfor %}
+
+  <!-- Row 5: Description (full width, last) -->
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+    <textarea name="description" class="form-control form-control-sm" rows="4" required></textarea>
+  </div>
 
   <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
     <span class="material-icons" style="font-size:1rem;">add</span>
     Create Requirement
   </button>
 </form>
+
+<script>
+var STATUS_COLORS = {
+  "New":     "#dc3545",
+  "Define":  "#fd7e14",
+  "Approve": "#198754",
+  "Reject":  "#6c757d",
+  "Accept":  "#0f5132",
+};
+function updateStatusColor(sel) {
+  var label = sel.options[sel.selectedIndex].text.trim();
+  var color = STATUS_COLORS[label] || "";
+  sel.style.backgroundColor = color;
+  sel.style.color           = color ? "#fff" : "";
+  sel.style.borderColor     = color;
+}
+document.addEventListener("DOMContentLoaded", function() {
+  var sel = document.getElementById("status-select");
+  if (sel) updateStatusColor(sel);
+});
+</script>

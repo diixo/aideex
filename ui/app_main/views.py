@@ -331,33 +331,44 @@ def _serialize_tree(nodes):
 
 
 def codebeamer_create_item(request, tracker_id):
+    from pybeamer import Codebeamer
+    from django.shortcuts import redirect as _redirect
+
     saved = _cb_load_credentials()
     if not saved:
-        from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
     if request.method == "POST":
         try:
-            from pybeamer import Codebeamer
             cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
             tracker = cb.get_tracker(tracker_id)
-            t_type = tracker.type_name
+            t_type = tracker.type_name.lower()
 
-            name        = request.POST.get("name", "").strip()
-            description = request.POST.get("description", "").strip()
-            type_name   = request.POST.get("type_name", "").strip()
+            if t_type=="requirement":
+                name        = request.POST.get("name", "").strip()
+                description = request.POST.get("description", "").strip()
+                type_name   = request.POST.get("type_name", "").strip()
 
-            item = tracker.create_tracker_item(
-                name=name,
-                description=description,
-                type_name=type_name,
-            )
-            from django.shortcuts import redirect as _redirect
+                item = tracker.create_tracker_item(
+                    name=name,
+                    description=description,
+                    type_name=type_name,
+                )
+            else:
+                name        = request.POST.get("name", "").strip()
+                description = request.POST.get("description", "").strip()
+                type_name   = request.POST.get("type_name", "").strip()
+
+                item = tracker.create_tracker_item(
+                    name=name,
+                    description=description,
+                    type_name=type_name,
+                )
+
             return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
         except Exception as e:
             pass  # fall through to render error
 
-    from django.shortcuts import redirect as _redirect
     return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
 
 
@@ -434,19 +445,16 @@ def codebeamer_tracker(request, tracker_id):
         # Exclude category field from regular form fields
         context["tracker_fields"] = [f for f in all_fields if f != category_field]
 
-        # Load Release trackers from the same project
+        # Load Release items from Release-type trackers in the same project
         project_id = tracker.project.id if tracker.project else saved.get("project_id")
+        release_items = []
         if project_id:
             project = cb.get_project(project_id)
-            all_trackers = project.get_trackers()
-            context["release_trackers"] = [
-                {"id": t.id, "name": t.name}
-                for t in all_trackers
-                if (t.type_name or "").lower() in ("release", "releases")
-                or t.type_id == 103
-            ]
-        else:
-            context["release_trackers"] = []
+            for t in project.get_trackers():
+                if (t.type_name or "").lower() in ("release", "releases") or t.type_id == 103:
+                    for item in t.get_items():
+                        release_items.append({"id": item.id, "name": item.name})
+        context["release_items"] = release_items
 
         # Pick form template by tracker type_name, fallback to default
         type_slug = (tracker.type_name or "").lower().replace(" ", "_").replace("/", "_")
