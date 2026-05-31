@@ -28,6 +28,9 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     108: "playlist_play",           # Test Sets — collection of tests
     109: "tune",                    # Test Configurations — sliders
     150: "groups",                  # Teams — multiple people
+    12: "explicit",                 # Epic
+    13: "description",              # Document
+    1: "fireplace",                 # Issue
 }
 
 
@@ -430,6 +433,20 @@ def codebeamer_tracker(request, tracker_id):
             context["item_type_options"] = [{"id": None, "name": k} for k in _TI.TYPE_MAP.keys()]
         # Exclude category field from regular form fields
         context["tracker_fields"] = [f for f in all_fields if f != category_field]
+
+        # Load Release trackers from the same project
+        project_id = tracker.project.id if tracker.project else saved.get("project_id")
+        if project_id:
+            project = cb.get_project(project_id)
+            all_trackers = project.get_trackers()
+            context["release_trackers"] = [
+                {"id": t.id, "name": t.name}
+                for t in all_trackers
+                if (t.type_name or "").lower() in ("release", "releases")
+                or t.type_id == 103
+            ]
+        else:
+            context["release_trackers"] = []
 
         # Pick form template by tracker type_name, fallback to default
         type_slug = (tracker.type_name or "").lower().replace(" ", "_").replace("/", "_")
