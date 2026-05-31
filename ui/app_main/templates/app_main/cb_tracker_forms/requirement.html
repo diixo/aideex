@@ -22,7 +22,7 @@
     {% if f.name == "Status" and f.options %}
     <div class="col-md-4">
       <label class="form-label fw-semibold">Status</label>
-      <select name="field_{{ f.id }}" id="status-select" class="form-select form-select-sm" onchange="updateStatusColor(this)">
+      <select name="field_{{ f.name|lower }}" id="status-select" class="form-select form-select-sm" onchange="updateStatusColor(this)">
         {% for opt in f.options %}
         <option value="{{ opt.id }}" {% if opt.name == "New" %}selected{% endif %}>{{ opt.name }}</option>
         {% endfor %}
@@ -31,7 +31,7 @@
     {% elif f.name == "Priority" and f.options %}
     <div class="col-md-4">
       <label class="form-label fw-semibold">Priority</label>
-      <select name="field_{{ f.id }}" class="form-select form-select-sm">
+      <select name="field_{{ f.name|lower }}" class="form-select form-select-sm">
         <option value="">— select —</option>
         {% for opt in f.options %}
         <option value="{{ opt.id }}">{{ opt.name }}</option>

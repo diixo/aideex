@@ -344,21 +344,49 @@ def codebeamer_create_item(request, tracker_id):
             tracker = cb.get_tracker(tracker_id)
             t_type = tracker.type_name.lower()
 
-            if t_type=="requirement":
+            print(f"[create_item] tracker_id={tracker_id} type={t_type}")
+            for key, val in request.POST.items():
+                if key != "csrfmiddlewaretoken":
+                    print(f"  POST[{key}] = {val!r}")
+
+            if t_type == "requirement":
                 name        = request.POST.get("name", "").strip()
                 description = request.POST.get("description", "").strip()
                 type_name   = request.POST.get("type_name", "").strip()
+                kwargs = {}
+                if request.POST.get("story_points"):
+                    kwargs["story_points"] = int(request.POST["story_points"])
+                if request.POST.get("business_value"):
+                    priority = request.POST["business_value"]
+                    id = 0
+                    if priority == "Must have":
+                        id = 1
+                    elif priority == "Should have":
+                        id = 3
+                    elif priority == "Nice to have":
+                        id = 5
+                    kwargs["priority"] = {"type": "ChoiceOptionReference", "id": id, "name": priority}
+                if request.POST.get("complexity"):
+                    complexity = request.POST["complexity"]
+                    id = 0
+                    if complexity == "Complex":
+                        id = 3
+                    elif complexity == "Standard":
+                        id = 2
+                    elif complexity == "Simple":
+                        id = 1
+                    kwargs["severities"] = [{"type": "ChoiceOptionReference", "id": id, "name": complexity}]
 
                 item = tracker.create_tracker_item(
                     name=name,
                     description=description,
                     type_name=type_name,
+                    **kwargs,
                 )
             else:
                 name        = request.POST.get("name", "").strip()
                 description = request.POST.get("description", "").strip()
                 type_name   = request.POST.get("type_name", "").strip()
-
                 item = tracker.create_tracker_item(
                     name=name,
                     description=description,
