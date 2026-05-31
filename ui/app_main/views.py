@@ -411,8 +411,24 @@ def codebeamer_tracker(request, tracker_id):
             "icon":        _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label"),
         }
         from pybeamer.tracker_item import TrackerItem as _TI
-        context["item_type_map"] = list(_TI.TYPE_MAP.keys())
-        context["tracker_fields"] = _serialize_fields(tracker)
+        all_fields = _serialize_fields(tracker)
+        # Category field drives the type_name — extract it separately
+        category_field = next(
+            (f for f in all_fields if f["tracker_field"] in ("categories", "category") or f["name"].lower() in ("category", "categories")),
+            None
+        )
+        if category_field and category_field["options"]:
+            # Only keep options that exist in TYPE_MAP
+            valid = {v: k for k, v in _TI.TYPE_MAP.items()}
+            context["item_type_options"] = [
+                {"id": o["id"], "name": o["name"]}
+                for o in category_field["options"]
+                if o["id"] in valid or o["name"] in _TI.TYPE_MAP
+            ] or category_field["options"]
+        else:
+            context["item_type_options"] = [{"id": None, "name": k} for k in _TI.TYPE_MAP.keys()]
+        # Exclude category field from regular form fields
+        context["tracker_fields"] = [f for f in all_fields if f != category_field]
         # get_items() returns TrackerItem refs — accessing .type_name triggers
         # @loadable which calls _load() → GET /items/{id} → typeName populated
         tracker_obj = cb.get_tracker(tracker_id)
