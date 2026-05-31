@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, get_args
+from typing import TYPE_CHECKING, Any, get_args, get_type_hints
 
 from datetime import datetime
 from loguru import logger
@@ -7,7 +7,7 @@ from loguru import logger
 from .rest_client import RestClient
 from .user import User
 from .tracker_item import TrackerItem
-from .fields import FieldDefinition, Field
+from .fields import FieldDefinition, Field, ChoiceValue
 from .utils import loadable, clamp, pages, snake_to_camel, snake_to_title
 
 if TYPE_CHECKING:
@@ -341,7 +341,7 @@ class Tracker:
 			params['position'] = position.upper()
 
 		# ! Need to grab system fields into the top level data level.
-		system_fields = {k[1:]: v for k, v in TrackerItem.__annotations__.items()} # remove the _ leading the param with k[1:]
+		system_fields = {k[1:]: v for k, v in get_type_hints(TrackerItem).items()}
 		# ! Need to put non-system fields in the customFields section as a list of Fields
 		# Bare minimum required to create the item
 		data = {
@@ -369,38 +369,40 @@ class Tracker:
 				]):
 					# Need to convert the system field name from snake_case to camelCase for the JSON
 					data[snake_to_camel(field)] = value
-				elif Field in field_arg_types:
-					# Need to get the type of field from the FieldDefinition using the provided name
-					# Build the field json and add it
+				elif ChoiceValue in field_arg_types or Field in field_arg_types:
 					# ! This is for fields like status or priority that are explicit fields
 					# ! that take the id and name of the choice
-					field_def = self.get_field(snake_to_title(field))
-					choice = field_def.get_choice(value)
-					if not choice:
-						continue
-					field_json = {
-						'id': choice.id,
-						'name': choice.name,
-						'type': choice.type
-					}
-					data[snake_to_camel(field)] = field_json
-				elif list[Field] in field_arg_types:
-					# Need to get the type of field from the FieldDefinition using the provided name
-					# Build the field json and add it
-					# ! This is for fields like subjects that take a list of id and name dictionaries
-					field_jsons = []
-					field_def = self.get_field(snake_to_title(field))
-					for val in value:
-						choice = field_def.get_choice(val)
+					if isinstance(value, dict):
+						data[snake_to_camel(field)] = value
+					elif isinstance(value, ChoiceValue):
+						data[snake_to_camel(field)] = value.json
+					else:
+						field_def = self.get_field(snake_to_title(field))
+						choice = field_def.get_choice(value)
 						if not choice:
 							continue
-						field_json = {
+						data[snake_to_camel(field)] = {
 							'id': choice.id,
 							'name': choice.name,
 							'type': choice.type
 						}
-						field_jsons.append(field_json)
-					data[snake_to_camel(field)] = field_json
+				elif list[Field] in field_arg_types:
+					# ! This is for fields like subjects/severities that take a list of choices
+					if isinstance(value, list) and all(isinstance(v, dict) for v in value):
+						data[snake_to_camel(field)] = value
+					else:
+						field_jsons = []
+						field_def = self.get_field(snake_to_title(field))
+						for val in value:
+							choice = field_def.get_choice(val)
+							if not choice:
+								continue
+							field_jsons.append({
+								'id': choice.id,
+								'name': choice.name,
+								'type': choice.type
+							})
+						data[snake_to_camel(field)] = field_jsons
 				else:
 					# At the moment this is dict[str, Any] but those will be other types
 					# ! Not Implemented ATM

@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 class TrackerItem:
 	"""Represents a tracker item in codeBeamer."""
+	_priority: ChoiceValue | None
+	_severities: list[Field] | None
+
 	if TYPE_CHECKING:
 		_accrued_millis: int | None
 		_areas: list[dict[str, Any]] | None # TODO: Area
@@ -41,12 +44,10 @@ class TrackerItem:
 		_tracker: Tracker | None
 		_children: list[TrackerItem] | None
 		_custom_fields: list[Field] | None
-		_priority: ChoiceValue | None # I don't like this but that seems to be the case
 		_status: Field | None
 		_categories: list[Field] | None
 		_subjects: list[Field] | None
 		_resolutions: list[Field] | None
-		_severities: list[Field] | None
 		_teams: list[Field] | None
 		_versions: list[dict[str, Any]] | None # TODO: Version
 		_ordinal: int | None
