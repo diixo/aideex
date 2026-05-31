@@ -1,0 +1,26 @@
+{% for node in nodes %}
+  {% if node.kind == "folder" %}
+  <li class="cb-folder">
+    <span class="d-flex align-items-center gap-1 py-1 cb-folder-toggle" role="button">
+      <span class="material-icons text-warning" style="font-size:1.1rem;">folder</span>
+      <span class="fw-semibold small">{{ node.name }}</span>
+      <span class="badge bg-light text-muted border small ms-1">{{ node.children|length }}</span>
+    </span>
+    {% if node.children %}
+    <ul class="cb-tree-children">
+      {% with nodes=node.children %}
+      {% include "app_main/includes/cb_tree_node.html" %}
+      {% endwith %}
+    </ul>
+    {% endif %}
+  </li>
+  {% elif node.kind == "tracker" %}
+  <li class="cb-tracker py-1">
+    <a href="{% url 'app_main:codebeamer_tracker' node.id %}" class="d-flex align-items-center gap-2 text-decoration-none text-body">
+      <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ node.color }};border-radius:3px;padding:2px;">{{ node.icon }}</span>
+      <span class="small">{{ node.name }}</span>
+      <code class="text-muted ms-auto" style="font-size:.72rem;">{{ node.id }}</code>
+    </a>
+  </li>
+  {% endif %}
+{% endfor %}

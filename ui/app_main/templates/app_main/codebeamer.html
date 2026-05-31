@@ -108,6 +108,10 @@
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 3</span>
     <span class="fw-semibold">Tracker{{ trackers|length|pluralize }} ({{ trackers|length }})</span>
+    <a href="{% url 'app_main:codebeamer_tree' %}" class="btn btn-sm btn-outline-secondary ms-auto d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1rem;">account_tree</span>
+      Tree View
+    </a>
   </div>
   <div class="card-body py-2">
     <div class="table-responsive">

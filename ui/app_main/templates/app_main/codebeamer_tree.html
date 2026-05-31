@@ -1,0 +1,48 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+  .cb-tree { list-style: none; padding: 0; margin: 0; }
+  .cb-tree-children { list-style: none; padding-left: 1.25rem; border-left: 2px solid #dee2e6; margin: .1rem 0 .1rem .5rem; }
+  .cb-folder-toggle { cursor: pointer; user-select: none; }
+  .cb-folder-toggle:hover { background: #f8f9fa; border-radius: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mt-3 mb-4">
+  <a href="{% url 'app_main:codebeamer' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h5 class="fw-bold mb-0">Tracker Tree</h5>
+  {% if project_name %}
+  <span class="text-muted">—</span>
+  <span class="fw-semibold text-primary">{{ project_name }}</span>
+  {% endif %}
+</div>
+
+{% if fetch_error %}
+<div class="alert alert-danger d-flex align-items-center gap-2 py-2">
+  <span class="material-icons">error</span>
+  {{ fetch_error }}
+</div>
+{% endif %}
+
+{% if tree %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body py-2 px-3">
+    <ul class="cb-tree">
+      {% with nodes=tree %}
+      {% include "app_main/includes/cb_tree_node.html" %}
+      {% endwith %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

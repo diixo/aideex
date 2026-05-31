@@ -287,6 +287,52 @@ def codebeamer(request):
     return render(request, "app_main/codebeamer.html", context)
 
 
+def _serialize_tree(nodes):
+    from pybeamer.folder import Folder
+    from pybeamer.tracker import Tracker
+    result = []
+    for node in nodes:
+        if isinstance(node, Folder):
+            result.append({
+                "kind": "folder",
+                "name": node.name,
+                "children": _serialize_tree(node.children),
+            })
+        elif isinstance(node, Tracker):
+            result.append({
+                "kind": "tracker",
+                "id":        node.id,
+                "name":      node.name,
+                "type_id":   node.type_id,
+                "type_name": node.type_name,
+                "color":     node.color or "#6c757d",
+                "icon":      _CODEBEAMER_TRACKER_ICONS.get(node.type_id, "label"),
+            })
+    return result
+
+
+def codebeamer_tree(request):
+    saved = _cb_load_credentials()
+    if not saved or not saved.get("project_id"):
+        from django.shortcuts import redirect as _redirect
+        return _redirect("app_main:codebeamer")
+
+    context = {
+        "title": "AI-delix - Codebeamer Tree",
+        "cb_url": saved.get("cb_url", ""),
+    }
+    try:
+        from pybeamer import Codebeamer
+        cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+        project = cb.get_project(saved["project_id"])
+        context["project_name"] = project.name
+        context["tree"] = _serialize_tree(project.get_tree())
+    except Exception as e:
+        context["fetch_error"] = str(e)
+
+    return render(request, "app_main/codebeamer_tree.html", context)
+
+
 def codebeamer_tracker(request, tracker_id):
     saved = _cb_load_credentials()
     if not saved:
