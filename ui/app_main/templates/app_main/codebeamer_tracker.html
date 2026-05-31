@@ -105,64 +105,15 @@
   <!-- New Item -->
   <div class="tab-pane fade" id="pane-new" role="tabpanel">
     <div class="card border-0 shadow-sm">
+      <div class="card-header py-2 d-flex align-items-center gap-2">
+        <span class="material-icons" 
+          style="font-size:1rem; color:#fff; background:{{ tracker.color }}; border-radius:4px; padding:2px;"
+          >{{ tracker.icon }}</span>
+        <span class="small fw-semibold">{{ tracker.type_name }}</span>
+        <code class="text-muted small ms-auto">{{ tracker_form_template }}</code>
+      </div>
       <div class="card-body">
-        <form method="post" action="{% url 'app_main:codebeamer_create_item' tracker.id %}">
-          {% csrf_token %}
-
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
-            <input type="text" name="name" class="form-control form-control-sm" required>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
-            <select name="type_name" class="form-select form-select-sm" required>
-              <option value="" disabled selected>— select type —</option>
-              {% for t in item_type_options %}
-              <option value="{{ t.name }}">{{ t.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Description</label>
-            <textarea name="description" class="form-control form-control-sm" rows="3"></textarea>
-          </div>
-
-          {% for f in tracker_fields %}
-          {% if f.type == "ChoiceField" and f.options %}
-          <div class="mb-3">
-            <label class="form-label fw-semibold">{{ f.name }}</label>
-            <select name="field_{{ f.id }}" class="form-select form-select-sm" {% if f.multiple %}multiple{% endif %}>
-              {% if not f.multiple %}<option value="">— select —</option>{% endif %}
-              {% for opt in f.options %}
-              <option value="{{ opt.id }}">{{ opt.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          {% elif f.type == "TextField" or f.type == "WikiTextField" %}
-          <div class="mb-3">
-            <label class="form-label fw-semibold">{{ f.name }}</label>
-            <input type="text" name="field_{{ f.id }}" class="form-control form-control-sm">
-          </div>
-          {% elif f.type == "IntegerField" %}
-          <div class="mb-3">
-            <label class="form-label fw-semibold">{{ f.name }}</label>
-            <input type="number" name="field_{{ f.id }}" class="form-control form-control-sm">
-          </div>
-          {% elif f.type == "DateField" %}
-          <div class="mb-3">
-            <label class="form-label fw-semibold">{{ f.name }}</label>
-            <input type="date" name="field_{{ f.id }}" class="form-control form-control-sm">
-          </div>
-          {% endif %}
-          {% endfor %}
-
-          <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
-            <span class="material-icons" style="font-size:1rem;">add</span>
-            Create Item
-          </button>
-        </form>
+        {% include tracker_form_template %}
       </div>
     </div>
   </div>

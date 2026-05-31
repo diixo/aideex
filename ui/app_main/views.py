@@ -338,6 +338,7 @@ def codebeamer_create_item(request, tracker_id):
             from pybeamer import Codebeamer
             cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
             tracker = cb.get_tracker(tracker_id)
+            t_type = tracker.type_name
 
             name        = request.POST.get("name", "").strip()
             description = request.POST.get("description", "").strip()
@@ -429,6 +430,17 @@ def codebeamer_tracker(request, tracker_id):
             context["item_type_options"] = [{"id": None, "name": k} for k in _TI.TYPE_MAP.keys()]
         # Exclude category field from regular form fields
         context["tracker_fields"] = [f for f in all_fields if f != category_field]
+
+        # Pick form template by tracker type_name, fallback to default
+        type_slug = (tracker.type_name or "").lower().replace(" ", "_").replace("/", "_")
+        from django.template.loader import get_template
+        from django.template import TemplateDoesNotExist
+        specific = f"app_main/cb_tracker_forms/{type_slug}.html"
+        try:
+            get_template(specific)
+            context["tracker_form_template"] = specific
+        except TemplateDoesNotExist:
+            context["tracker_form_template"] = "app_main/cb_tracker_forms/default.html"
         # get_items() returns TrackerItem refs — accessing .type_name triggers
         # @loadable which calls _load() → GET /items/{id} → typeName populated
         tracker_obj = cb.get_tracker(tracker_id)

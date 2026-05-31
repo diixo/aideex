@@ -1,0 +1,54 @@
+<form method="post" action="{% url 'app_main:codebeamer_create_item' tracker.id %}">
+  {% csrf_token %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-8">
+      <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+      <input type="text" name="name" class="form-control form-control-sm" required>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
+      <select name="type_name" class="form-select form-select-sm" required>
+        <option value="" disabled selected>— select —</option>
+        {% for t in item_type_options %}
+        <option value="{{ t.name }}">{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Description</label>
+    <textarea name="description" class="form-control form-control-sm" rows="4"></textarea>
+  </div>
+
+  {% for f in tracker_fields %}
+  {% if f.name == "Priority" and f.options %}
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Priority</label>
+    <div class="d-flex gap-2 flex-wrap">
+      {% for opt in f.options %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="field_{{ f.id }}" id="prio_{{ opt.id }}" value="{{ opt.id }}">
+        <label class="form-check-label small" for="prio_{{ opt.id }}">{{ opt.name }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% elif f.name == "Status" and f.options %}
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Status</label>
+    <select name="field_{{ f.id }}" class="form-select form-select-sm">
+      {% for opt in f.options %}
+      <option value="{{ opt.id }}">{{ opt.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+    <span class="material-icons" style="font-size:1rem;">add</span>
+    Create Requirement
+  </button>
+</form>
