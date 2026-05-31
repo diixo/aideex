@@ -268,6 +268,9 @@ class Tracker:
 			while params['page'] < total_pages:
 				params['page'] += 1
 				item_data = self._client.get(f'trackers/{self.id}/items', params=params)
+				for ti in item_data['itemRefs']:
+					if 'name' not in ti:
+						print(f'[!] itemRef missing "name": {ti}')
 				items.extend([TrackerItem(**ti, client=self._client, tracker=self) for ti in item_data['itemRefs']])
 		return items
 	

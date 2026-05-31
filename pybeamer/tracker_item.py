@@ -73,7 +73,7 @@ class TrackerItem:
 		'Information': 14,
 	}
 
-	def __init__(self, id: int, name: str, **kwargs):
+	def __init__(self, id: int, name: str = '', **kwargs):
 		# Initial setup of the object
 		prop_defaults = {k: None for k in self.__class__.__annotations__}
 		self.__dict__.update(prop_defaults)
