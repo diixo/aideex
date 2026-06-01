@@ -1,0 +1,107 @@
+<style>
+  .issue-view-field { display:flex; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid #f0f0f0; }
+  .issue-view-field:last-child { border-bottom:none; }
+  .issue-view-label { min-width:130px; font-size:.8rem; font-weight:600; color:#6c757d; flex-shrink:0; }
+  .issue-view-val { font-size:.88rem; }
+</style>
+
+<div class="row g-3">
+
+  <!-- Left column: main info -->
+  <div class="col-md-8">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2 d-flex align-items-center gap-2">
+        <span class="material-icons" style="font-size:1rem;color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
+        <span class="fw-semibold small">{{ item.tracker_name }}</span>
+        <span class="ms-auto">
+          <a href="{{ cb_url }}/item/{{ item.id }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <span class="material-icons" style="font-size:.9rem;vertical-align:middle;">open_in_new</span>
+          </a>
+        </span>
+      </div>
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">{{ item.name }}</h6>
+        {% if item.description %}
+        <p class="small text-body-secondary mb-0">{{ item.description }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column: attributes -->
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-2 px-3">
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Status</span>
+          <span class="issue-view-val">
+            <span class="fw-semibold small px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">
+              {{ item.status|default:"—" }}
+            </span>
+          </span>
+        </div>
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Priority</span>
+          <span class="issue-view-val d-flex align-items-center gap-1">
+            {% if item.priority and item.priority != "Unset" %}
+            <i class="material-icons" style="font-size:16px;color:{{ item.priority_color }};">table_rows</i>
+            <span>{{ item.priority }}</span>
+            {% else %}<span class="text-muted">--</span>{% endif %}
+          </span>
+        </div>
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Severity</span>
+          <span class="issue-view-val">{{ item.severity|default:"—" }}</span>
+        </div>
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Resolution</span>
+          <span class="issue-view-val">{{ item.resolution|default:"—" }}</span>
+        </div>
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Start Date</span>
+          <span class="issue-view-val">{{ item.start_date|default:"—" }}</span>
+        </div>
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">End Date</span>
+          <span class="issue-view-val">{{ item.end_date|default:"—" }}</span>
+        </div>
+
+        {% if item.assigned_to %}
+        <div class="issue-view-field">
+          <span class="issue-view-label">Assigned To</span>
+          <span class="issue-view-val small">{{ item.assigned_to|join:", " }}</span>
+        </div>
+        {% endif %}
+
+        {% if item.story_points %}
+        <div class="issue-view-field">
+          <span class="issue-view-label">Story Points</span>
+          <span class="issue-view-val">{{ item.story_points }}</span>
+        </div>
+        {% endif %}
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Created by</span>
+          <span class="issue-view-val small">{{ item.created_by|default:"—" }}<br>
+            <span class="text-muted">{{ item.created_at }}</span>
+          </span>
+        </div>
+
+        <div class="issue-view-field">
+          <span class="issue-view-label">Modified by</span>
+          <span class="issue-view-val small">{{ item.modified_by|default:"—" }}<br>
+            <span class="text-muted">{{ item.modified_at }}</span>
+          </span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>

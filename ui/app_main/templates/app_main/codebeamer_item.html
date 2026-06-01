@@ -1,0 +1,26 @@
+{% extends "app_main/base.html" %}
+{% block meta %}<title>{{ title }}</title>{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mt-3 mb-4">
+  <a href="{% if item.tracker_id %}{% url 'app_main:codebeamer_tracker' item.tracker_id %}{% else %}{% url 'app_main:codebeamer' %}{% endif %}"
+     class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  {% if item %}
+  <span class="material-icons" style="font-size:1.1rem;color:#fff;background:{{ item.tracker_color }};border-radius:4px;padding:2px;">{{ item.tracker_icon }}</span>
+  <span class="fw-semibold">{{ item.name }}</span>
+  <code class="small text-muted">{{ item.id }}</code>
+  {% endif %}
+</div>
+
+{% if fetch_error %}
+<div class="alert alert-danger d-flex align-items-center gap-2 py-2">
+  <span class="material-icons">error</span>{{ fetch_error }}
+</div>
+{% endif %}
+
+{% if item %}
+{% include item_view_template %}
+{% endif %}
+{% endblock %}
