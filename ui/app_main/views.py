@@ -431,7 +431,8 @@ def codebeamer_create_item(request, tracker_id):
                 severity    = request.POST.get("severity", "").strip()
                 priority    = request.POST.get("priority", "").strip()
                 resolution   = request.POST.get("resolution", "").strip()
-                planned_effort = int(request.POST.get("planned_effort", "0").strip())
+                planned_effort_raw = request.POST.get("planned_effort", "").strip()
+                planned_effort = int(planned_effort_raw) if planned_effort_raw.isdigit() else 0
 
                 if planned_effort > 0:
                     kwargs["estimated_millis"] = planned_effort * 3600000  # convert hours to milliseconds
@@ -570,7 +571,7 @@ def codebeamer_item(request, item_id):
         context["item"] = {
             "id":           item.id,
             "name":         item.name,
-            "description":  _strip_wiki(item.description),
+            "description":  item.description,
             "type_name":    item.type_name,
             "status":       status_name,
             "status_color": STATUS_COLORS.get(status_name, "#6c757d"),
