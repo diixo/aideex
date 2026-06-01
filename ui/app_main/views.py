@@ -31,6 +31,7 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     12: "explicit",                 # Epic
     13: "description",              # Document
     1: "fireplace",                 # Issue
+    105: "extension",               # Components — puzzle piece
 }
 
 
