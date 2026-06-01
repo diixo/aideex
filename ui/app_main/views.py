@@ -34,6 +34,9 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     105: "extension",               # Components — puzzle piece
 }
 
+def _to_cb_date(d):
+    return f"{d}T00:00:00.000Z" if d else None
+
 
 def main(request):
     #return redirect(to="app_main:confluence")
@@ -386,12 +389,8 @@ def codebeamer_create_item(request, tracker_id):
                     **kwargs,
                 )
             elif t_type == "release":
-                print("Creating Release with data:", request.POST)
                 name        = request.POST.get("name", "").strip()
                 description = request.POST.get("description", "").strip()
-
-                def _to_cb_date(d):
-                    return f"{d}T00:00:00.000Z" if d else None
 
                 if request.POST.get("start_date"):
                     kwargs["start_date"] = _to_cb_date(request.POST.get("start_date", "").strip())
@@ -416,13 +415,92 @@ def codebeamer_create_item(request, tracker_id):
                         "id":   id,
                         "name": release_method_val if release_method_val else "Unset",
                     }
-                print("::", kwargs)
+
                 #kwargs["status"] = {"type": "ChoiceOptionReference", "id": 1, "name": "Unset"}
 
                 item = tracker.create_tracker_item(
                     name=name,
                     description=description,
                     type_name="Release",
+                    **kwargs,
+                )
+            elif t_type == "issue":
+                name        = request.POST.get("name", "").strip()
+                description = request.POST.get("description", "").strip()
+                type_name   = request.POST.get("type_name", "").strip()
+                severity    = request.POST.get("severity", "").strip()
+                priority    = request.POST.get("priority", "").strip()
+                resolution   = request.POST.get("resolution", "").strip()
+                planned_effort = int(request.POST.get("planned_effort", "0").strip())
+
+                if planned_effort > 0:
+                    kwargs["estimated_millis"] = planned_effort * 3600000  # convert hours to milliseconds
+
+                if request.POST.get("start_date"):
+                    kwargs["start_date"] = _to_cb_date(request.POST.get("start_date", "").strip())
+                    print("Start date:", kwargs["start_date"])
+
+                if request.POST.get("end_date"):
+                    kwargs["end_date"] = _to_cb_date(request.POST.get("end_date", "").strip())
+                    print("End date:", kwargs["end_date"])
+
+                if severity:
+                    severity_id = 0
+                    if severity == "Blocker":
+                        severity_id = 1
+                    elif severity == "Critical":
+                        severity_id = 2
+                    elif severity == "Major":
+                        severity_id = 3
+                    elif severity == "Minor":
+                        severity_id = 4
+                    elif severity == "Trivial":
+                        severity_id = 5
+                    kwargs["severities"] = [{"type": "ChoiceOptionReference", "id": severity_id, "name": severity}]
+
+                if priority:
+                    priority_id = 0
+                    if priority == "Highest":
+                        priority_id = 1
+                    elif priority == "High":
+                        priority_id = 2
+                    elif priority == "Medium":
+                        priority_id = 3
+                    elif priority == "Low":
+                        priority_id = 4
+                    elif priority == "Lowest":
+                        priority_id = 5
+                    kwargs["priority"] = {"type": "ChoiceOptionReference", "id": priority_id, "name": priority}
+
+                if resolution:
+                    resolution_id = 0
+                    if resolution == "Fixed":
+                        resolution_id = 1
+                    elif resolution == "Invalid":
+                        resolution_id = 2
+                    elif resolution == "Won't Fix":
+                        resolution_id = 3
+                    elif resolution == "Later":
+                        resolution_id = 4
+                    elif resolution == "Remind":
+                        resolution_id = 5
+                    elif resolution == "Duplicate":
+                        resolution_id = 6
+                    elif resolution == "Works for Me":
+                        resolution_id = 7
+                    elif resolution == "In Development":
+                        resolution_id = 8
+                    elif resolution == "Implemented":
+                        resolution_id = 9
+                    elif resolution == "Party Implemented":
+                        resolution_id = 10
+                    kwargs["resolutions"] = [{"type": "ChoiceOptionReference", "id": resolution_id, "name": resolution}]
+
+                print("::", kwargs)
+                item = tracker.create_tracker_item(
+                    name=name,
+                    description=description,
+                    type_name=type_name,
                     **kwargs,
                 )
             else:

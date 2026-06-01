@@ -1,57 +1,191 @@
 <form method="post" action="{% url 'app_main:codebeamer_create_item' tracker.id %}">
   {% csrf_token %}
 
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+  <style>
+    .issue-field { display:flex; align-items:center; gap:.5rem; margin-bottom:.6rem; }
+    .issue-field label { min-width:110px; font-weight:600; font-size:.83rem; flex-shrink:0; margin:0; }
+    .issue-row { display:flex; gap:1.5rem; margin-bottom:.6rem; }
+    .issue-row .issue-field { flex:1; }
+  </style>
+
+  <!-- Row 1: Tracker + Parent + Priority -->
+  <div class="issue-row">
+    <div class="issue-field">
+      <label>Tracker:</label>
+      <span class="small fw-semibold text-body-secondary">{{ tracker.name }}</span>
+    </div>
+    <div class="issue-field">
+      <label>Parent:</label>
+      <select name="parent_id" class="form-select form-select-sm">
+        <option value="">— none —</option>
+        {% for item in items %}
+          {% if item.type_name == "Issue" or item.type_name == "Folder" %}
+          <option value="{{ item.id }}">{{ item.name }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+    <div class="issue-field">
+      <label>Priority:</label>
+      <select name="priority" class="form-select form-select-sm">
+        <option value="">--</option>
+        <option value="Lowest">Lowest</option>
+        <option value="Low">Low</option>
+        <option value="Normal">Normal</option>
+        <option value="High">High</option>
+        <option value="Highest">Highest</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Row 2: Status + Owner + Assigned To -->
+  <div class="issue-row">
+    <div class="issue-field">
+      <label>Status:</label>
+      <input type="text" name="status" class="form-control form-control-sm bg-light text-muted" value="New" readonly>
+    </div>
+    <div class="issue-field">
+      <label>Owner:</label>
+      <input type="text" name="owner" class="form-control form-control-sm">
+    </div>
+    <div class="issue-field">
+      <label>Assigned To:</label>
+      <input type="text" name="assigned_to" class="form-control form-control-sm">
+    </div>
+  </div>
+
+  <!-- Row 3: Start Date + End Date + Planned Effort -->
+  <div class="issue-row">
+    <div class="issue-field">
+      <label>Start Date:</label>
+      <input type="date" name="start_date" class="form-control form-control-sm">
+    </div>
+    <div class="issue-field">
+      <label>End Date:</label>
+      <input type="date" name="end_date" class="form-control form-control-sm">
+    </div>
+    <div class="issue-field">
+      <label>Planned Effort:</label>
+      <input type="text" name="planned_effort" class="form-control form-control-sm" placeholder="e.g. 2h 30m">
+    </div>
+  </div>
+
+  <!-- Row 4: Spent Effort + Category + Severity -->
+  <div class="issue-row mb-3">
+    <div class="issue-field">
+      <label>Spent Effort:</label>
+      <input type="text" name="spent_effort" class="form-control form-control-sm" placeholder="e.g. 1h">
+    </div>
+    <div class="issue-field">
+      <label>Category:</label>
+      <select name="category" class="form-select form-select-sm">
+        <option value="">— select —</option>
+      </select>
+    </div>
+    <div class="issue-field">
+      <label>Severity:</label>
+      <select name="severity" class="form-select form-select-sm">
+        <option value="">— select —</option>
+        <option value="Blocker">Blocker</option>
+        <option value="Critical">Critical</option>
+        <option value="Minor">Minor</option>
+        <option value="Trivial">Trivial</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Row 5: Resolution + Release -->
+  <div class="issue-row mb-3">
+    <div class="issue-field">
+      <label>Resolution:</label>
+      <select name="resolution" class="form-select form-select-sm">
+        <option value="">--</option>
+        <option value="Fixed">Fixed</option>
+        <option value="Invalid">Invalid</option>
+        <option value="Won't Fix">Won't Fix</option>
+        <option value="Later">Later</option>
+        <option value="Remind">Remind</option>
+        <option value="Duplicate">Duplicate</option>
+        <option value="Works for Me">Works for Me</option>
+        <option value="In Development">In Development</option>
+        <option value="Implemented">Implemented</option>
+        <option value="Party Implemented">Party Implemented</option>
+      </select>
+    </div>
+    <div class="issue-field">
+      <label>Release:</label>
+      <div class="d-flex gap-2 flex-grow-1">
+        <div id="release-display" class="form-control form-control-sm bg-light text-muted small flex-grow-1" style="min-height:31px;">
+          — none selected —
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0"
+                data-bs-toggle="modal" data-bs-target="#releaseModal">
+          <span class="material-icons" style="font-size:1rem;vertical-align:middle;">open_in_new</span>
+        </button>
+      </div>
+    </div>
+    <div class="issue-field" style="visibility:hidden;"></div>
+  </div>
+
+  <!-- Release modal -->
+  <div class="modal fade" id="releaseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title fw-semibold">Select Releases</h6>
+          <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body py-2">
+          {% if release_items %}
+          {% for r in release_items %}
+          <div class="form-check py-1">
+            <input class="form-check-input release-cb" type="checkbox"
+                   name="release_ids" value="{{ r.id }}" id="rel_{{ r.id }}"
+                   onchange="updateReleaseDisplay()">
+            <label class="form-check-label small" for="rel_{{ r.id }}">{{ r.name }}</label>
+          </div>
+          {% endfor %}
+          {% else %}
+          <p class="text-muted small mb-0">No release items found.</p>
+          {% endif %}
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="issue-field mb-3">
+    <label>Summary: <span class="text-danger">*</span></label>
     <input type="text" name="name" class="form-control form-control-sm" required>
   </div>
 
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
-    <select name="type_name" class="form-select form-select-sm" required>
-      <option value="" disabled selected>— select type —</option>
-      {% for t in item_type_options %}
-      <option value="{{ t.name }}">{{ t.name }}</option>
-      {% endfor %}
-    </select>
+  <!-- Description -->
+  <div class="issue-field align-items-start mb-3">
+    <label style="padding-top:.3rem;">Description: <span class="text-danger">*</span></label>
+    <textarea name="description" class="form-control form-control-sm" rows="4" required></textarea>
   </div>
-
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Description</label>
-    <textarea name="description" class="form-control form-control-sm" rows="3"></textarea>
-  </div>
-
-  {% for f in tracker_fields %}
-  {% if f.type == "ChoiceField" and f.options %}
-  <div class="mb-3">
-    <label class="form-label fw-semibold">{{ f.name }}</label>
-    <select name="field_{{ f.id }}" class="form-select form-select-sm" {% if f.multiple %}multiple{% endif %}>
-      {% if not f.multiple %}<option value="">— select —</option>{% endif %}
-      {% for opt in f.options %}
-      <option value="{{ opt.id }}">{{ opt.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  {% elif f.type == "TextField" or f.type == "WikiTextField" %}
-  <div class="mb-3">
-    <label class="form-label fw-semibold">{{ f.name }}</label>
-    <input type="text" name="field_{{ f.id }}" class="form-control form-control-sm">
-  </div>
-  {% elif f.type == "IntegerField" %}
-  <div class="mb-3">
-    <label class="form-label fw-semibold">{{ f.name }}</label>
-    <input type="number" name="field_{{ f.id }}" class="form-control form-control-sm">
-  </div>
-  {% elif f.type == "DateField" %}
-  <div class="mb-3">
-    <label class="form-label fw-semibold">{{ f.name }}</label>
-    <input type="date" name="field_{{ f.id }}" class="form-control form-control-sm">
-  </div>
-  {% endif %}
-  {% endfor %}
 
   <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
     <span class="material-icons" style="font-size:1rem;">add</span>
-    Create Item
+    Create Issue
   </button>
 </form>
+
+<script>
+function updateReleaseDisplay() {
+  var checked = Array.from(document.querySelectorAll('.release-cb:checked'));
+  var display = document.getElementById('release-display');
+  if (checked.length === 0) {
+    display.textContent = '— none selected —';
+    display.classList.add('text-muted');
+  } else {
+    display.textContent = checked.map(function(c) {
+      return document.querySelector('label[for="' + c.id + '"]').textContent.trim();
+    }).join(', ');
+    display.classList.remove('text-muted');
+  }
+}
+</script>
