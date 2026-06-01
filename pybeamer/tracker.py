@@ -340,6 +340,8 @@ class Tracker:
 		if position and position.upper() in ['BEFORE', 'AFTER', 'BELOW']:
 			params['position'] = position.upper()
 
+		params["descriptionFormat"] = description_format
+
 		# ! Need to grab system fields into the top level data level.
 		system_fields = {k[1:]: v for k, v in get_type_hints(TrackerItem).items()}
 		# ! Need to put non-system fields in the customFields section as a list of Fields
@@ -355,8 +357,8 @@ class Tracker:
 
 			data['categories'] = [{'id': TrackerItem.TYPE_MAP[type_name], 'name': type_name, 'type': 'ChoiceOptionReference'}]
 		else:
-			raise ValueError(f"Invalid type_name: {type_name}. Must be one of: {', '.join(TrackerItem.TYPE_MAP.keys())}")
-
+			#raise ValueError(f"Invalid type_name: {type_name}. Must be one of: {', '.join(TrackerItem.TYPE_MAP.keys())}")
+			data['typeName'] = type_name
 
 		for field, value in kwargs.items():
 			if field in system_fields:
