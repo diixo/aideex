@@ -6,14 +6,14 @@
 
 {% block content %}
 
-<div class="d-flex align-items-center gap-2 mt-3 mb-3">
+<div class="d-flex align-items-center gap-2 mt-3 mb-4">
   <a href="{% url 'app_main:codebeamer' %}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
 </div>
 
 {% if tracker %}
-<h6 class="fw-semibold mb-4">Tracker: {{ tracker.name }}</h6>
+<h6 class="fw-semibold mb-3">Tracker: {{ tracker.name }}</h6>
 {% endif %}
 
 {% if fetch_error %}

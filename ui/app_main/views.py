@@ -349,11 +349,12 @@ def codebeamer_create_item(request, tracker_id):
                 if key != "csrfmiddlewaretoken":
                     print(f"  POST[{key}] = {val!r}")
 
+            kwargs = {}
+
             if t_type == "requirement":
                 name        = request.POST.get("name", "").strip()
                 description = request.POST.get("description", "").strip()
                 type_name   = request.POST.get("type_name", "").strip()
-                kwargs = {}
                 if request.POST.get("story_points"):
                     kwargs["story_points"] = int(request.POST["story_points"])
                 if request.POST.get("business_value"):
@@ -381,6 +382,46 @@ def codebeamer_create_item(request, tracker_id):
                     name=name,
                     description=description,
                     type_name=type_name,
+                    **kwargs,
+                )
+            elif t_type == "release":
+                print("Creating Release with data:", request.POST)
+                name        = request.POST.get("name", "").strip()
+                description = request.POST.get("description", "").strip()
+
+                def _to_cb_date(d):
+                    return f"{d}T00:00:00.000Z" if d else None
+
+                if request.POST.get("start_date"):
+                    kwargs["start_date"] = _to_cb_date(request.POST.get("start_date", "").strip())
+
+                if request.POST.get("planned_release_date"):
+                    kwargs["end_date"] = _to_cb_date(request.POST.get("planned_release_date", "").strip())
+
+                if request.POST.get("actual_release_date"):
+                    kwargs["actual_release_date"] = _to_cb_date(request.POST.get("actual_release_date", "").strip())
+
+                if request.POST.get("release_method", "").strip():
+                    release_method_val = request.POST.get("release_method", "").strip()
+                    id = 0
+                    if release_method_val == "Scrum":
+                        id = 1
+                    elif release_method_val == "KanBan":
+                        id = 2
+                    elif release_method_val == "Waterfall":
+                        id = 3
+                    kwargs["release_method"] = {
+                        "type": "ChoiceOptionReference",
+                        "id":   id,
+                        "name": release_method_val if release_method_val else "Unset",
+                    }
+                print("::", kwargs)
+                #kwargs["status"] = {"type": "ChoiceOptionReference", "id": 1, "name": "Unset"}
+
+                item = tracker.create_tracker_item(
+                    name=name,
+                    description=description,
+                    type_name="Release",
                     **kwargs,
                 )
             else:

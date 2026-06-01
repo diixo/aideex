@@ -6,19 +6,46 @@
     <input type="text" name="name" class="form-control form-control-sm" required>
   </div>
 
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Type <span class="text-danger">*</span></label>
-    <select name="type_name" class="form-select form-select-sm" required>
-      <option value="" disabled selected>— select type —</option>
-      {% for t in item_type_options %}
-      <option value="{{ t.name }}">{{ t.name }}</option>
-      {% endfor %}
-    </select>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Start Date</label>
+      <input type="date" name="start_date" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Planned Release Date</label>
+      <input type="date" name="planned_release_date" class="form-control form-control-sm">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Actual Release Date</label>
+      <input type="date" name="actual_release_date" class="form-control form-control-sm">
+    </div>
   </div>
 
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Description</label>
-    <textarea name="description" class="form-control form-control-sm" rows="3"></textarea>
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Sprint Length</label>
+      <input type="number" name="sprint_length" class="form-control form-control-sm" min="1" step="1" placeholder="">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Release Method</label>
+      <select name="release_method" class="form-select form-select-sm">
+        <option value="">— select —</option>
+        <option value="Scrum">Scrum</option>
+        <option value="KanBan">KanBan</option>
+        <option value="Waterfall">Waterfall</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Status</label>
+      <select name="release_status" id="release-status-select" class="form-select form-select-sm" onchange="updateReleaseStatusColor(this)">
+        <option value="Draft" selected>Draft</option>
+        <option value="Active">Active</option>
+        <option value="Redesign">Redesign</option>
+        <option value="Finish">Finish</option>
+        <option value="Deactivate">Deactivate</option>
+      </select>
+    </div>
   </div>
 
   {% for f in tracker_fields %}
@@ -50,8 +77,33 @@
   {% endif %}
   {% endfor %}
 
+  <div class="mb-3">
+    <label class="form-label fw-semibold">Description <span class="text-danger">*</span></label>
+    <textarea name="description" class="form-control form-control-sm" rows="3" required></textarea>
+  </div>
+
   <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
     <span class="material-icons" style="font-size:1rem;">add</span>
     Create Item
   </button>
 </form>
+
+<script>
+var RELEASE_STATUS_STYLES = {
+  "Draft":      { bg: "#6c757d", color: "#fff" },
+  "Active":     { bg: "#fd7e14", color: "#fff" },
+  "Redesign":   { bg: "#6c757d", color: "#fff" },
+  "Finish":     { bg: "#0d6efd", color: "#fff" },
+  "Deactivate": { bg: "#fff",    color: "#212529" },
+};
+function updateReleaseStatusColor(sel) {
+  var s = RELEASE_STATUS_STYLES[sel.value] || { bg: "", color: "" };
+  sel.style.backgroundColor = s.bg;
+  sel.style.color           = s.color;
+  sel.style.borderColor     = s.bg || "";
+}
+document.addEventListener("DOMContentLoaded", function() {
+  var sel = document.getElementById("release-status-select");
+  if (sel) updateReleaseStatusColor(sel);
+});
+</script>
