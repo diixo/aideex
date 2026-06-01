@@ -1,107 +1,139 @@
 <style>
-  .issue-view-field { display:flex; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid #f0f0f0; }
-  .issue-view-field:last-child { border-bottom:none; }
-  .issue-view-label { min-width:130px; font-size:.8rem; font-weight:600; color:#6c757d; flex-shrink:0; }
-  .issue-view-val { font-size:.88rem; }
+  .ia { display:flex; align-items:baseline; gap:.5rem; flex:1; min-width:0; }
+  .ia-label { font-size:.875rem; font-weight:600; color:#333; white-space:nowrap; flex-shrink:0; }
+  .ia-val { font-size:.85rem; word-break:break-word; }
+  .ia-row { display:flex; gap:1.5rem; padding:.4rem 0; border-bottom:1px solid #f3f3f3; }
+  .ia-row:last-child { border-bottom:none; }
 </style>
 
-<div class="row g-3">
+<div class="card shadow-sm">
+  <div class="card-header py-2 d-flex align-items-center gap-2">
+    <span class="material-icons" style="font-size:1rem; color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
+    <span class="fw-bold">{{ item.type_name|default:"Issue" }}:</span>
+    <span class="fw-semibold">{{ item.name }}</span>
+    <code class="ms-1">{{ item.id }}</code>
+    <span class="ms-auto">
+      <a href="{{ cb_url }}/item/{{ item.id }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+        <span class="material-icons" style="font-size:.9rem; vertical-align:middle;">open_in_new</span>
+      </a>
+    </span>
+  </div>
+  <div class="card-body py-2 px-3">
 
-  <!-- Left column: main info -->
-  <div class="col-md-8">
-    <div class="card border-0 shadow-sm mb-3">
-      <div class="card-header py-2 d-flex align-items-center gap-2">
-        <span class="material-icons" style="font-size:1rem;color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
-        <span class="fw-semibold small">{{ item.tracker_name }}</span>
-        <span class="ms-auto">
-          <a href="{{ cb_url }}/item/{{ item.id }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-            <span class="material-icons" style="font-size:.9rem;vertical-align:middle;">open_in_new</span>
-          </a>
+    <div class="mb-3 mt-3 fw-bold">Tracker: <a href="{% url 'app_main:codebeamer_tracker' item.tracker_id %}" class="fw-semibold text-decoration-none">{{ item.tracker_name }}</a></div>
+
+    <!-- Row 1: Tracker (parent), Parent, Priority -->
+    <div class="ia-row">
+      <div class="ia">
+        <span class="ia-label">Parent:</span>
+        <span class="ia-val">
+          {% if item.parent_id %}
+          <a href="{% url 'app_main:codebeamer_item' item.parent_id %}" class="text-decoration-none small">{{ item.parent_name }}</a>
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </span>
       </div>
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">{{ item.name }}</h6>
-        {% if item.description %}
-        <p class="small text-body-secondary mb-0">{{ item.description }}</p>
-        {% endif %}
+      <div class="ia">
+        <span class="ia-label">Priority:</span>
+        <span class="ia-val d-flex align-items-center gap-1">
+          {% if item.priority and item.priority != "Unset" %}
+          <i class="material-icons" style="font-size:15px;color:{{ item.priority_color }};">table_rows</i>{{ item.priority }}
+          {% else %}<span class="text-muted">--</span>{% endif %}
+        </span>
+      </div>
+      <div class="ia"></div>
+    </div>
+
+    <!-- Row 2: Status, Submitted, Modified -->
+    <div class="ia-row">
+      <div class="ia">
+        <span class="ia-label">Status:</span>
+        <span class="ia-val">
+          <span class="fw-semibold small px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">{{ item.status|default:"—" }}</span>
+        </span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Submitted:</span>
+        <span class="ia-val small">{{ item.created_by|default:"—" }}<br><span class="text-muted" style="font-size:.75rem;">{{ item.created_at }}</span></span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Modified:</span>
+        <span class="ia-val small">{{ item.modified_by|default:"—" }}<br><span class="text-muted" style="font-size:.75rem;">{{ item.modified_at }}</span></span>
       </div>
     </div>
-  </div>
 
-  <!-- Right column: attributes -->
-  <div class="col-md-4">
-    <div class="card border-0 shadow-sm">
-      <div class="card-body py-2 px-3">
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Status</span>
-          <span class="issue-view-val">
-            <span class="fw-semibold small px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">
-              {{ item.status|default:"—" }}
-            </span>
-          </span>
-        </div>
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Priority</span>
-          <span class="issue-view-val d-flex align-items-center gap-1">
-            {% if item.priority and item.priority != "Unset" %}
-            <i class="material-icons" style="font-size:16px;color:{{ item.priority_color }};">table_rows</i>
-            <span>{{ item.priority }}</span>
-            {% else %}<span class="text-muted">--</span>{% endif %}
-          </span>
-        </div>
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Severity</span>
-          <span class="issue-view-val">{{ item.severity|default:"—" }}</span>
-        </div>
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Resolution</span>
-          <span class="issue-view-val">{{ item.resolution|default:"—" }}</span>
-        </div>
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Start Date</span>
-          <span class="issue-view-val">{{ item.start_date|default:"—" }}</span>
-        </div>
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">End Date</span>
-          <span class="issue-view-val">{{ item.end_date|default:"—" }}</span>
-        </div>
-
-        {% if item.assigned_to %}
-        <div class="issue-view-field">
-          <span class="issue-view-label">Assigned To</span>
-          <span class="issue-view-val small">{{ item.assigned_to|join:", " }}</span>
-        </div>
-        {% endif %}
-
-        {% if item.story_points %}
-        <div class="issue-view-field">
-          <span class="issue-view-label">Story Points</span>
-          <span class="issue-view-val">{{ item.story_points }}</span>
-        </div>
-        {% endif %}
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Created by</span>
-          <span class="issue-view-val small">{{ item.created_by|default:"—" }}<br>
-            <span class="text-muted">{{ item.created_at }}</span>
-          </span>
-        </div>
-
-        <div class="issue-view-field">
-          <span class="issue-view-label">Modified by</span>
-          <span class="issue-view-val small">{{ item.modified_by|default:"—" }}<br>
-            <span class="text-muted">{{ item.modified_at }}</span>
-          </span>
-        </div>
-
+    <!-- Row 3: Owner, Assigned, Start Date -->
+    <div class="ia-row">
+      <div class="ia">
+        <span class="ia-label">Owner:</span>
+        <span class="ia-val small">{{ item.owners|default:"—" }}</span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Assigned:</span>
+        <span class="ia-val small">{{ item.assigned_to|default:"—" }}</span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Start Date:</span>
+        <span class="ia-val">{{ item.start_date|default:"—" }}</span>
       </div>
     </div>
-  </div>
 
+    <!-- Row 4: End Date, Planned Effort, Spent Effort -->
+    <div class="ia-row">
+      <div class="ia">
+        <span class="ia-label">End Date:</span>
+        <span class="ia-val">{{ item.end_date|default:"—" }}</span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Planned Effort:</span>
+        <span class="ia-val">
+          {% if item.planned_millis %}{{ item.planned_millis|floatformat:0 }} ms{% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Spent Effort:</span>
+        <span class="ia-val">
+          {% if item.spent_millis %}{{ item.spent_millis|floatformat:0 }} ms{% else %}—{% endif %}
+        </span>
+      </div>
+    </div>
+
+    <!-- Row 5: Spent/Plan %, Category, Severity -->
+    <div class="ia-row">
+      <div class="ia">
+        <span class="ia-label">Spent / Plan %:</span>
+        <span class="ia-val">
+          {% if item.planned_millis and item.spent_millis %}
+          {% widthratio item.spent_millis item.planned_millis 100 %}%
+          {% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Category:</span>
+        <span class="ia-val">{{ item.category|default:"—" }}</span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Severity:</span>
+        <span class="ia-val">{{ item.severity|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- Row 6: Resolution, Release -->
+    <div class="ia-row">
+      <div class="ia">
+        <span class="ia-label">Resolution:</span>
+        <span class="ia-val">{{ item.resolution|default:"—" }}</span>
+      </div>
+      <div class="ia">
+        <span class="ia-label">Release:</span>
+        <span class="ia-val small">{{ item.release|default:"—" }}</span>
+      </div>
+      <div class="ia"></div>
+    </div>
+
+    {% if item.description %}
+    <hr class="my-2">
+    <p class="text-body mb-0">{{ item.description }}</p>
+    {% endif %}
+
+  </div>
 </div>
