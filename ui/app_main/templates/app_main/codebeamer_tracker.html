@@ -77,17 +77,48 @@
         <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th style="width:6rem;">ID</th>
+              <th style="width:5rem;">ID</th>
               <th>Name</th>
+              {% if is_issue_tracker %}
+              <th style="width:7rem;" class="text-center">Prio</th>
+              <th style="width:7rem;">Status</th>
+              <th style="width:7rem;">Severity</th>
+              <th style="width:9rem;">Resolution</th>
+              <th style="width:7rem;">Start</th>
+              <th style="width:7rem;">End</th>
+              {% else %}
               <th style="width:12rem;">Type</th>
+              {% endif %}
             </tr>
           </thead>
           <tbody>
             {% for item in items %}
             <tr>
               <td><a href="{{ cb_url }}/item/{{ item.id }}" target="_blank" class="text-decoration-none"><code>{{ item.id }}</code></a></td>
-              <td style="color: #0093b8">{{ item.name }}</td>
+              <td>
+                <div class="d-flex align-items-center gap-1">
+                  {% if is_issue_tracker %}
+                  <span class="material-icons" style="font-size:18px;color:{{ item.status_color }};border-radius:4px;padding:2px;">{{ tracker.icon }}</span>
+                  {% endif %}
+                  <span style="color:#0093b8;">{{ item.name }}</span>
+                </div>
+              </td>
+              {% if is_issue_tracker %}
+              <td class="text-center" style="width:7rem;">
+                {% if item.priority and item.priority != "Unset" %}
+                <i class="material-icons" style="font-size:16px;color:{{ item.priority_color }};" title="{{ item.priority }}">table_rows</i>
+                {% else %}<span class="text-muted small">--</span>{% endif %}
+              </td>
+              <td>
+                <div class="small fw-semibold text-center" style="background:{{ item.status_color }}; color:#fff; margin:3px; padding:2px 4px; border-radius:3px;">{{ item.status|default:"—" }}</div>
+              </td>
+              <td class="small text-muted">{{ item.severity|default:"—" }}</td>
+              <td class="small text-muted">{{ item.resolution|default:"—" }}</td>
+              <td class="small text-muted">{{ item.start_date|default:"—" }}</td>
+              <td class="small text-muted">{{ item.end_date|default:"—" }}</td>
+              {% else %}
               <td class="small text-muted">{{ item.type_name|default:"—" }}</td>
+              {% endif %}
             </tr>
             {% endfor %}
           </tbody>

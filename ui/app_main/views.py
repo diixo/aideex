@@ -28,7 +28,7 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     108: "playlist_play",           # Test Sets — collection of tests
     109: "tune",                    # Test Configurations — sliders
     150: "groups",                  # Teams — multiple people
-    12: "explicit",                 # Epic
+    12: "e_mobiledata",             # Epic
     13: "description",              # Document
     1: "fireplace",                 # Issue
     105: "extension",               # Components — puzzle piece
@@ -631,10 +631,41 @@ def codebeamer_tracker(request, tracker_id):
         tracker_obj = cb.get_tracker(tracker_id)
         items = tracker_obj.get_items()
         context["items_total"] = len(items)
-        context["items"] = [
-            {"id": i.id, "name": i.name, "type_name": i.type_name}
-            for i in items
-        ]
+        is_issue = (tracker.type_name or "").lower() == "issue"
+        context["is_issue_tracker"] = is_issue
+
+        def _safe(fn):
+            try: return fn()
+            except: return None
+
+        def _serialize_item(i):
+            base = {"id": i.id, "name": i.name, "type_name": i.type_name}
+            if is_issue:
+                priority_name = _safe(lambda: i.priority.name if i.priority else None)
+                base["priority"] = priority_name
+                base["priority_color"] = {
+                    "Highest": "#dc3545",
+                    "High":    "#fd7e14",
+                    "Normal":  "#198754",
+                    "Low":     "#0d6efd",
+                    "Lowest":  "#adb5bd",
+                }.get(priority_name, "#adb5bd")
+                status_name = _safe(lambda: i.status.value.name if i.status and i.status.value else None)
+                base["status"] = status_name
+                base["status_color"] = {
+                    "New":      "#dc3545",
+                    "Verified": "#fd7e14",
+                    "Reopened": "#fd7e14",
+                    "Resolved": "#198754",
+                    "Closed":   "#0f5132",
+                }.get(status_name, "#6c757d")
+                base["severity"]   = _safe(lambda: i.severities[0].get("name") if i.severities else None)
+                base["resolution"] = _safe(lambda: i.resolutions[0].get("name") if i.resolutions else None)
+                base["start_date"] = _safe(lambda: str(i.start_date.date()) if i.start_date else None)
+                base["end_date"]   = _safe(lambda: str(i.end_date.date()) if i.end_date else None)
+            return base
+
+        context["items"] = [_serialize_item(i) for i in items]
     except Exception as e:
         context["fetch_error"] = str(e)
 
