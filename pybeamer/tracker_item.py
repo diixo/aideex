@@ -20,6 +20,7 @@ class TrackerItem:
 	_release_method: dict[str, Any] | None
 	_start_date: datetime | None
 	_end_date: datetime | None
+	_resolutions: list[Field] | None
 
 	if TYPE_CHECKING:
 		_accrued_millis: int | None
@@ -47,7 +48,6 @@ class TrackerItem:
 		_status: Field | None
 		_categories: list[Field] | None
 		_subjects: list[Field] | None
-		_resolutions: list[Field] | None
 		_teams: list[Field] | None
 		_versions: list[dict[str, Any]] | None # TODO: Version
 		_ordinal: int | None
