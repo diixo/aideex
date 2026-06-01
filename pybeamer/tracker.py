@@ -406,9 +406,7 @@ class Tracker:
 							})
 						data[snake_to_camel(field)] = field_jsons
 				else:
-					# At the moment this is dict[str, Any] but those will be other types
-					# ! Not Implemented ATM
-					pass
+					data[snake_to_camel(field)] = value
 			else:
 				# TODO: Support for list fields
 				# Needs to go in customFields
