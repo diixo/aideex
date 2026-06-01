@@ -8,7 +8,7 @@
 
 <div class="card shadow-sm">
   <div class="card-header py-2 d-flex align-items-center gap-2">
-    <span class="material-icons" style="font-size:1rem; color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
+    <span class="material-icons" style="font-size:18px; color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
     <span class="fw-bold">{{ item.type_name|default:"Issue" }}:</span>
     <span class="fw-semibold">{{ item.name }}</span>
     <code class="ms-1">{{ item.id }}</code>
@@ -48,16 +48,16 @@
       <div class="ia">
         <span class="ia-label">Status:</span>
         <span class="ia-val">
-          <span class="fw-semibold small px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">{{ item.status|default:"—" }}</span>
+          <span class="fw-semibold px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">{{ item.status|default:"—" }}</span>
         </span>
       </div>
       <div class="ia">
         <span class="ia-label">Submitted:</span>
-        <span class="ia-val small">{{ item.created_by|default:"—" }}<br><span class="text-muted" style="font-size:.75rem;">{{ item.created_at }}</span></span>
+        <span class="ia-val">{{ item.created_by|default:"—" }}<br><span class="text-muted" style="font-size:.75rem;">{{ item.created_at }}</span></span>
       </div>
       <div class="ia">
         <span class="ia-label">Modified:</span>
-        <span class="ia-val small">{{ item.modified_by|default:"—" }}<br><span class="text-muted" style="font-size:.75rem;">{{ item.modified_at }}</span></span>
+        <span class="ia-val">{{ item.modified_by|default:"—" }}<br><span class="text-muted" style="font-size:.75rem;">{{ item.modified_at }}</span></span>
       </div>
     </div>
 
@@ -65,11 +65,11 @@
     <div class="ia-row">
       <div class="ia">
         <span class="ia-label">Owner:</span>
-        <span class="ia-val small">{{ item.owners|default:"—" }}</span>
+        <span class="ia-val">{{ item.owners|default:"—" }}</span>
       </div>
       <div class="ia">
         <span class="ia-label">Assigned:</span>
-        <span class="ia-val small">{{ item.assigned_to|default:"—" }}</span>
+        <span class="ia-val">{{ item.assigned_to|default:"—" }}</span>
       </div>
       <div class="ia">
         <span class="ia-label">Start Date:</span>
