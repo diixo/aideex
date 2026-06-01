@@ -100,7 +100,7 @@
                   {% if is_issue_tracker %}
                   <span class="material-icons" style="font-size:18px;color:{{ item.status_color }};border-radius:4px;padding:2px;">{{ tracker.icon }}</span>
                   {% endif %}
-                  <a href="{% url 'app_main:codebeamer_item' item.id %}" class="text-decoration-none" style="color:#0093b8;">{{ item.name }}</a>
+                  <span style="color:#0093b8;">{{ item.name }}</span>
                 </div>
               </td>
               {% if is_issue_tracker %}
