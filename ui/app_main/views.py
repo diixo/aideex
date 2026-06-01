@@ -532,6 +532,81 @@ def codebeamer_create_item(request, tracker_id):
     return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
 
 
+def codebeamer_item(request, item_id):
+    saved = _cb_load_credentials()
+    if not saved:
+        from django.shortcuts import redirect as _redirect
+        return _redirect("app_main:codebeamer")
+
+    context = {
+        "title": f"AI-delix - Item {item_id}",
+        "item_id": item_id,
+        "cb_url": saved.get("cb_url", ""),
+    }
+    try:
+        from pybeamer import Codebeamer
+        cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+        item = cb.get_tracker_item(item_id)
+
+        def _safe(fn):
+            try: return fn()
+            except: return None
+
+        STATUS_COLORS = {
+            "New": "#dc3545", "Verified": "#fd7e14", "Reopened": "#fd7e14",
+            "Resolved": "#198754", "Closed": "#0f5132",
+        }
+        PRIORITY_COLORS = {
+            "Highest": "#dc3545", "High": "#fd7e14", "Normal": "#198754",
+            "Low": "#0d6efd", "Lowest": "#6c757d",
+        }
+
+        status_name   = _safe(lambda: item.status.value.name if item.status and item.status.value else None)
+        priority_name = _safe(lambda: item.priority.name if item.priority else None)
+
+        tracker = item.tracker
+        type_slug = (tracker.type_name or "").lower().replace(" ", "_").replace("/", "_") if tracker else ""
+
+        context["item"] = {
+            "id":           item.id,
+            "name":         item.name,
+            "description":  _strip_wiki(item.description),
+            "type_name":    item.type_name,
+            "status":       status_name,
+            "status_color": STATUS_COLORS.get(status_name, "#6c757d"),
+            "priority":     priority_name,
+            "priority_color": PRIORITY_COLORS.get(priority_name, "#adb5bd"),
+            "severity":     _safe(lambda: item.severities[0].get("name") if item.severities else None),
+            "resolution":   _safe(lambda: item.resolutions[0].get("name") if item.resolutions else None),
+            "start_date":   _safe(lambda: str(item.start_date.date()) if item.start_date else None),
+            "end_date":     _safe(lambda: str(item.end_date.date()) if item.end_date else None),
+            "created_by":   _safe(lambda: item.created_by.name if item.created_by else None),
+            "created_at":   _safe(lambda: item.created_at),
+            "modified_by":  _safe(lambda: item.modified_by.name if item.modified_by else None),
+            "modified_at":  _safe(lambda: item.modified_at),
+            "assigned_to":  _safe(lambda: [u.name for u in item.assigned_to] if item.assigned_to else []),
+            "story_points": _safe(lambda: item.story_points),
+            "tracker_id":   tracker.id if tracker else None,
+            "tracker_name": tracker.name if tracker else None,
+            "tracker_icon": _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label") if tracker else "label",
+            "tracker_color": tracker.color or "#6c757d" if tracker else "#6c757d",
+        }
+
+        from django.template.loader import get_template
+        from django.template import TemplateDoesNotExist
+        specific = f"app_main/cb_item_views/{type_slug}.html"
+        try:
+            get_template(specific)
+            context["item_view_template"] = specific
+        except TemplateDoesNotExist:
+            context["item_view_template"] = "app_main/cb_item_views/default.html"
+
+    except Exception as e:
+        context["fetch_error"] = str(e)
+
+    return render(request, "app_main/codebeamer_item.html", context)
+
+
 def codebeamer_tree(request):
     saved = _cb_load_credentials()
     if not saved or not saved.get("project_id"):
