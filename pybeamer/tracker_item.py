@@ -21,12 +21,13 @@ class TrackerItem:
 	_start_date: datetime | None
 	_end_date: datetime | None
 	_resolutions: list[Field] | None
+	_versions: list[dict[str, Any]] | None
+	_estimated_millis: int | None
 
 	if TYPE_CHECKING:
 		_accrued_millis: int | None
 		_areas: list[dict[str, Any]] | None # TODO: Area
 		_assigned_at: datetime | None
-		_estimated_millis: int | None
 		_formality: dict[str, Any] | None # TODO: Formality
 		_owners: list[User] | None
 		_platforms: list[dict[str, Any]] | None # TODO: Platform
@@ -49,7 +50,6 @@ class TrackerItem:
 		_categories: list[Field] | None
 		_subjects: list[Field] | None
 		_teams: list[Field] | None
-		_versions: list[dict[str, Any]] | None # TODO: Version
 		_ordinal: int | None
 		_type_name: str | None
 		_comments: list[dict[str, Any]] | None # TODO: Comment
