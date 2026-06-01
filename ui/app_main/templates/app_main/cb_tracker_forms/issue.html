@@ -74,7 +74,12 @@
   <div class="issue-row mb-3">
     <div class="issue-field">
       <label>Spent Effort:</label>
-      <input type="text" name="spent_effort" class="form-control form-control-sm" placeholder="e.g. 1h">
+      <div class="d-flex align-items-center gap-1 flex-grow-1">
+        <input type="text" name="spent_effort" class="form-control form-control-sm bg-light text-muted" placeholder="e.g. 1h" readonly>
+        <a href="#" class="text-secondary" title="Log time">
+          <span class="material-icons fw-bold" style="font-size:1.2rem; vertical-align:middle;">more_time</span>
+        </a>
+      </div>
     </div>
     <div class="issue-field">
       <label>Category:</label>
@@ -115,8 +120,8 @@
     <div class="issue-field">
       <label>Release:</label>
       <div class="d-flex gap-2 flex-grow-1">
-        <div id="release-display" class="form-control form-control-sm bg-light text-muted small flex-grow-1" style="min-height:31px;">
-          — none selected —
+        <div id="release-display" class="d-flex flex-wrap gap-1 align-items-center bg-light border rounded px-1 flex-grow-1" style="min-height:31px;padding-top:3px;padding-bottom:3px;">
+          <span class="text-muted small" id="release-placeholder">— none selected —</span>
         </div>
         <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0"
                 data-bs-toggle="modal" data-bs-target="#releaseModal">
@@ -140,7 +145,7 @@
           {% for r in release_items %}
           <div class="form-check py-1">
             <input class="form-check-input release-cb" type="checkbox"
-                   name="release_ids" value="{{ r.id }}" id="rel_{{ r.id }}"
+                   value="{{ r.id }}" data-name="{{ r.name }}" id="rel_{{ r.id }}"
                    onchange="updateReleaseDisplay()">
             <label class="form-check-label small" for="rel_{{ r.id }}">{{ r.name }}</label>
           </div>
@@ -178,14 +183,35 @@
 function updateReleaseDisplay() {
   var checked = Array.from(document.querySelectorAll('.release-cb:checked'));
   var display = document.getElementById('release-display');
+  var placeholder = document.getElementById('release-placeholder');
+
+  // remove old badges
+  display.querySelectorAll('.release-badge').forEach(function(b) { b.remove(); });
+
   if (checked.length === 0) {
-    display.textContent = '— none selected —';
-    display.classList.add('text-muted');
+    placeholder.style.display = '';
   } else {
-    display.textContent = checked.map(function(c) {
-      return document.querySelector('label[for="' + c.id + '"]').textContent.trim();
-    }).join(', ');
-    display.classList.remove('text-muted');
+    placeholder.style.display = 'none';
+    checked.forEach(function(cb) {
+      var badge = document.createElement('span');
+      badge.className = 'release-badge d-inline-flex align-items-center gap-1 border rounded px-2 py-0 small bg-white';
+      badge.style.fontSize = '.75rem';
+      badge.innerHTML = '<span class="material-icons" style="font-size:.9rem; color:#0091DA;">directions_subway</span>' +
+                        '<span>' + cb.dataset.name + '</span>';
+      display.appendChild(badge);
+    });
   }
 }
+
+// Before submit: inject hidden inputs with id|name for each selected release
+document.querySelector('form').addEventListener('submit', function() {
+  document.querySelectorAll('input[name="release_ref"]').forEach(function(el) { el.remove(); });
+  document.querySelectorAll('.release-cb:checked').forEach(function(cb) {
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'release_ref';
+    inp.value = cb.value + '|' + cb.dataset.name;
+    document.querySelector('form').appendChild(inp);
+  });
+});
 </script>

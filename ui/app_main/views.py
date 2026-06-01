@@ -444,6 +444,18 @@ def codebeamer_create_item(request, tracker_id):
                     kwargs["end_date"] = _to_cb_date(request.POST.get("end_date", "").strip())
                     print("End date:", kwargs["end_date"])
 
+                release_refs = []
+                for ref in request.POST.getlist("release_ref"):
+                    parts = ref.split("|", 1)
+                    if len(parts) == 2:
+                        release_refs.append({
+                            "id":   int(parts[0]),
+                            "name": parts[1],
+                            "type": "TrackerItemReference",
+                        })
+                if release_refs:
+                    kwargs["versions"] = release_refs
+
                 if severity:
                     severity_id = 0
                     if severity == "Blocker":
