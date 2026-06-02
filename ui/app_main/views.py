@@ -539,6 +539,71 @@ def codebeamer_create_item(request, tracker_id):
     return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
 
 
+def codebeamer_save(request):
+    import json as _json
+    from datetime import datetime
+    from django.http import HttpResponse
+
+    saved = _cb_load_credentials()
+    if not saved or not saved.get("project_id"):
+        from django.shortcuts import redirect as _redirect
+        return _redirect("app_main:codebeamer")
+
+    from pybeamer import Codebeamer
+    cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+    project = cb.get_project(saved["project_id"])
+
+    def _safe(fn):
+        try: return fn()
+        except: return None
+
+    trackers_data = []
+    for t in project.get_trackers():
+        items_data = []
+        for item in t.get_items():
+            subjects = _safe(lambda: [
+                {
+                    "id":        s.get("id") if isinstance(s, dict) else getattr(s, "id", None),
+                    "name":      s.get("name") if isinstance(s, dict) else getattr(s, "name", None),
+                    "type_name": s.get("typeName", s.get("type", {}).get("name") if isinstance(s.get("type"), dict) else s.get("type")) if isinstance(s, dict) else getattr(s, "type_name", None),
+                }
+                for s in item.subjects
+            ] if item.subjects else [])
+            items_data.append({
+                "id":                 item.id,
+                "name":               item.name,
+                "description":        item.description,
+                "description_format": item.description_format,
+                "type_name":          item.type_name,
+                "subjects":           subjects or [],
+            })
+        trackers_data.append({
+            "id":        t.id,
+            "name":      t.name,
+            "type_name": t.type_name,
+            "key_name":  t.key_name,
+            "items":     items_data,
+        })
+
+    payload = {
+        "project_id":   saved["project_id"],
+        "project_name": project.name,
+        "exported_at":  datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+        "trackers":     trackers_data,
+    }
+    content = _json.dumps(payload, ensure_ascii=False, indent=2)
+
+    save_path = os.path.join(settings.BASE_DIR, "..", "data", f"codebeamer-prj-{saved['project_id']}.json")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    filename = f"codebeamer-prj-{saved['project_id']}.json"
+    response = HttpResponse(content, content_type="application/json")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 def codebeamer_item(request, item_id):
     saved = _cb_load_credentials()
     if not saved:

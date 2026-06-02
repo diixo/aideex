@@ -1,0 +1,310 @@
+{
+  "project_id": 25,
+  "project_name": "ONYX PoC Test",
+  "exported_at": "2026-06-02T23:55:40",
+  "trackers": [
+    {
+      "id": 157430,
+      "name": "Contacts",
+      "type_name": "Contact",
+      "key_name": "CONTACT",
+      "items": []
+    },
+    {
+      "id": 157431,
+      "name": "Releases",
+      "type_name": "Release",
+      "key_name": "RELEASE",
+      "items": [
+        {
+          "id": 302762,
+          "name": "Release_v0.0",
+          "description": "Dry~-run release",
+          "description_format": "PlainText",
+          "type_name": "Release",
+          "subjects": []
+        }
+      ]
+    },
+    {
+      "id": 157432,
+      "name": "User Stories",
+      "type_name": "User Story",
+      "key_name": "USTR",
+      "items": [
+        {
+          "id": 302776,
+          "name": "User Story: Battery Information (UST-1)",
+          "description": "User Story: Battery Information (UST~-1)",
+          "description_format": "Wiki",
+          "type_name": "User Story",
+          "subjects": []
+        }
+      ]
+    },
+    {
+      "id": 157433,
+      "name": "Risks",
+      "type_name": "Risk",
+      "key_name": "RISK",
+      "items": []
+    },
+    {
+      "id": 157434,
+      "name": "Teams",
+      "type_name": "Team",
+      "key_name": "TEAM",
+      "items": []
+    },
+    {
+      "id": 157435,
+      "name": "Customer Requirement Specifications",
+      "type_name": "Requirement",
+      "key_name": "CRS",
+      "items": [
+        {
+          "id": 302798,
+          "name": "Input CUSTOMER REQ - Battery - 1",
+          "description": "Input CUSTOMER REQ ~- Battery ~- 1",
+          "description_format": "Wiki",
+          "type_name": "Requirement",
+          "subjects": []
+        }
+      ]
+    },
+    {
+      "id": 157436,
+      "name": "System Requirement Specifications",
+      "type_name": "Requirement",
+      "key_name": "SRS",
+      "items": [
+        {
+          "id": 302822,
+          "name": "SYS_REQ-No-ROOT",
+          "description": "SYS~_REQ~-No~-ROOT",
+          "description_format": "Wiki",
+          "type_name": "Requirement",
+          "subjects": []
+        },
+        {
+          "id": 302816,
+          "name": "System-REQ-Spec-Battery",
+          "description": "Refinement of: \\\\[<<description>>|ISSUE:302798]",
+          "description_format": "Wiki",
+          "type_name": "Requirement",
+          "subjects": [
+            {
+              "id": 302798,
+              "name": "Input CUSTOMER REQ - Battery - 1",
+              "type_name": "TrackerItemReference"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 157437,
+      "name": "Change Requests",
+      "type_name": "Change Request",
+      "key_name": "CRQ",
+      "items": []
+    },
+    {
+      "id": 157438,
+      "name": "Defects",
+      "type_name": "Bug",
+      "key_name": "DEF",
+      "items": []
+    },
+    {
+      "id": 157439,
+      "name": "Tasks",
+      "type_name": "Task",
+      "key_name": "TASK",
+      "items": []
+    },
+    {
+      "id": 157440,
+      "name": "Test Cases",
+      "type_name": "Testcase",
+      "key_name": "TESTCASE",
+      "items": []
+    },
+    {
+      "id": 157441,
+      "name": "Test Sets",
+      "type_name": "Testset",
+      "key_name": "TESTSET",
+      "items": []
+    },
+    {
+      "id": 157442,
+      "name": "Test Configurations",
+      "type_name": "Testconf",
+      "key_name": "TESTCONF",
+      "items": []
+    },
+    {
+      "id": 157443,
+      "name": "Test Runs",
+      "type_name": "Testrun",
+      "key_name": "TESTRUN",
+      "items": []
+    },
+    {
+      "id": 157444,
+      "name": "Timekeeping",
+      "type_name": "Work Log",
+      "key_name": "WLOG",
+      "items": []
+    },
+    {
+      "id": 176035,
+      "name": "System Architecture Design",
+      "type_name": "Requirement",
+      "key_name": "SAD",
+      "items": []
+    },
+    {
+      "id": 176118,
+      "name": "System Architecture Document",
+      "type_name": "Requirement",
+      "key_name": "SAD",
+      "items": []
+    },
+    {
+      "id": 192270,
+      "name": "Components",
+      "type_name": "Component",
+      "key_name": "COMP",
+      "items": [
+        {
+          "id": 302756,
+          "name": "Bluetooth",
+          "description": "Bluetooth component",
+          "description_format": "Wiki",
+          "type_name": "Component",
+          "subjects": []
+        }
+      ]
+    },
+    {
+      "id": 192330,
+      "name": "Stories",
+      "type_name": "Issue",
+      "key_name": "STR",
+      "items": []
+    },
+    {
+      "id": 192404,
+      "name": "Epic",
+      "type_name": "Epic",
+      "key_name": "EPIC",
+      "items": []
+    },
+    {
+      "id": 194100,
+      "name": "Software Requirements Specification",
+      "type_name": "Requirement",
+      "key_name": "SRS",
+      "items": [
+        {
+          "id": 302820,
+          "name": "Software-REQ-Spec-Battery-2",
+          "description": "Refinement of: \\\\[<<description>>|ISSUE:302816]",
+          "description_format": "Wiki",
+          "type_name": "Requirement",
+          "subjects": [
+            {
+              "id": 302816,
+              "name": "System-REQ-Spec-Battery",
+              "type_name": "TrackerItemReference"
+            },
+            {
+              "id": 302822,
+              "name": "SYS_REQ-No-ROOT",
+              "type_name": "TrackerItemReference"
+            }
+          ]
+        },
+        {
+          "id": 302818,
+          "name": "SW-REQ-Spec-Battery",
+          "description": "Refinement of: \\\\[<<description>>|ISSUE:302816]",
+          "description_format": "Wiki",
+          "type_name": "Requirement",
+          "subjects": [
+            {
+              "id": 302816,
+              "name": "System-REQ-Spec-Battery",
+              "type_name": "TrackerItemReference"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 194183,
+      "name": "Software Architecture Design",
+      "type_name": "Requirement",
+      "key_name": "SAD",
+      "items": []
+    },
+    {
+      "id": 194266,
+      "name": "Epics",
+      "type_name": "Issue",
+      "key_name": "EPIC",
+      "items": []
+    },
+    {
+      "id": 194337,
+      "name": "Features",
+      "type_name": "Requirement",
+      "key_name": "FEAT",
+      "items": []
+    },
+    {
+      "id": 194420,
+      "name": "Capability",
+      "type_name": "Requirement",
+      "key_name": "CAPA",
+      "items": []
+    },
+    {
+      "id": 194503,
+      "name": "System Verification Test Cases",
+      "type_name": "Testcase",
+      "key_name": "SYSVTC",
+      "items": []
+    },
+    {
+      "id": 194584,
+      "name": "System Integration Test Cases",
+      "type_name": "Testcase",
+      "key_name": "SYSITC",
+      "items": []
+    },
+    {
+      "id": 194665,
+      "name": "Software Verification Test Cases",
+      "type_name": "Testcase",
+      "key_name": "SWTC",
+      "items": []
+    },
+    {
+      "id": 194746,
+      "name": "Software Integration Verification Test Cases",
+      "type_name": "Testcase",
+      "key_name": "SWIVTC",
+      "items": []
+    },
+    {
+      "id": 194827,
+      "name": "Software Component Verification Test Cases",
+      "type_name": "Testcase",
+      "key_name": "SWCVTC",
+      "items": []
+    }
+  ]
+}

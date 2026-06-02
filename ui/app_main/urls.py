@@ -15,4 +15,5 @@ urlpatterns = [
     path("codebeamer/tracker/<int:tracker_id>/create-item", views.codebeamer_create_item, name="codebeamer_create_item"),
     path("codebeamer/tree", views.codebeamer_tree, name="codebeamer_tree"),
     path("codebeamer/item/<int:item_id>", views.codebeamer_item, name="codebeamer_item"),
+    path("codebeamer/save", views.codebeamer_save, name="codebeamer_save"),
 ]
