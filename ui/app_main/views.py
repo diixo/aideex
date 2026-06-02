@@ -13,6 +13,8 @@ from .validate_aspice_v04_dataset import validate_dataset, summarize_issues
 
 # Material Icons name per tracker type_id. Types that don't have an
 # explicit assignment fall back to "label" via the .get() in the view.
+_WORK_ITEM_TYPES = {"requirement", "bug", "epic", "issue", "user story", "task", "document", "testrun", "risk", "change request", "work log"}
+
 _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     2:   "bug_report",              # Bugs
     3:   "published_with_changes",  # Change Requests — "changes" arrow cycle
@@ -208,20 +210,23 @@ def _cb_load_tracker_context(cb, project_id, projects):
     project = cb.get_project(project_id)
     trackers = project.get_trackers()
     project_name = next((p["name"] for p in projects if p["id"] == project_id), str(project_id))
+    all_trackers = [
+        {
+            "id":        t.id,
+            "name":      t.name,
+            "type_id":   t.type_id,
+            "type_name": t.type_name,
+            "color":     t.color or "#6c757d",
+            "icon":      _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+        }
+        for t in trackers
+    ]
     return {
         "selected_project_id":   project_id,
         "selected_project_name": project_name,
-        "trackers": [
-            {
-                "id":        t.id,
-                "name":      t.name,
-                "type_id":   t.type_id,
-                "type_name": t.type_name,
-                "color":     t.color or "#6c757d",
-                "icon":      _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
-            }
-            for t in trackers
-        ],
+        "work_items":   [t for t in all_trackers if (t["type_name"] or "").lower() in _WORK_ITEM_TYPES],
+        "config_items": [t for t in all_trackers if (t["type_name"] or "").lower() not in _WORK_ITEM_TYPES],
+        "trackers":     all_trackers,
     }
 
 
