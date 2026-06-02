@@ -128,6 +128,7 @@
               <th style="width:5rem;">ID</th>
               <th style="width:2rem;"></th>
               <th>Name</th>
+              <th style="width:4rem;">Key</th>
               <th style="width:9rem;">Type</th>
             </tr>
           </thead>
@@ -139,6 +140,7 @@
                 <span class="material-icons" style="font-size:1rem;color:#fff; background:{{ t.color }}; border-radius:4px; padding:2px;">{{ t.icon }}</span>
               </td>
               <td>{{ t.name }}</td>
+              <td><code class="fw-semibold text-body">{{ t.key_name|default:"—" }}</code></td>
               <td class="text-muted">{{ t.type_name }}</td>
             </tr>
             {% endfor %}
@@ -161,6 +163,7 @@
               <th style="width:5rem;">ID</th>
               <th style="width:2rem;"></th>
               <th>Name</th>
+              <th style="width:4rem;">Key</th>
               <th style="width:9rem;">Type</th>
             </tr>
           </thead>
@@ -172,6 +175,7 @@
                 <span class="material-icons" style="font-size:1rem;color:#fff; background:{{ t.color }}; border-radius:4px; padding:2px;">{{ t.icon }}</span>
               </td>
               <td>{{ t.name }}</td>
+              <td><code class="fw-semibold text-body">{{ t.key_name|default:"—" }}</code></td>
               <td class="text-muted">{{ t.type_name }}</td>
             </tr>
             {% endfor %}

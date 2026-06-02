@@ -216,8 +216,9 @@ def _cb_load_tracker_context(cb, project_id, projects):
             "name":      t.name,
             "type_id":   t.type_id,
             "type_name": t.type_name,
-            "color":     t.color or "#6c757d",
-            "icon":      _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+            "color":    t.color or "#6c757d",
+            "icon":     _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+            "key_name": t.key_name,
         }
         for t in trackers
     ]
