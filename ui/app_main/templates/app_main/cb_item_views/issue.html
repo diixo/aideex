@@ -28,7 +28,7 @@
         <span class="ia-label">Parent:</span>
         <span class="ia-val">
           {% if item.parent_id %}
-          <a href="{% url 'app_main:codebeamer_item' item.parent_id %}" class="text-decoration-none small">{{ item.parent_name }}</a>
+          <a href="{% url 'app_main:codebeamer_item' item.parent_id %}" class="text-decoration-none">{{ item.parent_name }}</a>
           {% else %}<span class="text-muted">—</span>{% endif %}
         </span>
       </div>
@@ -125,15 +125,35 @@
       </div>
       <div class="ia">
         <span class="ia-label">Release:</span>
-        <span class="ia-val small">{{ item.release|default:"—" }}</span>
+        <span class="ia-val">{{ item.release|default:"—" }}</span>
       </div>
       <div class="ia"></div>
     </div>
 
     {% if item.description %}
     <hr class="my-2">
-    <p class="text-body mb-0">{{ item.description }}</p>
+    <div>
+      <div class="ia-row" data-bs-toggle="collapse" data-bs-target="#issue-desc"
+           style="cursor:pointer;user-select:none;border-bottom:none;">
+        <span class="ia-label d-flex align-items-center gap-1">
+          <span class="material-icons" id="issue-desc-chevron" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
+          Description:
+        </span>
+      </div>
+      <div class="collapse show" id="issue-desc">
+        <p class="text-body-secondary mt-1 mb-3">{{ item.description }}</p>
+      </div>
+    </div>
     {% endif %}
 
   </div>
 </div>
+
+<script>
+document.getElementById('issue-desc')?.addEventListener('hide.bs.collapse', function() {
+  document.getElementById('issue-desc-chevron').style.transform = 'rotate(-90deg)';
+});
+document.getElementById('issue-desc')?.addEventListener('show.bs.collapse', function() {
+  document.getElementById('issue-desc-chevron').style.transform = 'rotate(0deg)';
+});
+</script>
