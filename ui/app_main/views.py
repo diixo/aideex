@@ -591,6 +591,7 @@ def codebeamer_item(request, item_id):
             "parent_name":   _safe(lambda: item.parent.name if item.parent else None),
             "category":      _safe(lambda: item.categories[0].get("name") if item.categories else None),
             "release":       _safe(lambda: ", ".join(v.get("name","") for v in item.versions) if item.versions else None),
+            "versions":      _safe(lambda: [{"id": v.get("id"), "name": v.get("name","")} for v in item.versions] if item.versions else []),
             "story_points":  _safe(lambda: item.story_points),
             "planned_millis":_safe(lambda: item.estimated_millis),
             "spent_millis":  _safe(lambda: item.spent_millis),

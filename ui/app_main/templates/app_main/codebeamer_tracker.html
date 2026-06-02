@@ -79,15 +79,14 @@
             <tr>
               <th style="width:5rem;">ID</th>
               <th>Name</th>
+              <th style="width:5rem;">Type</th>
               {% if is_issue_tracker %}
-              <th style="width:7rem;" class="text-center">Prio</th>
+              <th style="width:3rem;" class="text-center">Prio</th>
               <th style="width:7rem;">Status</th>
               <th style="width:7rem;">Severity</th>
               <th style="width:9rem;">Resolution</th>
               <th style="width:7rem;">Start</th>
               <th style="width:7rem;">End</th>
-              {% else %}
-              <th style="width:12rem;">Type</th>
               {% endif %}
             </tr>
           </thead>
@@ -103,6 +102,7 @@
                   <a href="{% url 'app_main:codebeamer_item' item.id %}" class="text-decoration-none" style="color:#0093b8;">{{ item.name }}</a>
                 </div>
               </td>
+              <td class="text-muted">{{ item.type_name|default:"—" }}</td>
               {% if is_issue_tracker %}
               <td class="text-center" style="width:7rem;">
                 {% if item.priority and item.priority != "Unset" %}
@@ -116,8 +116,6 @@
               <td class="small text-muted">{{ item.resolution|default:"—" }}</td>
               <td class="small text-muted">{{ item.start_date|default:"—" }}</td>
               <td class="small text-muted">{{ item.end_date|default:"—" }}</td>
-              {% else %}
-              <td class="small text-muted">{{ item.type_name|default:"—" }}</td>
               {% endif %}
             </tr>
             {% endfor %}
