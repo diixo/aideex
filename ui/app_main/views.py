@@ -757,8 +757,9 @@ def codebeamer_item(request, item_id):
         context["item"] = {
             "id":           item.id,
             "name":         item.name,
-            "description":  item.description,
-            "type_name":    item.type_name,
+            "description":        item.description,
+            "description_format": _safe(lambda: item.description_format),
+            "type_name":          item.type_name,
             "status":       status_name,
             "status_color": STATUS_COLORS.get(status_name, "#6c757d"),
             "priority":     priority_name,

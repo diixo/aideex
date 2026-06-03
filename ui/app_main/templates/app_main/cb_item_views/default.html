@@ -32,7 +32,8 @@
       <div data-bs-toggle="collapse" data-bs-target="#def-desc"
            style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
         <span class="material-icons" id="def-desc-ch" style="font-size:.875rem; transition:transform .15s;">expand_more</span>
-        <span class="fw-bold">Description:</span>
+        <span class="fw-bold">Description</span>
+        {% if item.description_format %}format:<span class="badge bg-secondary ms-2 fw-normal">{{ item.description_format }}</span>{% endif %}
       </div>
       <div class="collapse show" id="def-desc">
         <p class="text-body-secondary mt-1 mb-0">{{ item.description }}</p>
