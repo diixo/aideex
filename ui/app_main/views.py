@@ -36,6 +36,14 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     105: "extension",               # Components — puzzle piece
 }
 
+_STATUS_COLORS = {
+    "New":      "#dc3545",
+    "Verified": "#fd7e14",
+    "Reopened": "#fd7e14",
+    "Resolved": "#198754",
+    "Closed":   "#0f5132",
+}
+
 def _to_cb_date(d):
     return f"{d}T00:00:00.000Z" if d else None
 
@@ -616,13 +624,14 @@ def _cb_build_full_item_map(project_id, downstream_map):
             if not iid:
                 continue
             upstream = [s.get("id") for s in item.get("subjects", []) if s.get("id")]
+            status = item.get("status")
             item_map[iid] = {
-                "id":    iid,
-                "name":  item.get("name", ""),
-                "icon":  icon,
-                "color": color,
-                "upstream":   upstream,
-                "downstream": [d["id"] for d in downstream_map.get(iid, [])],
+                "id":           iid,
+                "name":         item.get("name", ""),
+                "icon":         icon,
+                "color":        _STATUS_COLORS.get(status, color) if status else color,
+                "upstream":     upstream,
+                "downstream":   [d["id"] for d in downstream_map.get(iid, [])],
             }
     return item_map
 
@@ -645,11 +654,12 @@ def _cb_build_downstream_map(project_id):
             for s in item.get("subjects", []):
                 sid = s.get("id")
                 if sid:
+                    status = item.get("status")
                     downstream.setdefault(sid, []).append({
                         "id":    item_id,
                         "name":  item_name,
                         "icon":  icon,
-                        "color": color,
+                        "color": _STATUS_COLORS.get(status, color) if status else color,
                     })
     return downstream
 
@@ -690,6 +700,7 @@ def codebeamer_save(request):
                 "description":        item.description,
                 "description_format": item.description_format,
                 "type_name":          item.type_name,
+                "status":             _safe(lambda: item.status.value.name if item.status and item.status.value else None),
                 "subjects":           subjects or [],
             })
         trackers_data.append({
@@ -761,7 +772,7 @@ def codebeamer_item(request, item_id):
             "description_format": _safe(lambda: item.description_format),
             "type_name":          item.type_name,
             "status":       status_name,
-            "status_color": STATUS_COLORS.get(status_name, "#6c757d"),
+            "status_color": _STATUS_COLORS.get(status_name, "#6c757d"),
             "priority":     priority_name,
             "priority_color": PRIORITY_COLORS.get(priority_name, "#adb5bd"),
             "severity":     _safe(lambda: item.severities[0].get("name") if item.severities else None),

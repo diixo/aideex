@@ -1,7 +1,7 @@
 {
   "project_id": 25,
   "project_name": "ONYX PoC Test",
-  "exported_at": "2026-06-03T02:35:59",
+  "exported_at": "2026-06-03T16:11:02",
   "trackers": [
     {
       "id": 157430,
@@ -26,6 +26,7 @@
           "description": "Dry~-run release",
           "description_format": "PlainText",
           "type_name": "Release",
+          "status": "Active",
           "subjects": []
         }
       ]
@@ -44,6 +45,7 @@
           "description": "User Story: Battery Information (UST~-1)",
           "description_format": "Wiki",
           "type_name": "User Story",
+          "status": "Unset",
           "subjects": []
         }
       ]
@@ -80,6 +82,7 @@
           "description": "Input CUSTOMER REQ ~- Battery ~- 1",
           "description_format": "Wiki",
           "type_name": "Requirement",
+          "status": "New",
           "subjects": []
         }
       ]
@@ -98,6 +101,7 @@
           "description": "SYS~_REQ~-No~-ROOT",
           "description_format": "Wiki",
           "type_name": "Requirement",
+          "status": "New",
           "subjects": []
         },
         {
@@ -106,6 +110,7 @@
           "description": "Refinement of: \\\\[<<description>>|ISSUE:302798]",
           "description_format": "Wiki",
           "type_name": "Requirement",
+          "status": "New",
           "subjects": [
             {
               "id": 302798,
@@ -220,6 +225,7 @@
           "description": "Bluetooth component",
           "description_format": "Wiki",
           "type_name": "Component",
+          "status": "New",
           "subjects": []
         }
       ]
@@ -256,6 +262,7 @@
           "description": "Refinement of: \\\\[<<description>>|ISSUE:302816]",
           "description_format": "Wiki",
           "type_name": "Requirement",
+          "status": "New",
           "subjects": [
             {
               "id": 302816,
@@ -275,6 +282,7 @@
           "description": "Refinement of: \\\\[<<description>>|ISSUE:302816]",
           "description_format": "Wiki",
           "type_name": "Requirement",
+          "status": "New",
           "subjects": [
             {
               "id": 302816,
