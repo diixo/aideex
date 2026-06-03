@@ -30,9 +30,9 @@ _CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
     108: "playlist_play",           # Test Sets — collection of tests
     109: "tune",                    # Test Configurations — sliders
     150: "groups",                  # Teams — multiple people
-    12: "e_mobiledata",             # Epic
-    13: "description",              # Document
-    1: "fireplace",                 # Issue
+    12:  "e_mobiledata",            # Epic
+    13:  "description",             # Document
+    1:   "fireplace",               # Issue
     105: "extension",               # Components — puzzle piece
 }
 
