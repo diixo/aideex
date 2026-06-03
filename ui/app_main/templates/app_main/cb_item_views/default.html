@@ -29,15 +29,23 @@
 
     {% if item.description %}
     <div class="border rounded-2 p-2 mb-2 shadow-sm">
-      <div data-bs-toggle="collapse" data-bs-target="#def-desc"
-           style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
-        <span class="material-icons" id="def-desc-ch" style="font-size:.875rem; transition:transform .15s;">expand_more</span>
-        <span class="fw-bold">Description</span>
-        {% if item.description_format %}format:<span class="badge bg-secondary ms-2 fw-normal">{{ item.description_format }}</span>{% endif %}
+      <div class="d-flex align-items-center gap-3 mb-2 bg-secondary-subtle">
+        <div data-bs-toggle="collapse" data-bs-target="#def-desc"
+            style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
+          <span class="material-icons" id="def-desc-ch" style="font-size:.875rem; transition:transform .15s;">expand_more</span>
+          <span class="fw-bold">Description</span>
+        </div>
+
+        {% if item.description_format %}
+        <div class="d-flex align-items-center gap-2 ms-4">
+          format:<span class="badge bg-secondary fw-normal">{{ item.description_format }}</span>
+        </div>
+        {% endif %}
       </div>
       <div class="collapse show" id="def-desc">
         <p class="text-body-secondary mt-1 mb-0">{{ item.description }}</p>
       </div>
+
     </div>
     {% endif %}
 
@@ -49,7 +57,7 @@
           <span class="material-icons" id="def-trace-ch" style="font-size:.875rem;transition:transform .15s;">expand_more</span>
           <span class="fw-bold">Traceability</span>
         </div>
-        <div class="d-flex align-items-center gap-2 ms-3">
+        <div class="d-flex align-items-center gap-2 ms-4">
           <span class="text-muted" style="font-size:.85rem;white-space:nowrap;">Number of Levels</span>
           <select class="form-select form-select-sm border-2 border-primary" style="width:56px;"
                   onchange="window.location.href='?levels='+this.value">
@@ -59,8 +67,8 @@
           </select>
         </div>
       </div>
-      <div class="collapse show" id="def-trace-all">
 
+      <div class="collapse show" id="def-trace-all">
         <!-- Upstream -->
         <div class="border rounded-2 p-2 mb-2">
           <div class="fw-bold py-1">Upstream</div>
