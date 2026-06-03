@@ -63,10 +63,10 @@
         <!-- Upstream -->
         <div class="border rounded-2 p-2 mb-2">
           <div class="fw-bold py-1">Upstream</div>
-          <table class="table table-sm mb-0 mt-1">
+          <table class="table table-sm mb-0 mt-1" style="table-layout:fixed;width:100%;">
             <thead class="table-light">
               <tr>
-                <th style="width:2rem;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_downward</span></th>
+                <th style="width:32px;min-width:32px;max-width:32px;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_downward</span></th>
                 {% for l in levels_range %}
                   {% if l <= upstream_cols %}
                   <th>
@@ -82,7 +82,7 @@
               {% if upstream_rows %}
                 {% for row in upstream_rows %}
                 <tr>
-                  <td class="text-muted text-center">{% if row.0 %}↓{% endif %}</td>
+                  <td class="text-muted text-center" style="width:32px;min-width:32px;max-width:32px;">{% if row.0 %}↓{% endif %}</td>
                   {% for cell in row %}{% if cell %}
                   <td rowspan="{{ cell.rowspan }}">
                     <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
@@ -104,10 +104,10 @@
           {% if no_project_json %}
           <p class="text-muted mb-0"><span class="material-icons align-middle" style="font-size:.9rem;">info</span> Save JSON to enable downstream links.</p>
           {% else %}
-          <table class="table table-sm mb-0 mt-1">
+          <table class="table table-sm mb-0 mt-1" style="table-layout:fixed;width:100%;">
             <thead class="table-light">
               <tr>
-                <th style="width:2rem;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_upward</span></th>
+                <th style="width:32px;min-width:32px;max-width:32px;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_upward</span></th>
                 {% for l in levels_range %}
                   {% if l <= downstream_cols %}
                   <th>
@@ -123,7 +123,7 @@
               {% if downstream_rows %}
                 {% for row in downstream_rows %}
                 <tr>
-                  <td class="text-muted text-center">{% if row.0 %}↑{% endif %}</td>
+                  <td class="text-muted text-center" style="width:32px;min-width:32px;max-width:32px;">{% if row.0 %}↑{% endif %}</td>
                   {% for cell in row %}{% if cell %}
                   <td rowspan="{{ cell.rowspan }}">
                     <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>

@@ -808,8 +808,8 @@ def codebeamer_item(request, item_id):
             context["no_project_json"] = True
             context["upstream_rows"] = []
             context["downstream_rows"] = []
-            context["upstream_cols"] = 0
-            context["downstream_cols"] = 0
+            context["upstream_cols"] = max_levels
+            context["downstream_cols"] = max_levels
         else:
             item_map = _cb_build_full_item_map(project_id, downstream_map)
 
