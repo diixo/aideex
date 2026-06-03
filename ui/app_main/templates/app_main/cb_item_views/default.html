@@ -1,14 +1,14 @@
-<div class="card border-0 shadow-sm">
-  <div class="card-body">
+<div class="card border-0">
+  <div class="card-body px-0">
     <table class="table table-sm mb-0">
       <tbody>
-        <tr><th class="fw-bold">Name</th><td><span class="fw-bold">{{ item.name }}</span></td></tr>
-        <tr><th style="width:12rem;" class="fw-bold">ID</th><td><code>#{{ item.id }}</code></td></tr>
-        <tr><th class="fw-bold">Type</th><td>{{ item.type_name|default:"—" }}</td></tr>
-        <tr><th class="fw-bold">Status</th><td>{{ item.status|default:"—" }}</td></tr>
-        <tr><th class="fw-bold">Tracker</th><td>{{ item.tracker_name|default:"—" }}</td></tr>
-        <tr><th class="fw-bold">Created by</th><td>{{ item.created_by|default:"—" }} <span class="text-muted ms-1">{{ item.created_at }}</span></td></tr>
-        <tr><th class="fw-bold">Modified by</th><td>{{ item.modified_by|default:"—" }} <span class="text-muted ms-1">{{ item.modified_at }}</span></td></tr>
+        <tr><th class="fw-bold">Item:</th><td><span class="fw-bold">{{ item.name }}</span></td></tr>
+        <tr><th style="width:12rem;" class="fw-bold">#ID:</th><td><code>{{ item.id }}</code></td></tr>
+        <tr><th class="fw-bold">Typename:</th><td>{{ item.type_name|default:"—-" }}</td></tr>
+        <tr><th class="fw-bold">Status:</th><td>{{ item.status|default:"—-" }}</td></tr>
+        <tr><th class="fw-bold">Tracker:</th><td>{{ item.tracker_name|default:"—-" }}</td></tr>
+        <tr><th class="fw-bold">Created by:</th><td>{{ item.created_by|default:"—-" }} <span class="text-muted ms-1">{{ item.created_at }}</span></td></tr>
+        <tr><th class="fw-bold">Modified by:</th><td>{{ item.modified_by|default:"—-" }} <span class="text-muted ms-1">{{ item.modified_at }}</span></td></tr>
       </tbody>
     </table>
 
@@ -25,13 +25,14 @@
       </div>
     </div>
 
+    <hr class="mt-0 mb-3">
+
     {% if item.description %}
-    <hr class="my-2">
-    <div>
+    <div class="border rounded-2 p-2 mb-2 shadow-sm">
       <div data-bs-toggle="collapse" data-bs-target="#def-desc"
            style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
-        <span class="material-icons" id="def-desc-ch" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
-        <span class="fw-semibold">Description:</span>
+        <span class="material-icons" id="def-desc-ch" style="font-size:.875rem; transition:transform .15s;">expand_more</span>
+        <span class="fw-bold">Description:</span>
       </div>
       <div class="collapse show" id="def-desc">
         <p class="text-body-secondary mt-1 mb-0">{{ item.description }}</p>
@@ -39,14 +40,12 @@
     </div>
     {% endif %}
 
-    <hr class="my-2">
-
     <!-- Traceability Upstream -->
-    <div>
+    <div class="border rounded-2 p-2 mb-2 shadow-sm">
       <div data-bs-toggle="collapse" data-bs-target="#def-trace-up"
            style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
-        <span class="material-icons" id="def-trace-up-ch" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
-        <span class="fw-semibold">Traceability (Upstream):</span>
+        <span class="material-icons" id="def-trace-up-ch" style="font-size:.875rem; transition:transform .15s;">expand_more</span>
+        <span class="fw-bold">Traceability (Upstream):</span>
       </div>
       <div class="collapse show" id="def-trace-up">
         {% if item.versions %}
@@ -70,14 +69,13 @@
       </div>
     </div>
 
-    <hr class="my-2">
 
     <!-- Traceability Downstream -->
-    <div>
+    <div class="border rounded-2 p-2 mb-2 shadow-sm">
       <div data-bs-toggle="collapse" data-bs-target="#def-trace-down"
            style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
-        <span class="material-icons" id="def-trace-down-ch" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
-        <span class="fw-semibold">Traceability (Downstream):</span>
+        <span class="material-icons" id="def-trace-down-ch" style="font-size:.875rem; transition:transform .15s;">expand_more</span>
+        <span class="fw-bold">Traceability (Downstream):</span>
       </div>
       <div class="collapse show" id="def-trace-down">
         <p class="fw-bold mt-1 mb-0">—</p>
