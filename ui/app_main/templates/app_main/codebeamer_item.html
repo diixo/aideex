@@ -16,6 +16,7 @@
 {% endif %}
 
 {% if item %}
-{% include item_view_template %}
+{% if item_view_template %}{% include item_view_template %}{% endif %}
+{% include "app_main/cb_item_views/default.html" %}
 {% endif %}
 {% endblock %}

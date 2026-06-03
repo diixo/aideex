@@ -2,17 +2,97 @@
   <div class="card-body">
     <table class="table table-sm mb-0">
       <tbody>
-        <tr><th style="width:12rem;" class="text-muted fw-normal">ID</th><td><code>{{ item.id }}</code></td></tr>
-        <tr><th class="text-muted fw-normal">Name</th><td>{{ item.name }}</td></tr>
-        <tr><th class="text-muted fw-normal">Type</th><td>{{ item.type_name|default:"—" }}</td></tr>
-        <tr><th class="text-muted fw-normal">Status</th><td>{{ item.status|default:"—" }}</td></tr>
-        <tr><th class="text-muted fw-normal">Tracker</th><td>{{ item.tracker_name|default:"—" }}</td></tr>
-        <tr><th class="text-muted fw-normal">Created by</th><td>{{ item.created_by|default:"—" }} <span class="text-muted small ms-1">{{ item.created_at }}</span></td></tr>
-        <tr><th class="text-muted fw-normal">Modified by</th><td>{{ item.modified_by|default:"—" }} <span class="text-muted small ms-1">{{ item.modified_at }}</span></td></tr>
-        {% if item.description %}
-        <tr><th class="text-muted fw-normal">Description</th><td class="small">{{ item.description }}</td></tr>
-        {% endif %}
+        <tr><th class="fw-bold">Name</th><td><span class="fw-bold">{{ item.name }}</span></td></tr>
+        <tr><th style="width:12rem;" class="fw-bold">ID</th><td><code>#{{ item.id }}</code></td></tr>
+        <tr><th class="fw-bold">Type</th><td>{{ item.type_name|default:"—" }}</td></tr>
+        <tr><th class="fw-bold">Status</th><td>{{ item.status|default:"—" }}</td></tr>
+        <tr><th class="fw-bold">Tracker</th><td>{{ item.tracker_name|default:"—" }}</td></tr>
+        <tr><th class="fw-bold">Created by</th><td>{{ item.created_by|default:"—" }} <span class="text-muted ms-1">{{ item.created_at }}</span></td></tr>
+        <tr><th class="fw-bold">Modified by</th><td>{{ item.modified_by|default:"—" }} <span class="text-muted ms-1">{{ item.modified_at }}</span></td></tr>
       </tbody>
     </table>
+
+    <div class="d-flex align-items-baseline gap-2 py-1">
+      <span class="ms-1 fw-bold flex-shrink-0">Subjects:</span>
+      <div class="d-flex flex-wrap gap-2">
+        {% if item.subjects %}
+          {% for s in item.subjects %}
+          <a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none">{{ s.name }}</a>{% if not forloop.last %},{% endif %}
+          {% endfor %}
+        {% else %}
+          <span class="fw-bold">—</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if item.description %}
+    <hr class="my-2">
+    <div>
+      <div data-bs-toggle="collapse" data-bs-target="#def-desc"
+           style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
+        <span class="material-icons" id="def-desc-ch" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
+        <span class="fw-semibold">Description:</span>
+      </div>
+      <div class="collapse show" id="def-desc">
+        <p class="text-body-secondary mt-1 mb-0">{{ item.description }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <hr class="my-2">
+
+    <!-- Traceability Upstream -->
+    <div>
+      <div data-bs-toggle="collapse" data-bs-target="#def-trace-up"
+           style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
+        <span class="material-icons" id="def-trace-up-ch" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
+        <span class="fw-semibold">Traceability (Upstream):</span>
+      </div>
+      <div class="collapse show" id="def-trace-up">
+        {% if item.versions %}
+        <table class="table table-sm mb-0 mt-1">
+          <thead class="table-light">
+            <tr><th style="width:2rem;">&gt;</th><th>Level 1</th><th class="fw-bold">Level 2</th></tr>
+          </thead>
+          <tbody>
+            {% for v in item.versions %}
+            <tr>
+              <td class="fw-bold">↑</td>
+              <td><a href="{{ cb_url }}/item/{{ v.id }}" target="_blank" class="text-decoration-none">{{ v.name }}</a></td>
+              <td class="fw-bold">—</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="fw-bold mt-1 mb-0">—</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <hr class="my-2">
+
+    <!-- Traceability Downstream -->
+    <div>
+      <div data-bs-toggle="collapse" data-bs-target="#def-trace-down"
+           style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
+        <span class="material-icons" id="def-trace-down-ch" style="font-size:.9rem;transition:transform .15s;">expand_more</span>
+        <span class="fw-semibold">Traceability (Downstream):</span>
+      </div>
+      <div class="collapse show" id="def-trace-down">
+        <p class="fw-bold mt-1 mb-0">—</p>
+      </div>
+    </div>
+
   </div>
 </div>
+
+<script>
+[['def-desc','def-desc-ch'],['def-trace-up','def-trace-up-ch'],['def-trace-down','def-trace-down-ch']].forEach(function(p) {
+  var el = document.getElementById(p[0]);
+  var ch = document.getElementById(p[1]);
+  if (!el || !ch) return;
+  el.addEventListener('hide.bs.collapse', function() { ch.style.transform='rotate(-90deg)'; });
+  el.addEventListener('show.bs.collapse', function() { ch.style.transform='rotate(0deg)'; });
+});
+</script>
