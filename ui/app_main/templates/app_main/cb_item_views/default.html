@@ -66,15 +66,23 @@
           <table class="table table-sm mb-0 mt-1">
             <thead class="table-light">
               <tr>
-                <th style="width:2rem;">&gt;</th>
-                {% for l in levels_range %}{% if l <= upstream_cols %}<th>Level {{ l }}</th>{% endif %}{% endfor %}
+                <th style="width:2rem;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_downward</span></th>
+                {% for l in levels_range %}
+                  {% if l <= upstream_cols %}
+                  <th>
+                    <span class="d-inline-flex align-items-center gap-1">
+                      <span class="material-icons" style="font-size:.875rem;">arrow_back_ios</span>Level {{ l }}
+                    </span>
+                  </th>
+                  {% endif %}
+                {% endfor %}
               </tr>
             </thead>
             <tbody>
               {% if upstream_rows %}
                 {% for row in upstream_rows %}
                 <tr>
-                  <td class="text-muted">{% if row.0 %}↑{% endif %}</td>
+                  <td class="text-muted text-center">{% if row.0 %}↓{% endif %}</td>
                   {% for cell in row %}{% if cell %}
                   <td rowspan="{{ cell.rowspan }}">
                     <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
@@ -99,15 +107,23 @@
           <table class="table table-sm mb-0 mt-1">
             <thead class="table-light">
               <tr>
-                <th style="width:2rem;">&gt;</th>
-                {% for l in levels_range %}{% if l <= downstream_cols %}<th>Level {{ l }}</th>{% endif %}{% endfor %}
+                <th style="width:2rem;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_upward</span></th>
+                {% for l in levels_range %}
+                  {% if l <= downstream_cols %}
+                  <th>
+                    <span class="d-inline-flex align-items-center gap-1">
+                      <span class="material-icons" style="font-size:.875rem;">arrow_forward_ios</span>Level {{ l }}
+                    </span>
+                  </th>
+                  {% endif %}
+                {% endfor %}
               </tr>
             </thead>
             <tbody>
               {% if downstream_rows %}
                 {% for row in downstream_rows %}
                 <tr>
-                  <td class="text-muted">↓</td>
+                  <td class="text-muted text-center">{% if row.0 %}↑{% endif %}</td>
                   {% for cell in row %}{% if cell %}
                   <td rowspan="{{ cell.rowspan }}">
                     <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
