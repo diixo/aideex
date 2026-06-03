@@ -5,9 +5,9 @@ from django.conf import settings
 from django.shortcuts import render, redirect
 
 from .aspice_gap_detector import detect_gaps
-from .check_aspice_bp_dataset import validate_record
-from .aspice_v04_compliance_checker import inspect_case
-from .validate_aspice_v04_dataset import validate_dataset, summarize_issues
+from .aspice_check_bp_dataset import validate_record
+from .aspice_compliance_checker import inspect_case
+from .aspice_validate_dataset import validate_dataset, summarize_issues
 
 
 
