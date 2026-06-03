@@ -563,6 +563,69 @@ def _cb_build_item_tracker_map(project_id):
     return result
 
 
+def _cb_build_tree(item_ids, level, max_level, item_map, visited=None):
+    if visited is None:
+        visited = set()
+    result = []
+    for iid in item_ids:
+        iid = int(iid) if not isinstance(iid, int) else iid
+        if iid in visited:
+            continue
+        new_visited = visited | {iid}
+        item = item_map.get(iid, {"id": iid, "name": str(iid), "icon": "label", "color": "#6c757d", "upstream": [], "downstream": []})
+        children = _cb_build_tree(item.get("upstream", []), level + 1, max_level, item_map, new_visited) if level < max_level else []
+        leaf_count = sum(c["leaf_count"] for c in children) if children else 1
+        result.append({"item": item, "level": level, "children": children, "leaf_count": leaf_count})
+    return result
+
+
+def _cb_tree_to_rows(nodes, max_level):
+    """Returns list of rows. Each row = list of max_level cells.
+    Cell = {item, rowspan} or None (covered by rowspan above)."""
+    grid = []
+
+    def recurse(nodes, current_row):
+        for node in nodes:
+            col = node["level"] - 1
+            while len(grid) <= current_row + node["leaf_count"] - 1:
+                grid.append([None] * max_level)
+            grid[current_row][col] = {"item": node["item"], "rowspan": node["leaf_count"]}
+            if node["children"]:
+                recurse(node["children"], current_row)
+            current_row += node["leaf_count"]
+
+    recurse(nodes, 0)
+    return grid
+
+
+def _cb_build_full_item_map(project_id, downstream_map):
+    """Build {item_id: {id, name, icon, color, upstream, downstream}} from saved JSON."""
+    path = _cb_project_json_path(project_id)
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    item_map = {}
+    for tracker in data.get("trackers", []):
+        t_type_id = tracker.get("type_id")
+        icon  = _CODEBEAMER_TRACKER_ICONS.get(t_type_id, "label")
+        color = tracker.get("color") or "#6c757d"
+        for item in tracker.get("items", []):
+            iid = item.get("id")
+            if not iid:
+                continue
+            upstream = [s.get("id") for s in item.get("subjects", []) if s.get("id")]
+            item_map[iid] = {
+                "id":    iid,
+                "name":  item.get("name", ""),
+                "icon":  icon,
+                "color": color,
+                "upstream":   upstream,
+                "downstream": [d["id"] for d in downstream_map.get(iid, [])],
+            }
+    return item_map
+
+
 def _cb_build_downstream_map(project_id):
     """Returns dict: item_id -> list of {id, name, icon, color} items that reference it upstream."""
     path = _cb_project_json_path(project_id)
@@ -733,29 +796,45 @@ def codebeamer_item(request, item_id):
         except TemplateDoesNotExist:
             context["item_view_template"] = None
 
-        # Build maps from saved project JSON
+        # Build traceability trees from saved JSON
         project_id = saved.get("project_id")
-        downstream_map  = _cb_build_downstream_map(project_id)
-        item_tracker_map = _cb_build_item_tracker_map(project_id)
+        max_levels = int(request.GET.get("levels", 2))
+        context["max_levels"] = max_levels
+        context["levels_range"] = range(1, 11)
 
+        downstream_map = _cb_build_downstream_map(project_id)
         if downstream_map is None:
             context["no_project_json"] = True
-            context["downstream"] = []
+            context["upstream_rows"] = []
+            context["downstream_rows"] = []
+            context["upstream_cols"] = 0
+            context["downstream_cols"] = 0
         else:
-            context["downstream"] = downstream_map.get(item_id, [])
+            item_map = _cb_build_full_item_map(project_id, downstream_map)
 
-        # Enrich subjects and versions with tracker icon/color
-        def _enrich(items):
-            for i in items:
-                tid = i.get("id")
-                info = item_tracker_map.get(tid, {"icon": "article", "color": "#6c757d"})
-                i["icon"]  = info["icon"]
-                i["color"] = info["color"]
-            return items
+            # Upstream: subjects + versions as level 1
+            up_ids = [s.get("id") for s in (context.get("item") or {}).get("subjects", []) if s.get("id")]
+            up_ids += [v.get("id") for v in (context.get("item") or {}).get("versions", []) if v.get("id")]
+            up_tree = _cb_build_tree(up_ids, 1, max_levels, item_map)
+            context["upstream_rows"] = _cb_tree_to_rows(up_tree, max_levels)
+            context["upstream_cols"] = max_levels
 
-        if context.get("item"):
-            context["item"]["subjects"] = _enrich(context["item"].get("subjects") or [])
-            context["item"]["versions"] = _enrich(context["item"].get("versions") or [])
+            # Downstream: items referencing current
+            dn_ids = [d["id"] for d in downstream_map.get(item_id, [])]
+            dn_tree = _cb_build_tree(dn_ids, 1, max_levels, item_map)
+            context["downstream_rows"] = _cb_tree_to_rows(dn_tree, max_levels)
+            context["downstream_cols"] = max_levels
+
+            # Enrich subjects/versions with icon/color
+            item_tracker_map = _cb_build_item_tracker_map(project_id)
+            def _enrich(items):
+                for i in items:
+                    info = item_tracker_map.get(i.get("id"), {"icon": "article", "color": "#6c757d"})
+                    i["icon"] = info["icon"]; i["color"] = info["color"]
+                return items
+            if context.get("item"):
+                context["item"]["subjects"] = _enrich(context["item"].get("subjects") or [])
+                context["item"]["versions"] = _enrich(context["item"].get("versions") or [])
 
     except Exception as e:
         context["fetch_error"] = str(e)

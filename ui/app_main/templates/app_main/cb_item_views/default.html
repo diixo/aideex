@@ -50,53 +50,47 @@
         </div>
         <div class="d-flex align-items-center gap-2 ms-3">
           <span class="text-muted" style="font-size:.85rem;white-space:nowrap;">Number of Levels</span>
-          <select class="form-select form-select-sm" style="width:56px;">
-            {% for i in "1234567890" %}
-            <option>{{ forloop.counter }}</option>
+          <select class="form-select form-select-sm" style="width:56px;"
+                  onchange="window.location.href='?levels='+this.value">
+            {% for l in levels_range %}
+            <option value="{{ l }}" {% if l == max_levels %}selected{% endif %}>{{ l }}</option>
             {% endfor %}
           </select>
         </div>
       </div>
       <div class="collapse show" id="def-trace-all">
 
-        <!-- Upstream panel -->
+        <!-- Upstream -->
         <div class="border rounded-2 p-2 mb-2">
           <div class="fw-bold py-1">Upstream</div>
-          <div>
-            <table class="table table-sm mb-0 mt-1">
-              <thead class="table-light">
-                <tr><th style="width:2rem;">&gt;</th><th>Level 1</th><th>Level 2</th></tr>
-              </thead>
-              <tbody>
-                {% for s in item.subjects %}
+          <table class="table table-sm mb-0 mt-1">
+            <thead class="table-light">
+              <tr>
+                <th style="width:2rem;">&gt;</th>
+                {% for l in levels_range %}{% if l <= upstream_cols %}<th>Level {{ l }}</th>{% endif %}{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% if upstream_rows %}
+                {% for row in upstream_rows %}
                 <tr>
-                  <td class="text-muted">↑</td>
-                  <td>
-                    <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ s.color|default:'#6c757d' }};border-radius:3px;padding:2px;vertical-align:middle;">{{ s.icon|default:'article' }}</span>
-                    <a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none ms-1">{{ s.name }}</a>
+                  <td class="text-muted">{% if row.0 %}↑{% endif %}</td>
+                  {% for cell in row %}{% if cell %}
+                  <td rowspan="{{ cell.rowspan }}">
+                    <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
+                    <a href="{% url 'app_main:codebeamer_item' cell.item.id %}" class="text-decoration-none ms-1">{{ cell.item.name }}</a>
                   </td>
-                  <td class="text-muted">—</td>
+                  {% endif %}{% endfor %}
                 </tr>
                 {% endfor %}
-                {% for v in item.versions %}
-                <tr>
-                  <td class="text-muted">↑</td>
-                  <td>
-                    <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ v.color|default:'#6c757d' }};border-radius:3px;padding:2px;vertical-align:middle;">{{ v.icon|default:'directions_subway' }}</span>
-                    <a href="{{ cb_url }}/item/{{ v.id }}" target="_blank" class="text-decoration-none ms-1">{{ v.name }}</a>
-                  </td>
-                  <td class="text-muted">—</td>
-                </tr>
-                {% endfor %}
-                {% if not item.subjects and not item.versions %}
-                <tr><td colspan="3" class="text-muted">—</td></tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
+              {% else %}
+                <tr><td colspan="{{ upstream_cols|add:1 }}" class="text-muted">—</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
         </div>
 
-        <!-- Downstream panel -->
+        <!-- Downstream -->
         <div class="border rounded-2 p-2 mb-1">
           <div class="fw-bold py-1">Downstream</div>
           {% if no_project_json %}
@@ -104,21 +98,27 @@
           {% else %}
           <table class="table table-sm mb-0 mt-1">
             <thead class="table-light">
-              <tr><th style="width:2rem;">&gt;</th><th>Level 1</th><th>Level 2</th></tr>
+              <tr>
+                <th style="width:2rem;">&gt;</th>
+                {% for l in levels_range %}{% if l <= downstream_cols %}<th>Level {{ l }}</th>{% endif %}{% endfor %}
+              </tr>
             </thead>
             <tbody>
-              {% for d in downstream %}
-              <tr>
-                <td class="text-muted">↓</td>
-                <td>
-                  <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ d.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ d.icon }}</span>
-                  <a href="{% url 'app_main:codebeamer_item' d.id %}" class="text-decoration-none ms-1">{{ d.name }}</a>
-                </td>
-                <td class="text-muted">—</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="3" class="text-muted">—</td></tr>
-              {% endfor %}
+              {% if downstream_rows %}
+                {% for row in downstream_rows %}
+                <tr>
+                  <td class="text-muted">{% if row.0 %}↓{% endif %}</td>
+                  {% for cell in row %}{% if cell %}
+                  <td rowspan="{{ cell.rowspan }}">
+                    <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
+                    <a href="{% url 'app_main:codebeamer_item' cell.item.id %}" class="text-decoration-none ms-1">{{ cell.item.name }}</a>
+                  </td>
+                  {% endif %}{% endfor %}
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr><td colspan="{{ downstream_cols|add:1 }}" class="text-muted">—</td></tr>
+              {% endif %}
             </tbody>
           </table>
           {% endif %}
