@@ -563,7 +563,7 @@ def _cb_build_item_tracker_map(project_id):
     return result
 
 
-def _cb_build_tree(item_ids, level, max_level, item_map, visited=None):
+def _cb_build_tree(item_ids, level, max_level, item_map, direction="upstream", visited=None):
     if visited is None:
         visited = set()
     result = []
@@ -573,7 +573,8 @@ def _cb_build_tree(item_ids, level, max_level, item_map, visited=None):
             continue
         new_visited = visited | {iid}
         item = item_map.get(iid, {"id": iid, "name": str(iid), "icon": "label", "color": "#6c757d", "upstream": [], "downstream": []})
-        children = _cb_build_tree(item.get("upstream", []), level + 1, max_level, item_map, new_visited) if level < max_level else []
+        child_ids = item.get(direction, []) if level < max_level else []
+        children = _cb_build_tree(child_ids, level + 1, max_level, item_map, direction, new_visited)
         leaf_count = sum(c["leaf_count"] for c in children) if children else 1
         result.append({"item": item, "level": level, "children": children, "leaf_count": leaf_count})
     return result
@@ -821,7 +822,7 @@ def codebeamer_item(request, item_id):
 
             # Downstream: items referencing current
             dn_ids = [d["id"] for d in downstream_map.get(item_id, [])]
-            dn_tree = _cb_build_tree(dn_ids, 1, max_levels, item_map)
+            dn_tree = _cb_build_tree(dn_ids, 1, max_levels, item_map, direction="downstream", visited={item_id})
             context["downstream_rows"] = _cb_tree_to_rows(dn_tree, max_levels)
             context["downstream_cols"] = max_levels
 

@@ -107,7 +107,7 @@
               {% if downstream_rows %}
                 {% for row in downstream_rows %}
                 <tr>
-                  <td class="text-muted">{% if row.0 %}↓{% endif %}</td>
+                  <td class="text-muted">↓</td>
                   {% for cell in row %}{% if cell %}
                   <td rowspan="{{ cell.rowspan }}">
                     <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
