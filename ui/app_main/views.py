@@ -42,7 +42,17 @@ _STATUS_COLORS = {
     "Reopened": "#fd7e14",
     "Resolved": "#198754",
     "Closed":   "#0f5132",
+    "Rejected": "#6c757d",
 }
+
+PRIORITY_COLORS = {
+    "Highest": "#dc3545",
+    "High": "#fd7e14",
+    "Normal": "#198754",
+    "Low": "#0d6efd",
+    "Lowest": "#6c757d",
+}
+
 
 def _to_cb_date(d):
     return f"{d}T00:00:00.000Z" if d else None
@@ -61,45 +71,44 @@ def dashboard(request):
         "description": "AI-delix dashboard description"})
 
 
-_REQ_TYPES = {"stakeholder_requirement", "system_requirement", "software_requirement"}
+# _REQ_TYPES = {"stakeholder_requirement", "system_requirement", "software_requirement"}
 
+# def _build_tree(record, gaps=None):
+#     reqs_by_id = {}
+#     test_cases = []
 
-def _build_tree(record, gaps=None):
-    reqs_by_id = {}
-    test_cases = []
+#     for a in record.get("expected_artifacts", []):
+#         aid = a.get("id")
+#         if not aid:
+#             continue
+#         atype = a.get("type")
+#         if atype in _REQ_TYPES:
+#             reqs_by_id[aid] = {**a, "children": [], "test_cases": [], "gaps": []}
+#         elif atype == "test_case":
+#             test_cases.append(a)
 
-    for a in record.get("expected_artifacts", []):
-        aid = a.get("id")
-        if not aid:
-            continue
-        atype = a.get("type")
-        if atype in _REQ_TYPES:
-            reqs_by_id[aid] = {**a, "children": [], "test_cases": [], "gaps": []}
-        elif atype == "test_case":
-            test_cases.append(a)
+#     for tc in test_cases:
+#         for rid in tc.get("verifies", []):
+#             if rid in reqs_by_id:
+#                 reqs_by_id[rid]["test_cases"].append(tc)
 
-    for tc in test_cases:
-        for rid in tc.get("verifies", []):
-            if rid in reqs_by_id:
-                reqs_by_id[rid]["test_cases"].append(tc)
+#     if gaps:
+#         for g in gaps:
+#             rid = g.get("artifact_id")
+#             if rid and rid in reqs_by_id:
+#                 reqs_by_id[rid]["gaps"].append(g)
 
-    if gaps:
-        for g in gaps:
-            rid = g.get("artifact_id")
-            if rid and rid in reqs_by_id:
-                reqs_by_id[rid]["gaps"].append(g)
+#     roots = []
+#     for rid, node in reqs_by_id.items():
+#         parent_found = False
+#         for pid in node.get("derived_from", []):
+#             if pid in reqs_by_id:
+#                 reqs_by_id[pid]["children"].append(node)
+#                 parent_found = True
+#         if not parent_found:
+#             roots.append(node)
 
-    roots = []
-    for rid, node in reqs_by_id.items():
-        parent_found = False
-        for pid in node.get("derived_from", []):
-            if pid in reqs_by_id:
-                reqs_by_id[pid]["children"].append(node)
-                parent_found = True
-        if not parent_found:
-            roots.append(node)
-
-    return roots
+#     return roots
 
 
 def _load_jsonl(path):
@@ -118,48 +127,48 @@ _BP_DATASET = os.path.join(
 )
 
 
-def _run_analysis(action):
-    records = _load_jsonl(_BP_DATASET)
-    total_errors = 0
-    total_warnings = 0
-    total_validation_errors = 0
-    results = []
+# def _run_analysis(action):
+#     records = _load_jsonl(_BP_DATASET)
+#     total_errors = 0
+#     total_warnings = 0
+#     total_validation_errors = 0
+#     results = []
 
-    for record in records:
-        gaps = []
-        validation_errors = []
+#     for record in records:
+#         gaps = []
+#         validation_errors = []
 
-        if action in ("detect_gaps", "both"):
-            gaps = detect_gaps(record)
-        if action in ("validate", "both"):
-            validation_errors = validate_record(record)
+#         if action in ("detect_gaps", "both"):
+#             gaps = detect_gaps(record)
+#         if action in ("validate", "both"):
+#             validation_errors = validate_record(record)
 
-        errors = [g for g in gaps if g["severity"] == "error"]
-        warnings = [g for g in gaps if g["severity"] == "warning"]
-        total_errors += len(errors)
-        total_warnings += len(warnings)
-        total_validation_errors += len(validation_errors)
+#         errors = [g for g in gaps if g["severity"] == "error"]
+#         warnings = [g for g in gaps if g["severity"] == "warning"]
+#         total_errors += len(errors)
+#         total_warnings += len(warnings)
+#         total_validation_errors += len(validation_errors)
 
-        results.append({
-            "sample_id": record.get("sample_id"),
-            "title": record.get("title"),
-            "scenario_type": record.get("scenario_type"),
-            "process_scope": record.get("process_scope", []),
-            "gaps": gaps,
-            "errors": errors,
-            "warnings": warnings,
-            "validation_errors": validation_errors,
-            "bp_coverage": record.get("base_practice_coverage", []),
-        })
+#         results.append({
+#             "sample_id": record.get("sample_id"),
+#             "title": record.get("title"),
+#             "scenario_type": record.get("scenario_type"),
+#             "process_scope": record.get("process_scope", []),
+#             "gaps": gaps,
+#             "errors": errors,
+#             "warnings": warnings,
+#             "validation_errors": validation_errors,
+#             "bp_coverage": record.get("base_practice_coverage", []),
+#         })
 
-    return {
-        "analysis_results": results,
-        "analysis_action": action,
-        "total_errors": total_errors,
-        "total_warnings": total_warnings,
-        "total_validation_errors": total_validation_errors,
-        "total_scenarios": len(records),
-    }
+#     return {
+#         "analysis_results": results,
+#         "analysis_action": action,
+#         "total_errors": total_errors,
+#         "total_warnings": total_warnings,
+#         "total_validation_errors": total_validation_errors,
+#         "total_scenarios": len(records),
+#     }
 
 
 
@@ -750,15 +759,6 @@ def codebeamer_item(request, item_id):
             try: return fn()
             except: return None
 
-        STATUS_COLORS = {
-            "New": "#dc3545", "Verified": "#fd7e14", "Reopened": "#fd7e14",
-            "Resolved": "#198754", "Closed": "#0f5132",
-        }
-        PRIORITY_COLORS = {
-            "Highest": "#dc3545", "High": "#fd7e14", "Normal": "#198754",
-            "Low": "#0d6efd", "Lowest": "#6c757d",
-        }
-
         status_name   = _safe(lambda: item.status.value.name if item.status and item.status.value else None)
         priority_name = _safe(lambda: item.priority.name if item.priority else None)
 
@@ -966,22 +966,10 @@ def codebeamer_tracker(request, tracker_id):
             if is_issue:
                 priority_name = _safe(lambda: i.priority.name if i.priority else None)
                 base["priority"] = priority_name
-                base["priority_color"] = {
-                    "Highest": "#dc3545",
-                    "High":    "#fd7e14",
-                    "Normal":  "#198754",
-                    "Low":     "#0d6efd",
-                    "Lowest":  "#adb5bd",
-                }.get(priority_name, "#adb5bd")
+                base["priority_color"] = PRIORITY_COLORS.get(priority_name, "#adb5bd")
                 status_name = _safe(lambda: i.status.value.name if i.status and i.status.value else None)
                 base["status"] = status_name
-                base["status_color"] = {
-                    "New":      "#dc3545",
-                    "Verified": "#fd7e14",
-                    "Reopened": "#fd7e14",
-                    "Resolved": "#198754",
-                    "Closed":   "#0f5132",
-                }.get(status_name, "#6c757d")
+                base["status_color"] = _STATUS_COLORS.get(status_name, "#6c757d")
                 base["severity"]   = _safe(lambda: i.severities[0].get("name") if i.severities else None)
                 base["resolution"] = _safe(lambda: i.resolutions[0].get("name") if i.resolutions else None)
                 base["start_date"] = _safe(lambda: str(i.start_date.date()) if i.start_date else None)
