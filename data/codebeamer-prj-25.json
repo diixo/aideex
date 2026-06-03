@@ -1,20 +1,24 @@
 {
   "project_id": 25,
   "project_name": "ONYX PoC Test",
-  "exported_at": "2026-06-02T23:55:40",
+  "exported_at": "2026-06-03T02:35:59",
   "trackers": [
     {
       "id": 157430,
       "name": "Contacts",
+      "type_id": 107,
       "type_name": "Contact",
       "key_name": "CONTACT",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157431,
       "name": "Releases",
+      "type_id": 103,
       "type_name": "Release",
       "key_name": "RELEASE",
+      "color": "#27c27c",
       "items": [
         {
           "id": 302762,
@@ -29,8 +33,10 @@
     {
       "id": 157432,
       "name": "User Stories",
+      "type_id": 10,
       "type_name": "User Story",
       "key_name": "USTR",
+      "color": "#6c757d",
       "items": [
         {
           "id": 302776,
@@ -45,22 +51,28 @@
     {
       "id": 157433,
       "name": "Risks",
+      "type_id": 11,
       "type_name": "Risk",
       "key_name": "RISK",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157434,
       "name": "Teams",
+      "type_id": 150,
       "type_name": "Team",
       "key_name": "TEAM",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157435,
       "name": "Customer Requirement Specifications",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "CRS",
+      "color": "#3d998d",
       "items": [
         {
           "id": 302798,
@@ -75,8 +87,10 @@
     {
       "id": 157436,
       "name": "System Requirement Specifications",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "SRS",
+      "color": "#6c757d",
       "items": [
         {
           "id": 302822,
@@ -105,78 +119,100 @@
     {
       "id": 157437,
       "name": "Change Requests",
+      "type_id": 3,
       "type_name": "Change Request",
       "key_name": "CRQ",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157438,
       "name": "Defects",
+      "type_id": 2,
       "type_name": "Bug",
       "key_name": "DEF",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157439,
       "name": "Tasks",
+      "type_id": 6,
       "type_name": "Task",
       "key_name": "TASK",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157440,
       "name": "Test Cases",
+      "type_id": 102,
       "type_name": "Testcase",
       "key_name": "TESTCASE",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157441,
       "name": "Test Sets",
+      "type_id": 108,
       "type_name": "Testset",
       "key_name": "TESTSET",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157442,
       "name": "Test Configurations",
+      "type_id": 109,
       "type_name": "Testconf",
       "key_name": "TESTCONF",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157443,
       "name": "Test Runs",
+      "type_id": 9,
       "type_name": "Testrun",
       "key_name": "TESTRUN",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 157444,
       "name": "Timekeeping",
+      "type_id": 8,
       "type_name": "Work Log",
       "key_name": "WLOG",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 176035,
       "name": "System Architecture Design",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "SAD",
+      "color": "#d9923b",
       "items": []
     },
     {
       "id": 176118,
       "name": "System Architecture Document",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "SAD",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 192270,
       "name": "Components",
+      "type_id": 105,
       "type_name": "Component",
       "key_name": "COMP",
+      "color": "#2ab0d1",
       "items": [
         {
           "id": 302756,
@@ -191,22 +227,28 @@
     {
       "id": 192330,
       "name": "Stories",
+      "type_id": 1,
       "type_name": "Issue",
       "key_name": "STR",
+      "color": "#2ab0d1",
       "items": []
     },
     {
       "id": 192404,
       "name": "Epic",
+      "type_id": 12,
       "type_name": "Epic",
       "key_name": "EPIC",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 194100,
       "name": "Software Requirements Specification",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "SRS",
+      "color": "#6c757d",
       "items": [
         {
           "id": 302820,
@@ -246,64 +288,82 @@
     {
       "id": 194183,
       "name": "Software Architecture Design",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "SAD",
+      "color": "#8c0f14",
       "items": []
     },
     {
       "id": 194266,
       "name": "Epics",
+      "type_id": 1,
       "type_name": "Issue",
       "key_name": "EPIC",
+      "color": "#00a85d",
       "items": []
     },
     {
       "id": 194337,
       "name": "Features",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "FEAT",
+      "color": "#e57579",
       "items": []
     },
     {
       "id": 194420,
       "name": "Capability",
+      "type_id": 5,
       "type_name": "Requirement",
       "key_name": "CAPA",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 194503,
       "name": "System Verification Test Cases",
+      "type_id": 102,
       "type_name": "Testcase",
       "key_name": "SYSVTC",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 194584,
       "name": "System Integration Test Cases",
+      "type_id": 102,
       "type_name": "Testcase",
       "key_name": "SYSITC",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 194665,
       "name": "Software Verification Test Cases",
+      "type_id": 102,
       "type_name": "Testcase",
       "key_name": "SWTC",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 194746,
       "name": "Software Integration Verification Test Cases",
+      "type_id": 102,
       "type_name": "Testcase",
       "key_name": "SWIVTC",
+      "color": "#6c757d",
       "items": []
     },
     {
       "id": 194827,
       "name": "Software Component Verification Test Cases",
+      "type_id": 102,
       "type_name": "Testcase",
       "key_name": "SWCVTC",
+      "color": "#6c757d",
       "items": []
     }
   ]

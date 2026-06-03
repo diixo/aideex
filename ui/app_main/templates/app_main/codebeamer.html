@@ -107,6 +107,13 @@
 {% endif %}
 
 <!-- ── Step 3: Trackers ─────────────────────────────────────── -->
+{% if trackers and not has_project_json %}
+<div class="alert alert-warning d-flex align-items-center gap-2 py-2 mb-3">
+  <span class="material-icons">info</span>
+  Для данного проекта отсутствует сохранённый JSON. Нажмите <strong>Save JSON</strong> чтобы включить отображение Downstream ссылок на страницах Item.
+</div>
+{% endif %}
+
 {% if trackers %}
 
 <div class="d-flex align-items-center justify-content-between mb-2">

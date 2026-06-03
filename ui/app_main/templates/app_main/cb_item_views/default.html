@@ -71,14 +71,20 @@
                 {% for s in item.subjects %}
                 <tr>
                   <td class="text-muted">↑</td>
-                  <td><a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none">{{ s.name }}</a></td>
+                  <td>
+                    <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ s.color|default:'#6c757d' }};border-radius:3px;padding:2px;vertical-align:middle;">{{ s.icon|default:'article' }}</span>
+                    <a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none ms-1">{{ s.name }}</a>
+                  </td>
                   <td class="text-muted">—</td>
                 </tr>
                 {% endfor %}
                 {% for v in item.versions %}
                 <tr>
                   <td class="text-muted">↑</td>
-                  <td><a href="{{ cb_url }}/item/{{ v.id }}" target="_blank" class="text-decoration-none">{{ v.name }}</a></td>
+                  <td>
+                    <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ v.color|default:'#6c757d' }};border-radius:3px;padding:2px;vertical-align:middle;">{{ v.icon|default:'directions_subway' }}</span>
+                    <a href="{{ cb_url }}/item/{{ v.id }}" target="_blank" class="text-decoration-none ms-1">{{ v.name }}</a>
+                  </td>
                   <td class="text-muted">—</td>
                 </tr>
                 {% endfor %}
@@ -93,16 +99,29 @@
         <!-- Downstream panel -->
         <div class="border rounded-2 p-2 mb-1">
           <div class="fw-bold py-1">Downstream</div>
-          <div>
-            <table class="table table-sm mb-0 mt-1">
-              <thead class="table-light">
-                <tr><th style="width:2rem;">&gt;</th><th>Level 1</th><th>Level 2</th></tr>
-              </thead>
-              <tbody>
-                <tr><td colspan="3" class="text-muted">—</td></tr>
-              </tbody>
-            </table>
-          </div>
+          {% if no_project_json %}
+          <p class="text-muted mb-0"><span class="material-icons align-middle" style="font-size:.9rem;">info</span> Save JSON to enable downstream links.</p>
+          {% else %}
+          <table class="table table-sm mb-0 mt-1">
+            <thead class="table-light">
+              <tr><th style="width:2rem;">&gt;</th><th>Level 1</th><th>Level 2</th></tr>
+            </thead>
+            <tbody>
+              {% for d in downstream %}
+              <tr>
+                <td class="text-muted">↓</td>
+                <td>
+                  <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ d.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ d.icon }}</span>
+                  <a href="{% url 'app_main:codebeamer_item' d.id %}" class="text-decoration-none ms-1">{{ d.name }}</a>
+                </td>
+                <td class="text-muted">—</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" class="text-muted">—</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
         </div>
 
       </div>
