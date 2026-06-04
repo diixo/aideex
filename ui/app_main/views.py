@@ -9,6 +9,7 @@ from .aspice_check_bp_dataset import validate_record
 from .aspice_compliance_checker import inspect_case
 from .aspice_validate_dataset import validate_dataset, summarize_issues
 
+from pybeamer import Codebeamer
 
 
 # Material Icons name per tracker type_id. Types that don't have an
@@ -71,46 +72,6 @@ def dashboard(request):
         "description": "AI-delix dashboard description"})
 
 
-# _REQ_TYPES = {"stakeholder_requirement", "system_requirement", "software_requirement"}
-
-# def _build_tree(record, gaps=None):
-#     reqs_by_id = {}
-#     test_cases = []
-
-#     for a in record.get("expected_artifacts", []):
-#         aid = a.get("id")
-#         if not aid:
-#             continue
-#         atype = a.get("type")
-#         if atype in _REQ_TYPES:
-#             reqs_by_id[aid] = {**a, "children": [], "test_cases": [], "gaps": []}
-#         elif atype == "test_case":
-#             test_cases.append(a)
-
-#     for tc in test_cases:
-#         for rid in tc.get("verifies", []):
-#             if rid in reqs_by_id:
-#                 reqs_by_id[rid]["test_cases"].append(tc)
-
-#     if gaps:
-#         for g in gaps:
-#             rid = g.get("artifact_id")
-#             if rid and rid in reqs_by_id:
-#                 reqs_by_id[rid]["gaps"].append(g)
-
-#     roots = []
-#     for rid, node in reqs_by_id.items():
-#         parent_found = False
-#         for pid in node.get("derived_from", []):
-#             if pid in reqs_by_id:
-#                 reqs_by_id[pid]["children"].append(node)
-#                 parent_found = True
-#         if not parent_found:
-#             roots.append(node)
-
-#     return roots
-
-
 def _load_jsonl(path):
     records = []
     with open(path, encoding="utf-8") as f:
@@ -119,57 +80,6 @@ def _load_jsonl(path):
             if line:
                 records.append(json.loads(line))
     return records
-
-
-_BP_DATASET = os.path.join(
-    settings.BASE_DIR, "..", "data", "aspice",
-    "aspice_pipeline_dataset_with_base_practices.jsonl",
-)
-
-
-# def _run_analysis(action):
-#     records = _load_jsonl(_BP_DATASET)
-#     total_errors = 0
-#     total_warnings = 0
-#     total_validation_errors = 0
-#     results = []
-
-#     for record in records:
-#         gaps = []
-#         validation_errors = []
-
-#         if action in ("detect_gaps", "both"):
-#             gaps = detect_gaps(record)
-#         if action in ("validate", "both"):
-#             validation_errors = validate_record(record)
-
-#         errors = [g for g in gaps if g["severity"] == "error"]
-#         warnings = [g for g in gaps if g["severity"] == "warning"]
-#         total_errors += len(errors)
-#         total_warnings += len(warnings)
-#         total_validation_errors += len(validation_errors)
-
-#         results.append({
-#             "sample_id": record.get("sample_id"),
-#             "title": record.get("title"),
-#             "scenario_type": record.get("scenario_type"),
-#             "process_scope": record.get("process_scope", []),
-#             "gaps": gaps,
-#             "errors": errors,
-#             "warnings": warnings,
-#             "validation_errors": validation_errors,
-#             "bp_coverage": record.get("base_practice_coverage", []),
-#         })
-
-#     return {
-#         "analysis_results": results,
-#         "analysis_action": action,
-#         "total_errors": total_errors,
-#         "total_warnings": total_warnings,
-#         "total_validation_errors": total_validation_errors,
-#         "total_scenarios": len(records),
-#     }
-
 
 
 _FEATURES_04_DATASET = os.path.join(
@@ -270,7 +180,6 @@ def codebeamer(request):
 
     if request.method == "GET" and saved:
         try:
-            from pybeamer import Codebeamer
             cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
             context["projects"] = _cb_load_projects(cb)
             if saved.get("project_id"):
@@ -297,7 +206,6 @@ def codebeamer(request):
 
         if action in ("load_projects", "load_trackers"):
             try:
-                from pybeamer import Codebeamer
                 cb = Codebeamer(cb_url, username, password, api_root='api/v3')
 
                 if action == "load_projects":
@@ -359,7 +267,6 @@ def _serialize_tree(nodes):
 
 
 def codebeamer_create_item(request, tracker_id):
-    from pybeamer import Codebeamer
     from django.shortcuts import redirect as _redirect
 
     saved = _cb_load_credentials()
@@ -683,7 +590,6 @@ def codebeamer_save(request):
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
-    from pybeamer import Codebeamer
     cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
     project = cb.get_project(saved["project_id"])
 
@@ -751,7 +657,6 @@ def codebeamer_item(request, item_id):
         "cb_url": saved.get("cb_url", ""),
     }
     try:
-        from pybeamer import Codebeamer
         cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
         item = cb.get_tracker_item(item_id)
 
@@ -866,7 +771,6 @@ def codebeamer_tree(request):
         "cb_url": saved.get("cb_url", ""),
     }
     try:
-        from pybeamer import Codebeamer
         cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
         project = cb.get_project(saved["project_id"])
         context["project_name"] = project.name
@@ -889,7 +793,6 @@ def codebeamer_tracker(request, tracker_id):
         "cb_url": saved.get("cb_url", ""),
     }
     try:
-        from pybeamer import Codebeamer
         cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
         tracker = cb.get_tracker(tracker_id)
         context["tracker"] = {
