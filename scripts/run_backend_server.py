@@ -16,14 +16,9 @@ from backend.server import app
 
 LOG_PATH = Path("logs/backend_server.log")
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-
 # Truncate previous log content so each launch starts fresh.
 LOG_PATH.write_text("", encoding="utf-8")
 
-# Also reset assessor manager JSON log to avoid mixed historical entries.
-ASSESSOR_LOG = Path("logs/assessor_manager.log")
-ASSESSOR_LOG.parent.mkdir(parents=True, exist_ok=True)
-ASSESSOR_LOG.write_text("", encoding="utf-8")
 
 TIMESTAMP_FMT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 # Configure root logger to write to file with timestamps.

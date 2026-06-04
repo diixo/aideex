@@ -9,6 +9,14 @@ py ui/manage.py runserver
 ```
 
 
+### Run Backend server:
+Run from root directory:
+
+``` bash
+py -3.10 .\scripts\run_backend_server.py
+```
+
+
 ## Create repository structure
 
 ```bash
