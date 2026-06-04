@@ -79,7 +79,7 @@ def _make_client(saved: dict) -> Codebeamer:
 # ---------------------------------------------------------------------------
 
 @codebeamer_router.post("/codebeamer/pswd/test", tags=["codebeamer"])
-def codebeamer_pswd_test(req: CodebeamerPswdRequest) -> Dict[str, Any]:
+async def codebeamer_pswd_test(req: CodebeamerPswdRequest) -> Dict[str, Any]:
     host = req.codebeamer_host.strip()
     username = req.username.strip()
     pswd = req.pswd.strip()
@@ -94,7 +94,7 @@ def codebeamer_pswd_test(req: CodebeamerPswdRequest) -> Dict[str, Any]:
 
 
 @codebeamer_router.get("/codebeamer/pswd", tags=["codebeamer"])
-def codebeamer_pswd_get() -> Dict[str, Any]:
+async def codebeamer_pswd_get() -> Dict[str, Any]:
     saved = _load_saved_pswd()
     if saved is not None:
         host = str(saved.get("codebeamer_host") or "").strip()
@@ -106,7 +106,7 @@ def codebeamer_pswd_get() -> Dict[str, Any]:
 
 
 @codebeamer_router.post("/codebeamer/pswd/save", tags=["codebeamer"])
-def codebeamer_pswd_save(req: CodebeamerPswdSaveRequest) -> Dict[str, Any]:
+async def codebeamer_pswd_save(req: CodebeamerPswdSaveRequest) -> Dict[str, Any]:
     cur = _load_saved_pswd() or {}
     host = req.codebeamer_host.strip()
     username = req.username.strip()
@@ -127,7 +127,7 @@ def codebeamer_pswd_save(req: CodebeamerPswdSaveRequest) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @codebeamer_router.get("/codebeamer/projects", tags=["codebeamer"])
-def codebeamer_projects() -> Dict[str, Any]:
+async def codebeamer_projects() -> Dict[str, Any]:
     _CB_LOG.info("GET /codebeamer/projects")
     saved = _load_saved_pswd()
     if not saved:
@@ -144,7 +144,7 @@ def codebeamer_projects() -> Dict[str, Any]:
 
 
 @codebeamer_router.post("/codebeamer/tracker/{tracker_id}/items", tags=["codebeamer"])
-def codebeamer_push_items(tracker_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+async def codebeamer_push_items(tracker_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Bulk-create tracker items in the given tracker.
 
     Body shape:
@@ -207,7 +207,7 @@ def codebeamer_push_items(tracker_id: int, payload: Dict[str, Any]) -> Dict[str,
 # ---------------------------------------------------------------------------
 
 @codebeamer_router.get("/codebeamer/last_project", tags=["codebeamer"])
-def codebeamer_last_project() -> Dict[str, Any]:
+async def codebeamer_last_project() -> Dict[str, Any]:
     """Return the project whose plan.json was modified most recently."""
     latest_path: Path | None = None
     latest_mtime = 0.0
@@ -237,7 +237,7 @@ def codebeamer_last_project() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @codebeamer_router.post("/codebeamer/selection", tags=["codebeamer"])
-def codebeamer_selection(req: CodebeamerSelectionRequest) -> Dict[str, Any]:
+async def codebeamer_selection(req: CodebeamerSelectionRequest) -> Dict[str, Any]:
     _CB_LOG.info("/codebeamer/selection request project_id=%s include_ids=%d exclude_ids=%d",
                    req.project_id, len(req.include_ids), len(req.exclude_ids or []))
     path = CORPUS_ROOT / str(req.project_id) / ".sync"
@@ -248,7 +248,7 @@ def codebeamer_selection(req: CodebeamerSelectionRequest) -> Dict[str, Any]:
 
 
 @codebeamer_router.get("/codebeamer/selection", tags=["codebeamer"])
-def codebeamer_selection_get(project_id: int) -> Dict[str, Any]:
+async def codebeamer_selection_get(project_id: int) -> Dict[str, Any]:
     _CB_LOG.info("/codebeamer/selection get request project_id=%s", project_id)
     sel_path = CORPUS_ROOT / str(project_id) / ".sync" / "selection.json"
     try:
