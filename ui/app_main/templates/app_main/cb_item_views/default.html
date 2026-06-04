@@ -75,7 +75,7 @@
       <div class="collapse show" id="def-trace-all">
         <!-- Upstream -->
         <div class="border rounded-2 p-2 mb-2">
-          <div class="fw-bold py-1">Upstream</div>
+          <div class="fw-bold py-1">Upstream <span class="text-muted fw-normal">({{ upstream_rows|length }})</span></div>
           <table class="table table-sm mb-0 mt-1" style="table-layout:fixed;width:100%;">
             <thead class="table-light">
               <tr>
@@ -113,7 +113,7 @@
 
         <!-- Downstream -->
         <div class="border rounded-2 p-2 mb-1">
-          <div class="fw-bold py-1">Downstream</div>
+          <div class="fw-bold py-1">Downstream <span class="text-muted fw-normal">({{ downstream_rows|length }})</span></div>
           {% if no_project_json %}
           <p class="text-muted mb-0"><span class="material-icons align-middle" style="font-size:.9rem;">info</span> Save JSON to enable downstream links.</p>
           {% else %}

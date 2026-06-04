@@ -44,6 +44,7 @@ _STATUS_COLORS = {
     "Resolved": "#198754",
     "Closed":   "#0f5132",
     "Rejected": "#6c757d",
+    "Draft":    "#ffab46",
 }
 
 PRIORITY_COLORS = {
