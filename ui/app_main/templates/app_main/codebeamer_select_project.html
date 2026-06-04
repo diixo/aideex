@@ -10,7 +10,7 @@
   <a href="{% url 'app_main:codebeamer' %}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h5 class="fw-bold mb-0">Select Project</h5>
+  <h5 class="fw-bold mb-0">Codebeamer</h5>
 </div>
 
 {% if fetch_error %}
@@ -20,25 +20,27 @@
 {% endif %}
 
 {% if projects %}
-<div class="card shadow-sm">
+<div class="card shadow-sm mb-4">
   <div class="card-header py-2 d-flex align-items-center gap-2">
+    <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 2</span>
     <span class="fw-semibold">Pick a Project</span>
     <small class="text-muted ms-auto">{{ projects|length }} project{{ projects|length|pluralize }} found</small>
   </div>
   <div class="card-body py-3">
-    <form method="post">
+    <form method="post" class="d-flex align-items-end gap-2 flex-wrap">
       {% csrf_token %}
-      <div class="mb-3" style="min-width:320px;">
-        <select name="project_id" class="form-select" required>
+      <div style="min-width:320px;">
+        <label class="form-label small mb-1">Project</label>
+        <select name="project_id" class="form-select form-select-sm" required>
           <option value="" disabled selected>— pick one —</option>
           {% for p in projects %}
           <option value="{{ p.id }}">{{ p.name }} (id {{ p.id }})</option>
           {% endfor %}
         </select>
       </div>
-      <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-1">
+      <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
         <span class="material-icons" style="font-size:1rem;">arrow_forward</span>
-        Select
+        Load Trackers
       </button>
     </form>
   </div>

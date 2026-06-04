@@ -75,16 +75,6 @@ def dashboard(request):
         "description": "AI-delix dashboard description"})
 
 
-def _load_jsonl(path):
-    records = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                records.append(json.loads(line))
-    return records
-
-
 _FEATURES_04_DATASET = os.path.join(
     settings.BASE_DIR, "..", "data", "aspice-new",
     "aspice_compliance_checker_test_dataset_v04.json",
@@ -116,9 +106,6 @@ def _collect_aspice_counts(dataset):
     return counts
 
 
-_CB_SECRETS_FILE = os.path.join(settings.BASE_DIR, "..", "secret", "codebeamer.json")
-
-
 def _cb_save_credentials(cb_url, username, password):
     backend_post("/codebeamer/pswd/save", {
         "codebeamer_host": cb_url,
@@ -129,10 +116,6 @@ def _cb_save_credentials(cb_url, username, password):
 
 def _cb_set_project(project_id):
     backend_post("/codebeamer/project", {"project_id": project_id})
-
-
-def _cb_clear_project():
-    backend_post("/codebeamer/project", {"project_id": None})
 
 
 def _cb_load_credentials():

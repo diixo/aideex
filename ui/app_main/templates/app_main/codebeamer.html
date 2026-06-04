@@ -7,10 +7,9 @@
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-center gap-3 mb-4 mt-3">
-  <h5 class="fw-bold mb-0">Codebeamer</h5>
+  <h6 class="fw-bold mb-0">Project —</h6>
   {% if selected_project_name %}
-  <span class="text-muted">—</span>
-  <span class="fw-semibold text-primary">{{ selected_project_name }}</span>
+  <h6 class="fw-semibold mb-0 text-primary">{{ selected_project_name }}</h6>
   <a href="{% url 'app_main:codebeamer_select_project' %}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
     <span class="material-icons" style="font-size:1rem;">swap_horiz</span>
     Change Project
