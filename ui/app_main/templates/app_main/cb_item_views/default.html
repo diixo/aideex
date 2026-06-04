@@ -21,7 +21,8 @@
       <div class="d-flex flex-wrap gap-2">
         {% if item.subjects %}
           {% for s in item.subjects %}
-          <a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none">{{ s.name }}</a>{% if not forloop.last %},{% endif %}
+          <a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none d-inline-flex align-items-center gap-1">
+            <span class="material-icons" style="font-size:1rem; color:#fff; background:{{ s.color|default:'#6c757d' }}; border-radius:3px; padding:2px; line-height:1; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;">{{ s.icon|default:'article' }}</span>{{ s.name }}</a>{% if not forloop.last %},{% endif %}
           {% endfor %}
         {% else %}
           <span class="fw-bold">—</span>
@@ -75,7 +76,7 @@
       <div class="collapse show" id="def-trace-all">
         <!-- Upstream -->
         <div class="border rounded-2 p-2 mb-2">
-          <div class="fw-bold py-1">Upstream <span class="text-muted fw-normal">({{ upstream_rows|length }})</span></div>
+          <div class="fw-bold py-1">Upstreams <span class="text-muted fw-normal">({{ upstream_rows|length }})</span></div>
           <table class="table table-sm mb-0 mt-1" style="table-layout:fixed;width:100%;">
             <thead class="table-light">
               <tr>
@@ -113,7 +114,7 @@
 
         <!-- Downstream -->
         <div class="border rounded-2 p-2 mb-1">
-          <div class="fw-bold py-1">Downstream <span class="text-muted fw-normal">({{ downstream_rows|length }})</span></div>
+          <div class="fw-bold py-1">Downstreams <span class="text-muted fw-normal">({{ downstream_rows|length }})</span></div>
           {% if no_project_json %}
           <p class="text-muted mb-0"><span class="material-icons align-middle" style="font-size:.9rem;">info</span> Save JSON to enable downstream links.</p>
           {% else %}

@@ -491,7 +491,11 @@ def _cb_build_item_tracker_map(project_id):
         for item in tracker.get("items", []):
             iid = item.get("id")
             if iid:
-                result[iid] = {"icon": icon, "color": color}
+                status = item.get("status")
+                result[iid] = {
+                    "icon":  icon,
+                    "color": _STATUS_COLORS.get(status, color) if status else color,
+                }
     return result
 
 
