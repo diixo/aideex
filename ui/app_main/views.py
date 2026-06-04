@@ -177,31 +177,31 @@ def codebeamer(request):
         "description": "Codebeamer integration",
     }
 
-    saved = _cb_load_credentials()
+    credentials = _cb_load_credentials()
 
-    if request.method == "GET" and saved:
+    if request.method == "GET" and credentials:
         try:
-            cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+            cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
             context["projects"] = _cb_load_projects(cb)
-            if saved.get("project_id"):
-                context.update(_cb_load_tracker_context(cb, saved["project_id"], context["projects"]))
+            if credentials.get("project_id"):
+                context.update(_cb_load_tracker_context(cb, credentials["project_id"], context["projects"]))
         except Exception as e:
             context["fetch_error"] = str(e)
-        context.update({"cb_url": saved.get("cb_url", ""), "username": saved.get("username", ""), "password": saved.get("password", "")})
+        context.update({"cb_url": credentials.get("cb_url", ""), "username": credentials.get("username", ""), "password": credentials.get("password", "")})
         return render(request, "app_main/codebeamer.html", context)
 
     if request.method == "POST":
         action   = request.POST.get("action", "")
-        cb_url   = request.POST.get("cb_url", "").strip() or saved.get("cb_url", "")
-        username = request.POST.get("username", "").strip() or saved.get("username", "")
-        password = request.POST.get("password", "").strip() or saved.get("password", "")
+        cb_url   = request.POST.get("cb_url", "").strip() or credentials.get("cb_url", "")
+        username = request.POST.get("username", "").strip() or credentials.get("username", "")
+        password = request.POST.get("password", "").strip() or credentials.get("password", "")
 
         if action == "change_project":
-            saved = _cb_load_credentials()
-            saved.pop("project_id", None)
+            credentials = _cb_load_credentials()
+            credentials.pop("project_id", None)
             os.makedirs(os.path.dirname(_CB_SECRETS_FILE), exist_ok=True)
             with open(_CB_SECRETS_FILE, "w", encoding="utf-8") as f:
-                json.dump(saved, f)
+                json.dump(credentials, f)
             from django.shortcuts import redirect as _redirect
             return _redirect("app_main:codebeamer")
 
@@ -270,13 +270,13 @@ def _serialize_tree(nodes):
 def codebeamer_create_item(request, tracker_id):
     from django.shortcuts import redirect as _redirect
 
-    saved = _cb_load_credentials()
-    if not saved:
+    credentials = _cb_load_credentials()
+    if not credentials:
         return _redirect("app_main:codebeamer")
 
     if request.method == "POST":
         try:
-            cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+            cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
             tracker = cb.get_tracker(tracker_id)
             t_type = tracker.type_name.lower()
 
@@ -469,13 +469,19 @@ def _cb_project_json_path(project_id):
     return os.path.join(settings.BASE_DIR, "..", "data", f"codebeamer-prj-{project_id}.json")
 
 
-def _cb_build_item_tracker_map(project_id):
-    """Returns dict: item_id -> {icon, color} based on its tracker type."""
+def _cb_load_project_data(project_id):
     path = _cb_project_json_path(project_id)
     if not os.path.exists(path):
-        return {}
+        return None
     with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+        return json.load(f)
+
+
+def _cb_build_item_tracker_map(project_id):
+    """Returns dict: item_id -> {icon, color} based on its tracker type."""
+    data = _cb_load_project_data(project_id)
+    if data is None:
+        return {}
     result = {}
     for tracker in data.get("trackers", []):
         t_type_id = tracker.get("type_id")
@@ -497,7 +503,14 @@ def _cb_build_tree(item_ids, level, max_level, item_map, direction="upstream", v
         if iid in visited:
             continue
         new_visited = visited | {iid}
-        item = item_map.get(iid, {"id": iid, "name": str(iid), "icon": "label", "color": "#6c757d", "upstream": [], "downstream": []})
+        item = item_map.get(iid, {
+            "id": iid,
+            "name": str(iid),
+            "icon": "label",
+            "color": "#6c757d",
+            "upstream": [],
+            "downstream": []
+            })
         child_ids = item.get(direction, []) if level < max_level else []
         children = _cb_build_tree(child_ids, level + 1, max_level, item_map, direction, new_visited)
         leaf_count = sum(c["leaf_count"] for c in children) if children else 1
@@ -526,11 +539,9 @@ def _cb_tree_to_rows(nodes, max_level):
 
 def _cb_build_full_item_map(project_id, downstream_map):
     """Build {item_id: {id, name, icon, color, upstream, downstream}} from saved JSON."""
-    path = _cb_project_json_path(project_id)
-    if not os.path.exists(path):
+    data = _cb_load_project_data(project_id)
+    if data is None:
         return {}
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
     item_map = {}
     for tracker in data.get("trackers", []):
         t_type_id = tracker.get("type_id")
@@ -555,11 +566,9 @@ def _cb_build_full_item_map(project_id, downstream_map):
 
 def _cb_build_downstream_map(project_id):
     """Returns dict: item_id -> list of {id, name, icon, color} items that reference it upstream."""
-    path = _cb_project_json_path(project_id)
-    if not os.path.exists(path):
-        return None
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    data = _cb_load_project_data(project_id)
+    if data is None:
+        return {}
     downstream = {}
     for tracker in data.get("trackers", []):
         t_type_id = tracker.get("type_id")
@@ -586,13 +595,13 @@ def codebeamer_save(request):
     from datetime import datetime
     from django.http import HttpResponse
 
-    saved = _cb_load_credentials()
-    if not saved or not saved.get("project_id"):
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
-    cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
-    project = cb.get_project(saved["project_id"])
+    cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
+    project = cb.get_project(credentials["project_id"])
 
     def _safe(fn):
         try: return fn()
@@ -630,14 +639,14 @@ def codebeamer_save(request):
         })
 
     payload = {
-        "project_id":   saved["project_id"],
+        "project_id":   credentials["project_id"],
         "project_name": project.name,
         "exported_at":  datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
         "trackers":     trackers_data,
     }
     content = _json.dumps(payload, ensure_ascii=False, indent=2)
 
-    save_path = os.path.join(settings.BASE_DIR, "..", "data", f"codebeamer-prj-{saved['project_id']}.json")
+    save_path = os.path.join(settings.BASE_DIR, "..", "data", f"codebeamer-prj-{credentials['project_id']}.json")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     with open(save_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -647,18 +656,18 @@ def codebeamer_save(request):
 
 
 def codebeamer_item(request, item_id):
-    saved = _cb_load_credentials()
-    if not saved:
+    credentials = _cb_load_credentials()
+    if not credentials:
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
     context = {
         "title": f"AI-delix - Item {item_id}",
         "item_id": item_id,
-        "cb_url": saved.get("cb_url", ""),
+        "cb_url": credentials.get("cb_url", ""),
     }
     try:
-        cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+        cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
         item = cb.get_tracker_item(item_id)
 
         def _safe(fn):
@@ -716,7 +725,7 @@ def codebeamer_item(request, item_id):
             context["item_view_template"] = None
 
         # Build traceability trees from saved JSON
-        project_id = saved.get("project_id")
+        project_id = credentials.get("project_id")
         max_levels = int(request.GET.get("levels", 2))
         context["max_levels"] = max_levels
         context["levels_range"] = range(1, 11)
@@ -762,18 +771,18 @@ def codebeamer_item(request, item_id):
 
 
 def codebeamer_tree(request):
-    saved = _cb_load_credentials()
-    if not saved or not saved.get("project_id"):
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
     context = {
         "title": "AI-delix - Codebeamer Tree",
-        "cb_url": saved.get("cb_url", ""),
+        "cb_url": credentials.get("cb_url", ""),
     }
     try:
-        cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
-        project = cb.get_project(saved["project_id"])
+        cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
+        project = cb.get_project(credentials["project_id"])
         context["project_name"] = project.name
         context["tree"] = _serialize_tree(project.get_tree())
     except Exception as e:
@@ -783,18 +792,18 @@ def codebeamer_tree(request):
 
 
 def codebeamer_tracker(request, tracker_id):
-    saved = _cb_load_credentials()
-    if not saved:
+    credentials = _cb_load_credentials()
+    if not credentials:
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
     context = {
         "title": f"AI-delix - Tracker {tracker_id}",
         "tracker_id": tracker_id,
-        "cb_url": saved.get("cb_url", ""),
+        "cb_url": credentials.get("cb_url", ""),
     }
     try:
-        cb = Codebeamer(saved["cb_url"], saved["username"], saved["password"], api_root="api/v3")
+        cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
         tracker = cb.get_tracker(tracker_id)
         context["tracker"] = {
             "id":          tracker.id,
@@ -833,7 +842,7 @@ def codebeamer_tracker(request, tracker_id):
         context["tracker_fields"] = [f for f in all_fields if f != category_field]
 
         # Load Release items from Release-type trackers in the same project
-        project_id = tracker.project.id if tracker.project else saved.get("project_id")
+        project_id = tracker.project.id if tracker.project else credentials.get("project_id")
         release_items = []
         if project_id:
             project = cb.get_project(project_id)
