@@ -42,11 +42,6 @@ class CodebeamerSelectionRequest(BaseModel):
     exclude_ids: Optional[list[int]] = None
 
 
-class CodebeamerEvaluateRequest(BaseModel):
-    project_id: int
-    workers: Optional[int] = 4
-
-
 # ---------------------------------------------------------------------------
 # Credentials helpers
 # ---------------------------------------------------------------------------
@@ -205,4 +200,64 @@ def codebeamer_push_items(tracker_id: int, payload: Dict[str, Any]) -> Dict[str,
         tracker_id, len(created), len(failed),
     )
     return {"ok": True, "created": created, "failed": failed}
+
+
+# ---------------------------------------------------------------------------
+# Last-project endpoint
+# ---------------------------------------------------------------------------
+
+@codebeamer_router.get("/codebeamer/last_project", tags=["codebeamer"])
+def codebeamer_last_project() -> Dict[str, Any]:
+    """Return the project whose plan.json was modified most recently."""
+    latest_path: Path | None = None
+    latest_mtime = 0.0
+    for plan_path in CORPUS_ROOT.glob("*/.sync/plan.json"):
+        try:
+            mtime = plan_path.stat().st_mtime
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+                latest_path = plan_path
+        except Exception:
+            continue
+    if latest_path is None:
+        return {"ok": False}
+    try:
+        data = json.loads(latest_path.read_text(encoding="utf-8"))
+        return {
+            "ok": True,
+            "project_id": data.get("project_id"),
+            "project_name": data.get("project_name"),
+        }
+    except Exception:
+        return {"ok": False}
+
+
+# ---------------------------------------------------------------------------
+# Selection endpoints
+# ---------------------------------------------------------------------------
+
+@codebeamer_router.post("/codebeamer/selection", tags=["codebeamer"])
+def codebeamer_selection(req: CodebeamerSelectionRequest) -> Dict[str, Any]:
+    _CB_LOG.info("/codebeamer/selection request project_id=%s include_ids=%d exclude_ids=%d",
+                   req.project_id, len(req.include_ids), len(req.exclude_ids or []))
+    path = CORPUS_ROOT / str(req.project_id) / ".sync"
+    path.mkdir(parents=True, exist_ok=True)
+    sel = {"include_ids": req.include_ids, "exclude_ids": req.exclude_ids or []}
+    (path / "selection.json").write_text(json.dumps(sel, indent=2), encoding="utf-8")
+    return {"ok": True}
+
+
+@codebeamer_router.get("/codebeamer/selection", tags=["codebeamer"])
+def codebeamer_selection_get(project_id: int) -> Dict[str, Any]:
+    _CB_LOG.info("/codebeamer/selection get request project_id=%s", project_id)
+    sel_path = CORPUS_ROOT / str(project_id) / ".sync" / "selection.json"
+    try:
+        data = json.loads(sel_path.read_text(encoding="utf-8"))
+        return {
+            "ok": True,
+            "include_ids": list(data.get("include_ids") or []),
+            "exclude_ids": list(data.get("exclude_ids") or []),
+        }
+    except Exception:
+        return {"ok": True, "include_ids": [], "exclude_ids": []}
 
