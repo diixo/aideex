@@ -11,6 +11,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Set
+import requests
 
 from fastapi import APIRouter, Body, FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 from .codebeamer_router import codebeamer_router
+from .confluence_router import confluence_router, build_confluence_url, load_confluence_host, collect_confluence_urls_from_snapshot
 
 from .config import settings
 from .job_store import (
@@ -47,17 +49,6 @@ _SCRIPTS_DIR = _ROOT / "scripts"
 import sys
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from .confluence_sync import (
-    evaluate_remote as cf_evaluate_remote,
-    pull as cf_pull,
-    build as cf_build,
-    activate as cf_activate,
-    ConfluenceClient as CfClient,
-)  # type: ignore
-
-import threading
-import uuid as _uuid
-import requests
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 CORPUS_ROOT = APP_ROOT / "corpus"
@@ -1205,53 +1196,6 @@ def bulk_performance(group_id: str) -> JSONResponse:
 # Human-readable Combined Export
 # -----------------------------
 
-def _load_confluence_host() -> Optional[str]:
-    try:
-        saved = _load_saved_pat()  # type: ignore[name-defined]
-    except Exception:
-        saved = None
-    if isinstance(saved, dict):
-        host = str(saved.get("confluence_host") or "").strip()
-        if host:
-            return host.rstrip("/")
-    return None
-
-
-def _build_confluence_url(md: Dict[str, Any], *, host: Optional[str]) -> Optional[str]:
-    if not host:
-        return None
-    page_id = md.get("page_id") or md.get("pageId")
-    if not page_id:
-        return None
-    heading = None
-    try:
-        hp = md.get("heading_path") or []
-        if isinstance(hp, list) and hp:
-            heading = str(hp[-1])
-    except Exception:
-        heading = None
-    if not heading:
-        heading = str(md.get("section_heading") or md.get("title") or "").strip() or None
-    def _escape(s: str) -> str:
-        return requests.utils.quote(" ".join(s.split())[:300], safe="")
-    fragment = f"#:~:text={_escape(heading)}" if heading else ""
-    return f"{host}/pages/viewpage.action?pageId={page_id}{fragment}"
-
-
-def _collect_confluence_urls_from_snapshot(snapshot: Dict[str, Any], host: Optional[str]) -> List[str]:
-    urls: List[str] = []
-    seen: Set[str] = set()
-    if not isinstance(snapshot, dict):
-        return urls
-    for item in (snapshot.get("evidence") or []):
-        md = (item or {}).get("metadata") or {}
-        url = _build_confluence_url(md, host=host)
-        if url and url not in seen:
-            seen.add(url)
-            urls.append(url)
-    return urls
-
-
 def _clean_text_list(values: Any) -> List[str]:
     out: List[str] = []
     if isinstance(values, list):
@@ -1272,7 +1216,7 @@ def _build_strict_combined_export(combined: Dict[str, Any]) -> Dict[str, Any]:
     Keys and casing are preserved as requested (e.g., 'Rationale', 'pam4.0').
     Arrays are present even when empty.
     """
-    host = _load_confluence_host()
+    host = load_confluence_host()
 
     def evidence_from_snapshot(snapshot: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         snap = snapshot or {}
@@ -1321,7 +1265,7 @@ def _build_strict_combined_export(combined: Dict[str, Any]) -> Dict[str, Any]:
             page_title = str(md.get('page_title') or '').strip()
             doc_fallback = str(it.get('document') or '').strip()
             name = heading or label_from_text or page_title or doc_fallback or 'Document'
-            url = _build_confluence_url(md, host=host)
+            url = build_confluence_url(md, host=host)
             frag_label = _fragment_label(url)
             if frag_label:
                 # Override when the fragment label differs from the current name
@@ -1444,12 +1388,12 @@ def bulk_export_human(
     """
     group_payload = bulk_result(group_id, parent_report_id)  # type: ignore[misc]
     combined = group_payload.combined_report or {}
-    host = _load_confluence_host()
+    host = load_confluence_host()
 
     proj_summary = (group_payload.project_summary.dict(exclude_none=True) if group_payload.project_summary else {})  # type: ignore[union-attr]
     project_urls: List[str] = []
     project_snapshot = ((combined.get("project_report") or {}).get("prompt_snapshot") or {})
-    project_urls.extend(_collect_confluence_urls_from_snapshot(project_snapshot, host))
+    project_urls.extend(collect_confluence_urls_from_snapshot(project_snapshot, host))
 
     processes_out: List[Dict[str, Any]] = []
     total_bp = 0
@@ -1469,7 +1413,7 @@ def bulk_export_human(
         for bp in page_slice:
             assess = bp.get("assessment") or {}
             snap = bp.get("prompt_snapshot") or {}
-            bp_urls = _collect_confluence_urls_from_snapshot(snap, host)
+            bp_urls = collect_confluence_urls_from_snapshot(snap, host)
             proc_urls.extend(u for u in bp_urls if u)
             project_urls.extend(u for u in bp_urls if u)
             bp_out.append({
@@ -1485,7 +1429,7 @@ def bulk_export_human(
                         "page_id": (it.get("metadata") or {}).get("page_id") or (it.get("metadata") or {}).get("pageId"),
                         "page_title": (it.get("metadata") or {}).get("page_title") or (it.get("metadata") or {}).get("title"),
                         "heading_path": (it.get("metadata") or {}).get("heading_path"),
-                        "confluence_url": _build_confluence_url((it.get("metadata") or {}), host=host),
+                        "confluence_url": build_confluence_url((it.get("metadata") or {}), host=host),
                         "text_fragment": (it.get("text") or "")[:200],
                     }
                     for it in (snap.get("evidence") or [])
@@ -2319,6 +2263,7 @@ app = FastAPI(title="MAN.3 Assessment Backend", version="0.1.0")
 app.include_router(router)
 
 app.include_router(codebeamer_router)
+app.include_router(confluence_router)
 
 # Canonical Engineering Model (CEM) pipeline endpoints.
 from .cem.http import cem_router, warm_stage_cache  # noqa: E402  (deferred to avoid circular import at module top)
@@ -2414,6 +2359,7 @@ def chat_stream(
         "Connection": "keep-alive",
     }
     return StreamingResponse(_gen(), media_type="text/event-stream", headers=headers)
+
 
 # Ensure newly added chat routes are mounted (router was included earlier as well)
 app.include_router(router)
@@ -2528,445 +2474,6 @@ def chat_qa_stream(
     return StreamingResponse(_gen(), media_type="text/event-stream", headers=headers)
 
 
-# --------------------------------------------------------
-# Confluence Stage 2 — Backend endpoints (PAT, tree, pipeline)
-# --------------------------------------------------------
-
-class ConfluencePatRequest(BaseModel):
-    confluence_host: str
-    token: str
-    root_page_id: str | None = None
-
-
-class ConfluencePatSaveRequest(BaseModel):
-    confluence_host: str
-    token: str | None = None
-
-
-class ConfluenceEvaluateRequest(BaseModel):
-    space: str
-    root_page_id: str
-    workers: int | None = 10
-
-
-class ConfluencePullRequest(BaseModel):
-    space: str
-    workers: int | None = 10
-
-
-class ConfluenceBuildRequest(BaseModel):
-    space: str
-
-
-class ConfluenceActivateRequest(BaseModel):
-    space: str
-
-
-class ConfluenceSelectionRequest(BaseModel):
-    space: str
-    include_ids: list[str]
-    exclude_ids: list[str] | None = None
-    # Optional filters persisted alongside selection
-    stop_labels: list[str] | None = None
-    stop_words: list[str] | None = None
-
-
-_TASKS: dict[str, dict[str, Any]] = {}
-
-
-def _secrets_path() -> Path:
-    p = APP_ROOT / "secrets" / "confluence.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    return p
-
-
-def _write_space_auth(space: str, host: str, token: str) -> Path:
-    payload = {
-        "servers": {"confluence": {"env": {"CONFLUENCE_HOST": host, "CONFLUENCE_API_TOKEN": token}}}
-    }
-    path = (CORPUS_ROOT / space / ".sync")
-    path.mkdir(parents=True, exist_ok=True)
-    auth_path = path / "auth.json"
-    auth_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return auth_path
-
-
-def _load_saved_pat() -> dict[str, str] | None:
-    try:
-        data = json.loads(_secrets_path().read_text(encoding="utf-8"))
-        host = str(data.get("confluence_host") or "").strip()
-        token = str(data.get("token") or "").strip()
-        if host and token:
-            return {"confluence_host": host, "token": token}
-    except Exception:
-        return None
-    return None
-
-
-@app.post("/confluence/pat/test", tags=["confluence"])
-def confluence_pat_test(req: ConfluencePatRequest) -> Dict[str, Any]:
-    host = req.confluence_host.strip()
-    token = req.token.strip()
-    try:
-        # Lightweight DC test via REST: list spaces (limit 1)
-        url = host.rstrip("/") + "/rest/api/space?limit=1"
-        resp = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
-        ok = 200 <= resp.status_code < 300
-        if not ok:
-            return {"ok": False, "error": f"HTTP {resp.status_code}"}
-        return {"ok": True}
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": str(exc)}
-
-
-@app.get("/confluence/pat", tags=["confluence"])
-def confluence_pat_get() -> Dict[str, Any]:
-    saved = _load_saved_pat() or {}
-    host = str(saved.get("confluence_host") or "").strip()
-    has_token = bool(saved.get("token") or "")
-    return {"ok": True, "confluence_host": host, "has_token": has_token}
-
-
-@app.post("/confluence/pat/save", tags=["confluence"])
-def confluence_pat_save(req: ConfluencePatSaveRequest) -> Dict[str, Any]:
-    cur = _load_saved_pat() or {}
-    host = req.confluence_host.strip()
-    token = (req.token or "").strip()
-    if not host:
-        raise HTTPException(status_code=400, detail="confluence_host required")
-    if not token:
-        # keep existing token if not provided
-        token = str(cur.get("token") or "").strip()
-    data = {"confluence_host": host, "token": token}
-    _secrets_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
-    return {"ok": True}
-
-
-@app.get("/confluence/tree", tags=["confluence"])
-def confluence_tree(root_page_id: str | None = None, space: str | None = None, limit: int = 200) -> Dict[str, Any]:
-    _CONF_LOG.info(f"GET /confluence/tree space={space}" + " root_page_id=%s", root_page_id)
-
-    saved = _load_saved_pat()
-    if not saved:
-        raise HTTPException(status_code=400, detail="PAT not configured")
-    host = saved["confluence_host"]
-    token = saved["token"]
-    try:
-        _CONF_LOG.info("tree request space=%s root_page_id=%s limit=%s", space, root_page_id, limit)
-        client = CfClient(url=host, token=token, cloud=False)
-        rid = (root_page_id or "").strip()
-        if not rid:
-            # Resolve space home page id
-            if not space:
-                raise HTTPException(status_code=400, detail="Provide 'space' or 'root_page_id'")
-            # Try direct space homepage
-            try:
-                sp = client._client.get_space(space, expand='homepage')  # type: ignore[attr-defined]
-                rid = str(((sp or {}).get('homepage') or {}).get('id') or '').strip()
-            except Exception:
-                rid = ''
-            # Fallback to 'Home' title lookup
-            if not rid:
-                try:
-                    rid = str(client._client.get_page_id(space, 'Home'))  # type: ignore[attr-defined]
-                except Exception:
-                    rid = ''
-            if not rid:
-                raise HTTPException(status_code=404, detail=f"Unable to resolve homepage for space {space}")
-        children = client.list_children(rid, limit=limit) or []
-        nodes: list[dict[str, Any]] = []
-        for c in children:
-            pid = str(c.get("id") or "")
-            title = str(c.get("title") or "")
-            nodes.append({"id": pid, "title": title})
-        _CONF_LOG.info("tree resolved rid=%s children=%d", rid, len(nodes))
-        return {"ok": True, "root_page_id": rid, "children": nodes}
-    except Exception as exc:  # noqa: BLE001
-        _CONF_LOG.exception("tree error space=%s root=%s err=%s", space, root_page_id, exc)
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
-@app.get("/confluence/tree/full", tags=["confluence"])
-def confluence_tree_full(space: str) -> Dict[str, Any]:
-    _CONF_LOG.info("GET /confluence/tree/full" + " request space=%s", space)
-
-    sync_dir = CORPUS_ROOT / space / ".sync"
-    tree_path = sync_dir / "tree.json"
-    try:
-        text = tree_path.read_text(encoding="utf-8")
-        data = json.loads(text)
-        nodes = data.get("nodes") or {}
-        _CONF_LOG.info("tree_full space=%s root=%s nodes=%d size=%dB", space, data.get("root_page_id"), len(nodes), len(text.encode('utf-8')))
-    except Exception:
-        _CONF_LOG.warning("tree_full missing for space=%s", space)
-        raise HTTPException(status_code=404, detail="Full tree not available; run Evaluate first")
-    return {"ok": True, **data}
-
-
-@app.get("/confluence/history", tags=["confluence"])
-def confluence_history(space: str, cmd: str = "pull", lines: int = 200) -> Dict[str, Any]:
-    _CONF_LOG.info("/confluence/history" + " request space=%s cmd=%s lines=%d", space, cmd, lines)
-
-    """Return the tail of the detached runner log for the given command.
-    cmd: one of evaluate|pull|build|activate.
-    """
-    safe_cmd = cmd if cmd in {"evaluate", "pull", "build", "activate"} else "pull"
-    safe_space = re.sub(r"[^A-Za-z0-9._-]", "_", space)
-    log_path = APP_ROOT / "logs" / f"confluence_{safe_cmd}_{safe_space}.log"
-    try:
-        content = log_path.read_text(encoding="utf-8").splitlines()
-        tail = content[-max(1, int(lines)) :]
-    except Exception:
-        tail = []
-    return {"ok": True, "cmd": safe_cmd, "space": space, "lines": tail}
-
-
-@app.post("/confluence/selection", tags=["confluence"])
-def confluence_selection(req: ConfluenceSelectionRequest) -> Dict[str, Any]:
-    _CONF_LOG.info("/confluence/selection" + " request space=%s include_ids=%d exclude_ids=%d",
-                   req.space, len(req.include_ids), len(req.exclude_ids or []))
-
-    path = CORPUS_ROOT / req.space / ".sync"
-    path.mkdir(parents=True, exist_ok=True)
-    sel_path = path / "selection.json"
-    sel = {"include_ids": req.include_ids, "exclude_ids": req.exclude_ids or []}
-    if isinstance(req.stop_labels, list):
-        sel["stop_labels"] = [str(x).strip() for x in req.stop_labels if str(x).strip()]
-    if isinstance(req.stop_words, list):
-        sel["stop_words"] = [str(x).strip() for x in req.stop_words if str(x).strip()]
-    sel_path.write_text(json.dumps(sel, indent=2), encoding="utf-8")
-    return {"ok": True}
-
-
-@app.get("/confluence/selection", tags=["confluence"])
-def confluence_selection_get(space: str) -> Dict[str, Any]:
-    _CONF_LOG.info("/confluence/selection" + " get request space=%s", space)
-
-    sel_path = CORPUS_ROOT / space / ".sync" / "selection.json"
-    try:
-        data = json.loads(sel_path.read_text(encoding="utf-8"))
-        include_ids = list((data.get("include_ids") or []))
-        exclude_ids = list((data.get("exclude_ids") or []))
-        resp: Dict[str, Any] = {"ok": True, "include_ids": include_ids, "exclude_ids": exclude_ids}
-        # Optional filters when present
-        if isinstance(data.get("stop_labels"), list):
-            resp["stop_labels"] = [str(x) for x in data.get("stop_labels")]
-        if isinstance(data.get("stop_words"), list):
-            resp["stop_words"] = [str(x) for x in data.get("stop_words")]
-        return resp
-    except Exception:
-        return {"ok": True, "include_ids": [], "exclude_ids": []}
-
-
-def _update_status(space: str, stage: str, extra: Dict[str, Any] | None = None) -> None:
-    st = {"space": space, "stage": stage, "ts": time.time()}
-    if extra:
-        st.update(extra)
-    out = APP_ROOT / "logs" / f"confluence_status_{space}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(st), encoding="utf-8")
-
-
-def _run_task(space: str, fn, *args, **kwargs) -> None:  # noqa: ANN001
-    try:
-        _TASKS.setdefault(space, {})
-        _update_status(space, kwargs.pop("__stage", "running"))
-        fn(*args, **kwargs)
-        _update_status(space, "idle")
-    except SystemExit as exc:
-        _update_status(space, "error", {"error": str(exc)})
-    except Exception as exc:  # noqa: BLE001
-        _update_status(space, "error", {"error": str(exc)})
-    finally:
-        try:
-            _TASKS[space].pop("thread", None)
-        except Exception:
-            pass
-
-
-@app.post("/confluence/evaluate", tags=["confluence"])
-def confluence_evaluate(req: ConfluenceEvaluateRequest) -> Dict[str, Any]:
-    _CONF_LOG.info("POST /confluence/evaluate >>")
-    _CONF_LOG.info(req)
-
-    saved = _load_saved_pat()
-    if not saved:
-        raise HTTPException(status_code=400, detail="PAT not configured")
-    auth_path = _write_space_auth(req.space, saved["confluence_host"], saved["token"])
-    # Derive the space homepage id when not provided
-    rid = (req.root_page_id or "").strip()
-    if not rid:
-        try:
-            client = CfClient(url=saved["confluence_host"], token=saved["token"], cloud=False)
-            sp = client._client.get_space(req.space, expand='homepage')  # type: ignore[attr-defined]
-            rid = str(((sp or {}).get('homepage') or {}).get('id') or '').strip()
-        except Exception:
-            rid = ''
-        if not rid:
-            try:
-                rid = str(client._client.get_page_id(req.space, 'Home'))  # type: ignore[attr-defined]
-            except Exception:
-                rid = ''
-        if not rid:
-            raise HTTPException(status_code=404, detail=f"Unable to resolve homepage for space {req.space}")
-    run_id = str(_uuid.uuid4())
-    t = threading.Thread(
-        target=_run_task,
-        args=(req.space, cf_evaluate_remote, req.space, rid),
-        kwargs={"auth_file": str(auth_path), "workers": int(req.workers or 4), "__stage": "evaluate"},
-        daemon=True,
-    )
-    _TASKS.setdefault(req.space, {})["thread"] = t
-    t.start()
-    return {"ok": True, "run_id": run_id}
-
-
-@app.post("/confluence/pull", tags=["confluence"])
-def confluence_pull(req: ConfluencePullRequest) -> Dict[str, Any]:
-    _CONF_LOG.info("POST/confluence/pull >>", req)
-
-    saved = _load_saved_pat()
-    if not saved:
-        raise HTTPException(status_code=400, detail="PAT not configured")
-    auth_path = _write_space_auth(req.space, saved["confluence_host"], saved["token"])
-    run_id = str(_uuid.uuid4())
-    t = threading.Thread(
-        target=_run_task,
-        args=(req.space, cf_pull, req.space),
-        kwargs={"auth_file": str(auth_path), "workers": int(req.workers or 4), "__stage": "pull"},
-        daemon=True,
-    )
-    _TASKS.setdefault(req.space, {})["thread"] = t
-    t.start()
-    return {"ok": True, "run_id": run_id}
-
-
-@app.post("/confluence/build", tags=["confluence"])
-def confluence_build(req: ConfluenceBuildRequest) -> Dict[str, Any]:
-    _CONF_LOG.info("POST/confluence/build/" + req.space)
-
-    run_id = str(_uuid.uuid4())
-    t = threading.Thread(
-        target=_run_task,
-        args=(req.space, cf_build, req.space),
-        kwargs={"__stage": "build"},
-        daemon=True,
-    )
-    _TASKS.setdefault(req.space, {})["thread"] = t
-    t.start()
-    return {"ok": True, "run_id": run_id}
-
-
-@app.post("/confluence/activate", tags=["confluence"])
-def confluence_activate(req: ConfluenceActivateRequest) -> Dict[str, Any]:
-    _CONF_LOG.info(req)
-    run_id = str(_uuid.uuid4())
-    t = threading.Thread(
-        target=_run_task,
-        args=(req.space, cf_activate, req.space),
-        kwargs={"__stage": "activate"},
-        daemon=True,
-    )
-    _TASKS.setdefault(req.space, {})["thread"] = t
-    t.start()
-    return {"ok": True, "run_id": run_id}
-
-
-@app.get("/confluence/status", tags=["confluence"])
-def confluence_status(space: str) -> Dict[str, Any]:
-    timestamp = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
-    _CONF_LOG.info(f"GET: /confluence/status request: space={space} {timestamp}")
-
-    # Compose status from state/plan + last status file
-    sync_dir = CORPUS_ROOT / space / ".sync"
-    plan = {}
-    delta = {}
-    try:
-        plan = json.loads((sync_dir / "plan.json").read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    try:
-        delta = json.loads((sync_dir / "delta.json").read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    st_path = APP_ROOT / "logs" / f"confluence_status_{space}.json"
-    raw_status: Dict[str, Any] = {}
-    stage = "idle"
-    try:
-        raw_status = json.loads(st_path.read_text(encoding="utf-8")) or {}
-        stage = (raw_status.get("stage") or "idle")
-    except Exception:
-        raw_status = {}
-        # File is locked/unreadable, likely means a process is actively writing to it
-        stage = "busy"
-
-    # If no background task is currently tracked, treat stage as idle to avoid stale lockouts
-    # (e.g., server restarts during an evaluate/pull/build/activate run leaving a non-idle status file).
-    try:
-        t = (_TASKS.get(space) or {}).get("thread")
-        # Consider recent external status updates as in-progress even if thread not tracked
-        recent = False
-        try:
-            ts_val = float(raw_status.get("ts")) if isinstance(raw_status, dict) else None
-            if ts_val is not None and (time.time() - ts_val) < 10.0:
-                recent = True
-        except Exception:
-            recent = False
-        if not t or (hasattr(t, "is_alive") and not t.is_alive()):
-            if not recent:
-                stage = "idle"
-    except Exception:
-        stage = "idle"
-    # Build response, preserving progress metadata when present
-    resp: Dict[str, Any] = {
-        "space": space,
-        "stage": stage,
-        "plan": plan,
-        "delta": delta,
-    }
-    # Pass through progress fields from raw status
-    progress = raw_status.get("progress") if isinstance(raw_status, dict) else None
-    if isinstance(progress, dict):
-        resp["progress"] = {"total": int(progress.get("total") or 0), "done": int(progress.get("done") or 0)}
-        if progress.get("failed") is not None:
-            try:
-                resp["progress"]["failed"] = int(progress.get("failed") or 0)
-            except Exception:
-                pass
-    if isinstance(raw_status, dict):
-        if raw_status.get("started_at") is not None:
-            try:
-                started_at = float(raw_status.get("started_at"))
-                resp["started_at"] = started_at
-                resp["elapsed_sec"] = max(0.0, time.time() - started_at)
-            except Exception:
-                pass
-        if raw_status.get("elapsed_sec") is not None:
-            try:
-                resp["elapsed_sec"] = float(raw_status.get("elapsed_sec"))
-            except Exception:
-                pass
-        if raw_status.get("eta_sec") is not None:
-            try:
-                resp["eta_sec"] = float(raw_status.get("eta_sec"))
-            except Exception:
-                pass
-        if raw_status.get("phase"):
-            resp["phase"] = raw_status.get("phase")
-    # Derive ETA when possible and not provided
-    if resp.get("stage") == "evaluate" and "eta_sec" not in resp:
-        try:
-            prog = resp.get("progress") or {}
-            done = int(prog.get("done") or 0)
-            total = int(prog.get("total") or 0)
-            elapsed = float(resp.get("elapsed_sec") or 0.0)
-            if done > 0 and total > done and elapsed > 0:
-                eta_val = (total - done) * (elapsed / done)
-                resp["eta_sec"] = max(0.0, float(eta_val))
-        except Exception:
-            pass
-    return resp
 
 
 @app.get("/llm-server/status")
