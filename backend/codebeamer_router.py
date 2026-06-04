@@ -34,6 +34,7 @@ class CodebeamerPswdSaveRequest(BaseModel):
     codebeamer_host: str
     username: str
     pswd: Optional[str] = None
+    project_id: Optional[int] = None
 
 
 class CodebeamerSelectionRequest(BaseModel):
@@ -52,14 +53,17 @@ def _secrets_path() -> Path:
     return p
 
 
-def _load_saved_pswd() -> dict[str, str] | None:
+def _load_saved_pswd() -> dict | None:
     try:
         data = json.loads(_secrets_path().read_text(encoding="utf-8"))
         host = str(data.get("codebeamer_host") or "").strip()
         username = str(data.get("username") or "").strip()
         pswd = str(data.get("pswd") or "").strip()
         if host and username and pswd:
-            return {"codebeamer_host": host, "username": username, "pswd": pswd}
+            result = {"codebeamer_host": host, "username": username, "pswd": pswd}
+            if data.get("project_id"):
+                result["project_id"] = data["project_id"]
+            return result
     except Exception:
         return None
     return None
@@ -100,7 +104,14 @@ async def codebeamer_pswd_get() -> Dict[str, Any]:
         host = str(saved.get("codebeamer_host") or "").strip()
         username = str(saved.get("username") or "").strip()
         has_pswd = bool(saved.get("pswd") or "")
-        return {"ok": True, "codebeamer_host": host, "username": username, "has_pswd": has_pswd}
+        return {
+            "ok": True,
+            "codebeamer_host": host,
+            "username": username,
+            "has_pswd": has_pswd,
+            "pswd": saved.get("pswd", ""),
+            "project_id": saved.get("project_id")
+            }
     return {"ok": False, "error": "No saved credentials found"}
 
 
@@ -118,13 +129,30 @@ async def codebeamer_pswd_save(req: CodebeamerPswdSaveRequest) -> Dict[str, Any]
     if not pswd:
         pswd = str(cur.get("pswd") or "").strip()
     data = {"codebeamer_host": host, "username": username, "pswd": pswd}
-    _secrets_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+    if req.project_id is not None:
+        data["project_id"] = req.project_id
+    elif cur.get("project_id"):
+        data["project_id"] = cur["project_id"]
+    _secrets_path().write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
 # Project / tree endpoints
 # ---------------------------------------------------------------------------
+
+@codebeamer_router.post("/codebeamer/project", tags=["codebeamer"])
+async def codebeamer_set_project(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Set or clear current project_id (pass None to clear)."""
+    project_id = payload.get("project_id")
+    cur = json.loads(_secrets_path().read_text(encoding="utf-8")) if _secrets_path().exists() else {}
+    if project_id:
+        cur["project_id"] = project_id
+    else:
+        cur.pop("project_id", None)
+    _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"ok": True}
+
 
 @codebeamer_router.get("/codebeamer/projects", tags=["codebeamer"])
 async def codebeamer_projects() -> Dict[str, Any]:

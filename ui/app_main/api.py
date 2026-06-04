@@ -3,6 +3,24 @@ from urllib.parse import urlparse
 import requests
 from pathlib import Path
 import aiohttp
+from asgiref.sync import async_to_sync
+from django.conf import settings
+
+
+def _backend(path: str) -> str:
+    return f"{settings.BACKEND_URL}{path}"
+
+
+def backend_get(path: str, params: dict = None) -> dict:
+    raw, status = async_to_sync(make_get_request)(_backend(path), params=params or {})
+    return json.loads(raw)
+
+
+def backend_post(path: str, data: dict = None) -> dict:
+    raw, status = async_to_sync(make_post_request)(_backend(path), data=data or {})
+    return json.loads(raw)
+
+
 
 
 

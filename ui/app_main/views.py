@@ -4,6 +4,9 @@ import os
 from django.conf import settings
 from django.shortcuts import render, redirect
 
+from .api import make_get_request, make_post_request, make_put_request, make_delete_request
+from .api import backend_get, backend_post
+
 from .aspice_compliance_checker import inspect_case
 from .aspice_validate_dataset import validate_dataset, summarize_issues
 
@@ -116,21 +119,35 @@ def _collect_aspice_counts(dataset):
 _CB_SECRETS_FILE = os.path.join(settings.BASE_DIR, "..", "secret", "codebeamer.json")
 
 
-def _cb_save_credentials(cb_url, username, password, project_id=None):
-    os.makedirs(os.path.dirname(_CB_SECRETS_FILE), exist_ok=True)
-    data = {"cb_url": cb_url, "username": username, "password": password}
-    if project_id is not None:
-        data["project_id"] = project_id
-    with open(_CB_SECRETS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f)
+def _cb_save_credentials(cb_url, username, password):
+    backend_post("/codebeamer/pswd/save", {
+        "codebeamer_host": cb_url,
+        "username": username,
+        "pswd": password,
+    })
+
+
+def _cb_set_project(project_id):
+    backend_post("/codebeamer/project", {"project_id": project_id})
+
+
+def _cb_clear_project():
+    backend_post("/codebeamer/project", {"project_id": None})
 
 
 def _cb_load_credentials():
     try:
-        with open(_CB_SECRETS_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        resp = backend_get("/codebeamer/pswd")
+        if resp.get("ok"):
+            return {
+                "cb_url":     resp.get("codebeamer_host", ""),
+                "username":   resp.get("username", ""),
+                "password":   resp.get("pswd", ""),
+                "project_id": resp.get("project_id"),
+            }
+    except Exception:
+        pass
+    return {}
 
 
 def _cb_load_tracker_context(cb, project_id, projects):
@@ -159,15 +176,28 @@ def _cb_load_tracker_context(cb, project_id, projects):
     }
 
 
-def _cb_load_projects(cb):
-    raw = cb._client.get('projects')
-    if isinstance(raw, list):
-        items = raw
-    elif isinstance(raw, dict):
-        items = raw.get('projects', raw.get('items', []))
-    else:
-        raise ValueError(f"Unexpected /projects response: {type(raw).__name__}: {repr(raw)[:300]}")
-    return [{"id": p["id"], "name": p["name"]} for p in items if isinstance(p, dict)]
+def _cb_load_projects(_cb=None):
+    from .api import backend_get
+    resp = backend_get("/codebeamer/projects")
+    if not resp.get("ok"):
+        raise ValueError(resp.get("error", "Failed to load projects"))
+    return [{"id": p["id"], "name": p["name"]} for p in resp.get("projects", [])]
+
+
+def codebeamer_select_project(request):
+    context = {"title": "AI-delix - Select Project"}
+    if request.method == "POST":
+        project_id = int(request.POST.get("project_id", 0))
+        if project_id:
+            _cb_set_project(project_id)
+            from django.shortcuts import redirect as _redirect
+            return _redirect("app_main:codebeamer")
+
+    try:
+        context["projects"] = _cb_load_projects()
+    except Exception as e:
+        context["fetch_error"] = str(e)
+    return render(request, "app_main/codebeamer_select_project.html", context)
 
 
 def codebeamer(request):
@@ -181,7 +211,7 @@ def codebeamer(request):
     if request.method == "GET" and credentials:
         try:
             cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
-            context["projects"] = _cb_load_projects(cb)
+            context["projects"] = _cb_load_projects()
             if credentials.get("project_id"):
                 context.update(_cb_load_tracker_context(cb, credentials["project_id"], context["projects"]))
         except Exception as e:
@@ -196,26 +226,21 @@ def codebeamer(request):
         password = request.POST.get("password", "").strip() or credentials.get("password", "")
 
         if action == "change_project":
-            credentials = _cb_load_credentials()
-            credentials.pop("project_id", None)
-            os.makedirs(os.path.dirname(_CB_SECRETS_FILE), exist_ok=True)
-            with open(_CB_SECRETS_FILE, "w", encoding="utf-8") as f:
-                json.dump(credentials, f)
             from django.shortcuts import redirect as _redirect
-            return _redirect("app_main:codebeamer")
+            return _redirect("app_main:codebeamer_select_project")
 
         if action in ("load_projects", "load_trackers"):
             try:
                 cb = Codebeamer(cb_url, username, password, api_root='api/v3')
 
                 if action == "load_projects":
-                    context["projects"] = _cb_load_projects(cb)
                     _cb_save_credentials(cb_url, username, password)
+                    context["projects"] = _cb_load_projects()
 
                 elif action == "load_trackers":
                     project_id = int(request.POST.get("project_id", 0))
-                    context["projects"] = _cb_load_projects(cb)
-                    _cb_save_credentials(cb_url, username, password, project_id=project_id)
+                    context["projects"] = _cb_load_projects()
+                    _cb_set_project(project_id)
                     context.update(_cb_load_tracker_context(cb, project_id, context["projects"]))
 
             except Exception as e:
