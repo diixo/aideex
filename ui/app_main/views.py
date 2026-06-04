@@ -10,6 +10,7 @@ from .aspice_compliance_checker import inspect_case
 from .aspice_validate_dataset import validate_dataset, summarize_issues
 
 from pybeamer import Codebeamer
+from pybeamer.tree import build_tree, tree_to_rows
 
 
 # Material Icons name per tracker type_id. Types that don't have an
@@ -494,49 +495,6 @@ def _cb_build_item_tracker_map(project_id):
     return result
 
 
-def _cb_build_tree(item_ids, level, max_level, item_map, direction="upstream", visited=None):
-    if visited is None:
-        visited = set()
-    result = []
-    for iid in item_ids:
-        iid = int(iid) if not isinstance(iid, int) else iid
-        if iid in visited:
-            continue
-        new_visited = visited | {iid}
-        item = item_map.get(iid, {
-            "id": iid,
-            "name": str(iid),
-            "icon": "label",
-            "color": "#6c757d",
-            "upstream": [],
-            "downstream": []
-            })
-        child_ids = item.get(direction, []) if level < max_level else []
-        children = _cb_build_tree(child_ids, level + 1, max_level, item_map, direction, new_visited)
-        leaf_count = sum(c["leaf_count"] for c in children) if children else 1
-        result.append({"item": item, "level": level, "children": children, "leaf_count": leaf_count})
-    return result
-
-
-def _cb_tree_to_rows(nodes, max_level):
-    """Returns list of rows. Each row = list of max_level cells.
-    Cell = {item, rowspan} or None (covered by rowspan above)."""
-    grid = []
-
-    def recurse(nodes, current_row):
-        for node in nodes:
-            col = node["level"] - 1
-            while len(grid) <= current_row + node["leaf_count"] - 1:
-                grid.append([None] * max_level)
-            grid[current_row][col] = {"item": node["item"], "rowspan": node["leaf_count"]}
-            if node["children"]:
-                recurse(node["children"], current_row)
-            current_row += node["leaf_count"]
-
-    recurse(nodes, 0)
-    return grid
-
-
 def _cb_build_full_item_map(project_id, downstream_map):
     """Build {item_id: {id, name, icon, color, upstream, downstream}} from saved JSON."""
     data = _cb_load_project_data(project_id)
@@ -743,14 +701,14 @@ def codebeamer_item(request, item_id):
             # Upstream: subjects + versions as level 1
             up_ids = [s.get("id") for s in (context.get("item") or {}).get("subjects", []) if s.get("id")]
             up_ids += [v.get("id") for v in (context.get("item") or {}).get("versions", []) if v.get("id")]
-            up_tree = _cb_build_tree(up_ids, 1, max_levels, item_map)
-            context["upstream_rows"] = _cb_tree_to_rows(up_tree, max_levels)
+            up_tree = build_tree(up_ids, 1, max_levels, item_map)
+            context["upstream_rows"] = tree_to_rows(up_tree, max_levels)
             context["upstream_cols"] = max_levels
 
             # Downstream: items referencing current
             dn_ids = [d["id"] for d in downstream_map.get(item_id, [])]
-            dn_tree = _cb_build_tree(dn_ids, 1, max_levels, item_map, direction="downstream", visited={item_id})
-            context["downstream_rows"] = _cb_tree_to_rows(dn_tree, max_levels)
+            dn_tree = build_tree(dn_ids, 1, max_levels, item_map, direction="downstream", visited={item_id})
+            context["downstream_rows"] = tree_to_rows(dn_tree, max_levels)
             context["downstream_cols"] = max_levels
 
             # Enrich subjects/versions with icon/color
