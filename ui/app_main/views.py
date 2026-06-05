@@ -167,8 +167,31 @@ def _cb_load_projects(_cb=None):
     return [{"id": p["id"], "name": p["name"]} for p in resp.get("projects", [])]
 
 
+def codebeamer_status_proxy(request, project_id):
+    from django.http import JsonResponse
+    try:
+        data = backend_get("/codebeamer/status", params={"project_id": project_id})
+    except Exception as e:
+        data = {"stage": "idle", "error": str(e)}
+    return JsonResponse(data)
+
+
+def codebeamer_evaluate(request):
+    if request.method == "POST":
+        saved = _cb_load_credentials()
+        project_id = saved.get("project_id")
+        if project_id:
+            try:
+                backend_post("/codebeamer/evaluate", {"project_id": project_id, "workers": 4})
+            except Exception:
+                pass
+    from django.shortcuts import redirect as _redirect
+    return _redirect("app_main:codebeamer")
+
+
 def codebeamer_select_project(request):
-    context = {"title": "AI-delix - Select Project"}
+    saved = _cb_load_credentials()
+    context = {"title": "AI-delix - Select Project", "selected_project_id": saved.get("project_id")}
     if request.method == "POST":
         project_id = int(request.POST.get("project_id", 0))
         if project_id:
