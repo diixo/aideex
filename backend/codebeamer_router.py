@@ -12,6 +12,8 @@ from pydantic import BaseModel
 
 from pybeamer import Codebeamer
 from pybeamer.tree import build_tree, tree_to_rows
+from pybeamer.render import STATUS_COLORS, TRACKER_ICONS
+
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 CORPUS_ROOT = APP_ROOT / "corpus"
@@ -22,37 +24,6 @@ codebeamer_router = APIRouter(tags=["codebeamer"])
 
 _CB_TASKS: dict[int, dict[str, Any]] = {}
 _CB_ITEM_MAPS: dict[int, dict] = {}   # project_id → full item map (in-memory cache)
-
-_STATUS_COLORS = {
-    "New":      "#dc3545",
-    "Verified": "#fd7e14",
-    "Reopened": "#fd7e14",
-    "Resolved": "#198754",
-    "Closed":   "#0f5132",
-    "Rejected": "#6c757d",
-    "Draft":    "#ffab46",
-}
-
-_TRACKER_ICONS: dict[int, str] = {
-    2:"bug_report",
-    3:"published_with_changes",
-    5:"lightbulb",
-    6:"check_circle",
-    8:"schedule",
-    9:"play_arrow",
-    10:"cloud",
-    11:"warning",
-    102:"outlined_flag",
-    103:"directions_subway",
-    107:"phone",
-    108:"playlist_play",
-    109:"tune",
-    150:"groups",
-    12:"e_mobiledata",
-    13:"description",
-    1:"fireplace",
-    105:"extension",
-}
 
 
 def _corpus_json_path(project_id: int) -> Path:
@@ -66,14 +37,14 @@ def _build_item_map(data: dict) -> dict:
     item_map: dict[int, dict] = {}
     for tracker in data.get("trackers", []):
         t_type_id = tracker.get("type_id")
-        icon  = _TRACKER_ICONS.get(t_type_id, "label")
+        icon  = TRACKER_ICONS.get(t_type_id, "label")
         t_color = tracker.get("color") or "#6c757d"
         for item in tracker.get("items", []):
             iid = item.get("id")
             if not iid:
                 continue
             status = item.get("status")
-            color = _STATUS_COLORS.get(status, t_color) if status else t_color
+            color = STATUS_COLORS.get(status, t_color) if status else t_color
             upstream = [s.get("id") for s in item.get("subjects", []) if s.get("id")]
             item_map[iid] = {
                 "id": iid, "name": item.get("name", ""),

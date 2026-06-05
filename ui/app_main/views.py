@@ -11,51 +11,12 @@ from .aspice_compliance_checker import inspect_case
 from .aspice_validate_dataset import validate_dataset, summarize_issues
 
 from pybeamer import Codebeamer
-
+from pybeamer.render import STATUS_COLORS, PRIORITY_COLORS, TRACKER_ICONS
 
 
 # Material Icons name per tracker type_id. Types that don't have an
 # explicit assignment fall back to "label" via the .get() in the view.
 _WORK_ITEM_TYPES = {"requirement", "bug", "epic", "issue", "user story", "task", "document", "testrun", "risk", "change request", "work log"}
-
-_CODEBEAMER_TRACKER_ICONS: dict[int, str] = {
-    2:   "bug_report",              # Bugs
-    3:   "published_with_changes",  # Change Requests — "changes" arrow cycle
-    5:   "lightbulb",               # Requirement Specifications (CRS / SRS)
-    6:   "check_circle",            # Tasks
-    8:   "schedule",                # Timekeeping — clock face
-    9:   "play_arrow",              # Test Runs — triangle play button
-    10:  "cloud",                   # User Stories
-    11:  "warning",                 # Risks — flame/explosion (no `bomb` in classic Material Icons)
-    102: "outlined_flag",           # Test Cases — test tube
-    103: "directions_subway",       # Releases — launch icon
-    107: "phone",                   # Contacts — handset
-    108: "playlist_play",           # Test Sets — collection of tests
-    109: "tune",                    # Test Configurations — sliders
-    150: "groups",                  # Teams — multiple people
-    12:  "e_mobiledata",            # Epic
-    13:  "description",             # Document
-    1:   "fireplace",               # Issue
-    105: "extension",               # Components — puzzle piece
-}
-
-_STATUS_COLORS = {
-    "New":      "#dc3545",
-    "Verified": "#fd7e14",
-    "Reopened": "#fd7e14",
-    "Resolved": "#198754",
-    "Closed":   "#0f5132",
-    "Rejected": "#6c757d",
-    "Draft":    "#ffab46",
-}
-
-PRIORITY_COLORS = {
-    "Highest": "#dc3545",
-    "High": "#fd7e14",
-    "Normal": "#198754",
-    "Low": "#0d6efd",
-    "Lowest": "#6c757d",
-}
 
 
 def _to_cb_date(d):
@@ -144,7 +105,7 @@ def _cb_load_tracker_context(cb, project_id, projects):
             "type_id":   t.type_id,
             "type_name": t.type_name,
             "color":    t.color or "#6c757d",
-            "icon":     _CODEBEAMER_TRACKER_ICONS.get(t.type_id, "label"),
+            "icon":     TRACKER_ICONS.get(t.type_id, "label"),
             "key_name": t.key_name,
         }
         for t in trackers
@@ -292,7 +253,7 @@ def _serialize_tree(nodes):
                 "type_id":   node.type_id,
                 "type_name": node.type_name,
                 "color":     node.color or "#6c757d",
-                "icon":      _CODEBEAMER_TRACKER_ICONS.get(node.type_id, "label"),
+                "icon":      TRACKER_ICONS.get(node.type_id, "label"),
             })
     return result
 
@@ -541,7 +502,7 @@ def codebeamer_item(request, item_id):
             "description_format": _safe(lambda: item.description_format),
             "type_name":          item.type_name,
             "status":       status_name,
-            "status_color": _STATUS_COLORS.get(status_name, "#6c757d"),
+            "status_color": STATUS_COLORS.get(status_name, "#6c757d"),
             "priority":     priority_name,
             "priority_color": PRIORITY_COLORS.get(priority_name, "#adb5bd"),
             "severity":     _safe(lambda: item.severities[0].get("name") if item.severities else None),
@@ -565,7 +526,7 @@ def codebeamer_item(request, item_id):
             "spent_millis":  _safe(lambda: item.spent_millis),
             "tracker_id":    tracker.id if tracker else None,
             "tracker_name":  tracker.name if tracker else None,
-            "tracker_icon":  _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label") if tracker else "label",
+            "tracker_icon":  TRACKER_ICONS.get(tracker.type_id, "label") if tracker else "label",
             "tracker_color": tracker.color or "#6c757d" if tracker else "#6c757d",
         }
 
@@ -672,7 +633,7 @@ def codebeamer_tracker(request, tracker_id):
             "modified_by": tracker.modified_by.name if tracker.modified_by else None,
             "project_id":  tracker.project.id if tracker.project else None,
             "project_name":tracker.project.name if tracker.project else None,
-            "icon":        _CODEBEAMER_TRACKER_ICONS.get(tracker.type_id, "label"),
+            "icon":        TRACKER_ICONS.get(tracker.type_id, "label"),
         }
         from pybeamer.tracker_item import TrackerItem as _TI
         all_fields = _serialize_fields(tracker)
@@ -735,7 +696,7 @@ def codebeamer_tracker(request, tracker_id):
                 base["priority_color"] = PRIORITY_COLORS.get(priority_name, "#adb5bd")
                 status_name = _safe(lambda: i.status.value.name if i.status and i.status.value else None)
                 base["status"] = status_name
-                base["status_color"] = _STATUS_COLORS.get(status_name, "#6c757d")
+                base["status_color"] = STATUS_COLORS.get(status_name, "#6c757d")
                 base["severity"]   = _safe(lambda: i.severities[0].get("name") if i.severities else None)
                 base["resolution"] = _safe(lambda: i.resolutions[0].get("name") if i.resolutions else None)
                 base["start_date"] = _safe(lambda: str(i.start_date.date()) if i.start_date else None)
