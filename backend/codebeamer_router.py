@@ -86,6 +86,12 @@ class CodebeamerEvaluateRequest(BaseModel):
     project_id: int
     workers: Optional[int] = 4
 
+
+class CodebeamerPullRequest(BaseModel):
+    project_id: int
+    workers: Optional[int] = 4
+
+
 # ---------------------------------------------------------------------------
 # Credentials helpers
 # ---------------------------------------------------------------------------
@@ -762,3 +768,155 @@ def codebeamer_status(project_id: int) -> Dict[str, Any]:
             pass
 
     return resp
+
+
+
+def _fetch_item_content(item_id: int, item_name: str, staging_dir: Path, saved: dict, retries: int = 3) -> dict:
+    for attempt in range(1, retries + 1):
+        try:
+            tc = _make_client(saved)
+            data = tc._client.get(f"items/{item_id}")
+            if not isinstance(data, dict):
+                raise ValueError(f"unexpected response type: {type(data)}")
+            (staging_dir / f"{item_id}.json").write_text(
+                json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            time.sleep(0.5)
+            return {"ok": True, "item_id": item_id, "name": item_name, "attempts": attempt}
+        except Exception as exc:
+            if attempt == retries:
+                _CB_LOG.warning("pull: FAILED item_id=%s error=%s", item_id, str(exc))
+                return {"ok": False, "item_id": item_id, "name": item_name, "error": str(exc), "attempts": attempt}
+    return {"ok": False, "item_id": item_id, "name": item_name, "error": "max retries", "attempts": retries}
+
+
+def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    started_wall = time.time()
+    sync_dir = CORPUS_ROOT / str(project_id) / ".sync"
+    staging_dir = CORPUS_ROOT / str(project_id) / "staging"
+
+    # Ensure plan exists
+    plan: dict = {}
+    try:
+        plan = json.loads((sync_dir / "plan.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    if not plan or plan.get("project_id") != project_id:
+        raise SystemExit("plan.json missing or stale; run evaluate first")
+
+    # Load selection
+    selection_ids: set[int] = set()
+    try:
+        sel = json.loads((sync_dir / "selection.json").read_text(encoding="utf-8"))
+        selection_ids = {int(x) for x in (sel.get("include_ids") or [])}
+    except Exception:
+        pass
+
+    # Load delta
+    delta_ids: set[int] = set()
+    try:
+        delta = json.loads((sync_dir / "delta.json").read_text(encoding="utf-8"))
+        delta_ids = {int(x) for x in (delta.get("added") or []) + (delta.get("changed") or [])}
+    except Exception:
+        pass
+
+    # Load manifest
+    manifest: dict[str, dict] = {}
+    try:
+        manifest = json.loads((sync_dir / "manifest.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    # selection > delta > full manifest
+    if selection_ids:
+        ids_to_fetch = selection_ids
+        mode = "selection"
+    elif delta_ids:
+        ids_to_fetch = delta_ids
+        mode = "delta"
+    else:
+        ids_to_fetch = {int(k) for k in manifest}
+        mode = "manifest"
+
+    _CB_LOG.info("pull: project_id=%d mode=%s ids=%d", project_id, mode, len(ids_to_fetch))
+
+    if not ids_to_fetch:
+        _CB_LOG.info("pull: nothing to fetch")
+        return
+
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    item_meta = [(iid, (manifest.get(str(iid)) or {}).get("name") or str(iid)) for iid in sorted(ids_to_fetch)]
+    total = len(item_meta)
+    workers = max(1, min(int(workers or 4), 16))
+    successes = 0
+    failures = 0
+    failed_items: list[dict] = []
+    print(f"Starting pull with {workers} worker(s) — {total} page(s)…", flush=True)
+
+    _update_cb_status(project_id, "pull", {
+        "phase": "fetch",
+        "progress": {"total": total, "done": 0, "failed": 0},
+        "started_at": started_wall,
+        "eta_sec": 0.0,
+    })
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(_fetch_item_content, iid, name, staging_dir, saved) for iid, name in item_meta]
+        for fut in as_completed(futures):
+            res = fut.result()
+            if res.get("ok"):
+                successes += 1
+            else:
+                failures += 1
+                failed_items.append(res)
+                _CB_LOG.warning("pull: FAILED item_id=%s error=%s", res.get("item_id"), res.get("error"))
+            done = successes + failures
+            if done % 5 == 0 or done == total:
+                elapsed = time.time() - started_wall
+                eta = (total - done) * (elapsed / done) if done > 0 and total > done else 0.0
+                _update_cb_status(project_id, "pull", {
+                    "phase": "fetch",
+                    "progress": {"total": total, "done": done, "failed": failures},
+                    "started_at": started_wall,
+                    "eta_sec": max(0.0, float(eta)),
+                })
+
+    if failed_items:
+        fail_path = APP_ROOT / "logs" / f"codebeamer_pull_failed_{project_id}.json"
+        fail_path.parent.mkdir(parents=True, exist_ok=True)
+        fail_path.write_text(json.dumps(failed_items, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    _CB_LOG.info("pull done: project_id=%d fetched=%d failed=%d mode=%s", project_id, successes, failures, mode)
+    _update_cb_status(project_id, "pull", {
+        "phase": "done",
+        "progress": {"total": total, "done": total, "failed": failures},
+        "started_at": started_wall,
+        "elapsed_sec": round(time.time() - started_wall, 3),
+        "eta_sec": 0.0,
+    })
+
+
+@codebeamer_router.post("/codebeamer/pull", tags=["codebeamer"])
+def codebeamer_pull(req: CodebeamerPullRequest) -> Dict[str, Any]:
+    _CB_LOG.info("POST /codebeamer/pull project_id=%d", req.project_id)
+
+    saved = _load_saved_pswd()
+    if not saved:
+        raise HTTPException(status_code=400, detail="Password not configured")
+
+    existing = _CB_TASKS.get(req.project_id, {}).get("thread")
+    if existing and existing.is_alive():
+        raise HTTPException(status_code=409, detail="Pull already running for this project")
+
+    run_id = str(_uuid.uuid4())
+    t = threading.Thread(
+        target=_run_cb_task,
+        args=(req.project_id, _cb_pull, req.project_id, saved),
+        kwargs={"workers": int(req.workers or 4), "__stage": "pull"},
+        daemon=True,
+    )
+    _CB_TASKS.setdefault(req.project_id, {})["thread"] = t
+    t.start()
+    return {"ok": True, "run_id": run_id}
