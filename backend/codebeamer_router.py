@@ -19,6 +19,8 @@ _CB_LOG = logging.getLogger("backend.codebeamer")
 
 codebeamer_router = APIRouter(tags=["codebeamer"])
 
+_CB_TASKS: dict[int, dict[str, Any]] = {}
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -42,6 +44,10 @@ class CodebeamerSelectionRequest(BaseModel):
     include_ids: list[int]
     exclude_ids: Optional[list[int]] = None
 
+
+class CodebeamerEvaluateRequest(BaseModel):
+    project_id: int
+    workers: Optional[int] = 4
 
 # ---------------------------------------------------------------------------
 # Credentials helpers
@@ -289,3 +295,279 @@ async def codebeamer_selection_get(project_id: int) -> Dict[str, Any]:
     except Exception:
         return {"ok": True, "include_ids": [], "exclude_ids": []}
 
+
+# ---------------------------------------------------------------------------
+# Background task infrastructure
+# ---------------------------------------------------------------------------
+
+def _update_cb_status(project_id: int, stage: str, extra: Dict[str, Any] | None = None) -> None:
+    st: Dict[str, Any] = {"project_id": project_id, "stage": stage, "ts": time.time()}
+    if extra:
+        st.update(extra)
+    out = APP_ROOT / "logs" / f"codebeamer_status_{project_id}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(st), encoding="utf-8")
+
+
+def _run_cb_task(project_id: int, fn, *args, **kwargs) -> None:
+    try:
+        _CB_TASKS.setdefault(project_id, {})
+        _update_cb_status(project_id, kwargs.pop("__stage", "running"))
+        fn(*args, **kwargs)
+        _update_cb_status(project_id, "idle")
+    except SystemExit as exc:
+        _update_cb_status(project_id, "error", {"error": str(exc)})
+    except Exception as exc:
+        _update_cb_status(project_id, "error", {"error": str(exc)})
+    finally:
+        try:
+            _CB_TASKS[project_id].pop("thread", None)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Pipeline functions (run in background threads)
+# ---------------------------------------------------------------------------
+
+def _cb_evaluate(project_id: int, saved: dict, workers: int = 4) -> None:
+    """Build plan/tree/manifest for a Codebeamer project.
+
+    Phase 1 — traverse: get project + all its trackers.
+    Phase 2 — items: fetch itemRefs per tracker in parallel (lightweight, no descriptions).
+    Writes plan.json, delta.json, manifest.json, tree.json.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    started_wall = time.time()
+    sync_dir = CORPUS_ROOT / str(project_id) / ".sync"
+    sync_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load previous manifest for delta computation
+    manifest_path = sync_dir / "manifest.json"
+    try:
+        prev_manifest: dict[str, dict] = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        prev_manifest = {}
+
+    # Phase 1: resolve project and trackers
+    _update_cb_status(project_id, "evaluate", {
+        "phase": "traverse",
+        "progress": {"total": 0, "done": 0},
+        "started_at": started_wall,
+    })
+
+    client = _make_client(saved)
+
+    # Resolve project name
+    project_resp = client._client.get(f"projects/{project_id}")
+    if not isinstance(project_resp, dict):
+        raise SystemExit(f"Project {project_id} not found")
+    project_name = str(project_resp.get("name") or project_id)
+
+    # GET /projects/{id}/trackers returns {"trackers": [...], "total": N, ...}
+    trackers_resp = client._client.get(f"projects/{project_id}/trackers")
+    if isinstance(trackers_resp, dict):
+        raw_trackers: list[dict] = trackers_resp.get("trackers") or []
+    elif isinstance(trackers_resp, list):
+        raw_trackers = trackers_resp
+    else:
+        raw_trackers = []
+
+    total_trackers = len(raw_trackers)
+    _CB_LOG.info("evaluate: project_id=%d name=%s trackers=%d", project_id, project_name, total_trackers)
+    time.sleep(0.5)
+
+    _update_cb_status(project_id, "evaluate", {
+        "phase": "items",
+        "progress": {"total": total_trackers, "done": 0},
+        "started_at": started_wall,
+    })
+
+    # Phase 2: fetch itemRefs per tracker in parallel (each thread owns its own client)
+    def _fetch_tracker_items(tracker: dict) -> tuple[dict, list[dict]]:
+        tc = _make_client(saved)
+        tracker_id = tracker["id"]
+        tracker_name = str(tracker.get("name") or tracker_id)
+        refs: list[dict] = []
+        page, page_size = 1, 100
+        while True:
+            resp = tc._client.get(
+                f"trackers/{tracker_id}/items",
+                params={"page": page, "pageSize": page_size},
+            )
+            if not isinstance(resp, dict):
+                break
+            for ref in resp.get("itemRefs") or []:
+                item_id = ref.get("id")
+                if item_id is not None:
+                    refs.append({"id": item_id, "name": str(ref.get("name") or "")})
+            if page * page_size >= int(resp.get("total") or 0):
+                break
+            page += 1
+        plan_entry = {"id": tracker_id, "name": tracker_name, "item_count": len(refs)}
+        time.sleep(0.6)
+        return plan_entry, refs
+
+    workers = max(1, min(int(workers or 4), 16))
+    tracker_results: dict[int, tuple[dict, list[dict]]] = {}
+    done_trackers = 0
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {ex.submit(_fetch_tracker_items, t): t for t in raw_trackers}
+        for fut in as_completed(futures):
+            t = futures[fut]
+            try:
+                plan_entry, refs = fut.result()
+            except Exception as exc:
+                _CB_LOG.warning("evaluate: tracker %s failed: %s", t.get("id"), exc)
+                plan_entry = {"id": t["id"], "name": str(t.get("name") or t["id"]), "item_count": 0}
+                refs = []
+            tracker_results[t["id"]] = (plan_entry, refs)
+            done_trackers += 1
+            _update_cb_status(project_id, "evaluate", {
+                "phase": "items",
+                "progress": {"total": total_trackers, "done": done_trackers},
+                "started_at": started_wall,
+            })
+            _CB_LOG.info("evaluate: tracker %d (%s) items=%d", t["id"], t.get("name"), len(refs))
+
+    # Assemble results in original tracker order
+    current_manifest: dict[str, dict] = {}
+    trackers_plan: list[dict] = []
+    tree_trackers: list[dict] = []
+    total_items = 0
+
+    for tracker in raw_trackers:
+        tid = tracker["id"]
+        plan_entry, refs = tracker_results[tid]
+        trackers_plan.append(plan_entry)
+        tree_trackers.append({"id": tid, "name": str(tracker.get("name") or tid), "items": refs})
+        for ref in refs:
+            current_manifest[str(ref["id"])] = {"tracker_id": tid, "name": ref["name"]}
+        total_items += plan_entry["item_count"]
+
+    # Compute delta vs previous manifest
+    prev_ids = set(prev_manifest.keys())
+    curr_ids = set(current_manifest.keys())
+    changed_ids = [
+        int(iid)
+        for iid in curr_ids & prev_ids
+        if prev_manifest[iid].get("name") != current_manifest[iid].get("name")
+    ]
+    delta = {
+        "added":   sorted(int(i) for i in curr_ids - prev_ids),
+        "changed": sorted(changed_ids),
+        "deleted": sorted(int(i) for i in prev_ids - curr_ids),
+    }
+
+    plan = {
+        "project_id": project_id,
+        "project_name": project_name,
+        "trackers": trackers_plan,
+        "total_items": total_items,
+    }
+    tree = {"project_id": project_id, "project_name": project_name, "trackers": tree_trackers}
+
+    (sync_dir / "plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
+    (sync_dir / "delta.json").write_text(json.dumps(delta, indent=2), encoding="utf-8")
+    manifest_path.write_text(json.dumps(current_manifest, indent=2), encoding="utf-8")
+    (sync_dir / "tree.json").write_text(json.dumps(tree, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    _CB_LOG.info(
+        "evaluate done: project_id=%d name=%s total_items=%d added=%d changed=%d deleted=%d",
+        project_id, project_name, total_items, len(delta["added"]), len(delta["changed"]), len(delta["deleted"]),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline endpoints
+# ---------------------------------------------------------------------------
+
+@codebeamer_router.post("/codebeamer/evaluate", tags=["codebeamer"])
+def codebeamer_evaluate(req: CodebeamerEvaluateRequest) -> Dict[str, Any]:
+    _CB_LOG.info("POST /codebeamer/evaluate project_id=%d", req.project_id)
+
+    saved = _load_saved_pswd()
+    if not saved:
+        raise HTTPException(status_code=400, detail="Password not configured")
+
+    existing = _CB_TASKS.get(req.project_id, {}).get("thread")
+    if existing and existing.is_alive():
+        raise HTTPException(status_code=409, detail="Evaluate already running for this project")
+
+    run_id = str(_uuid.uuid4())
+    t = threading.Thread(
+        target=_run_cb_task,
+        args=(req.project_id, _cb_evaluate, req.project_id, saved),
+        kwargs={"workers": int(req.workers or 4), "__stage": "evaluate"},
+        daemon=True,
+    )
+    _CB_TASKS.setdefault(req.project_id, {})["thread"] = t
+    t.start()
+    return {"ok": True, "run_id": run_id}
+
+
+@codebeamer_router.get("/codebeamer/status", tags=["codebeamer"])
+def codebeamer_status(project_id: int) -> Dict[str, Any]:
+    _CB_LOG.info("GET /codebeamer/status project_id=%d", project_id)
+
+    st_path = APP_ROOT / "logs" / f"codebeamer_status_{project_id}.json"
+    raw_status: Dict[str, Any] = {}
+    stage = "idle"
+    try:
+        raw_status = json.loads(st_path.read_text(encoding="utf-8")) or {}
+        stage = str(raw_status.get("stage") or "idle")
+    except Exception:
+        raw_status = {}
+
+    sync_dir = CORPUS_ROOT / str(project_id) / ".sync"
+    plan: Dict[str, Any] = {}
+    delta: Dict[str, Any] = {}
+    try:
+        plan = json.loads((sync_dir / "plan.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    try:
+        delta = json.loads((sync_dir / "delta.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    # Reset stale non-idle stage when thread is dead and status is not fresh
+    try:
+        t = (_CB_TASKS.get(project_id) or {}).get("thread")
+        recent = False
+        try:
+            ts_val = float(raw_status.get("ts") or 0)
+            recent = (time.time() - ts_val) < 10.0
+        except Exception:
+            pass
+        if (not t or not t.is_alive()) and not recent:
+            stage = "idle"
+    except Exception:
+        stage = "idle"
+
+    resp: Dict[str, Any] = {"project_id": project_id, "stage": stage, "plan": plan, "delta": delta}
+
+    if isinstance(raw_status, dict):
+        if raw_status.get("phase"):
+            resp["phase"] = raw_status["phase"]
+        if raw_status.get("error"):
+            resp["error"] = raw_status["error"]
+        progress = raw_status.get("progress")
+        if isinstance(progress, dict):
+            resp["progress"] = {
+                "total": int(progress.get("total") or 0),
+                "done": int(progress.get("done") or 0),
+                "failed": int(progress.get("failed") or 0),
+            }
+        if raw_status.get("eta_sec") is not None:
+            resp["eta_sec"] = float(raw_status["eta_sec"])
+        try:
+            started_at = float(raw_status["started_at"])
+            resp["started_at"] = started_at
+            resp["elapsed_sec"] = raw_status.get("elapsed_sec") or max(0.0, time.time() - started_at)
+        except Exception:
+            pass
+
+    return resp
