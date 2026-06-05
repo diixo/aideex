@@ -360,16 +360,16 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4) -> None:
     client = _make_client(saved)
 
     # Resolve project name
-    project_resp = client._client.get(f"projects/{project_id}")
-    if not isinstance(project_resp, dict):
-        raise SystemExit(f"Project {project_id} not found")
-    project_name = str(project_resp.get("name") or project_id)
+    project = client.get_project(int(project_id))
+    # project_resp = client._client.get(f"projects/{project_id}")
+    # if not isinstance(project_resp, dict):
+    #     raise SystemExit(f"Project {project_id} not found")
+    project_name = project.name
 
     # GET /projects/{id}/trackers returns {"trackers": [...], "total": N, ...}
-    trackers_resp = client._client.get(f"projects/{project_id}/trackers")
-    if isinstance(trackers_resp, dict):
-        raw_trackers: list[dict] = trackers_resp.get("trackers") or []
-    elif isinstance(trackers_resp, list):
+    trackers_resp = project.get_ref_trackers()
+
+    if isinstance(trackers_resp, list):
         raw_trackers = trackers_resp
     else:
         raw_trackers = []

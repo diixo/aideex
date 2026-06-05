@@ -160,6 +160,14 @@ class Project:
 		refs_trackers = self._client.get(f'projects/{self.id}/trackers')
 		return [Tracker(**t, client=self._client, project=self) for t in refs_trackers]
 
+	def get_ref_trackers(self) -> list[dict[str, Any]]:
+		"""Fetches all the trackers in this project.
+
+		Returns:
+		list[dict[str, Any]] — list of tracker references."""
+		refs_trackers = self._client.get(f'projects/{self.id}/trackers')
+		return refs_trackers
+
 	def get_wikipages(self) -> list[dict[str, Any]]:
 		"""Fetches all wiki pages in this project.
 
