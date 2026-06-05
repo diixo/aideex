@@ -11,7 +11,7 @@ from .aspice_compliance_checker import inspect_case
 from .aspice_validate_dataset import validate_dataset, summarize_issues
 
 from pybeamer import Codebeamer
-from pybeamer.tree import build_tree, tree_to_rows
+
 
 
 # Material Icons name per tracker type_id. Types that don't have an
@@ -155,7 +155,7 @@ def _cb_load_tracker_context(cb, project_id, projects):
         "work_items":   [t for t in all_trackers if (t["type_name"] or "").lower() in _WORK_ITEM_TYPES],
         "config_items": [t for t in all_trackers if (t["type_name"] or "").lower() not in _WORK_ITEM_TYPES],
         "trackers":     all_trackers,
-        "has_project_json": os.path.exists(_cb_project_json_path(project_id)),
+        "has_project_json": backend_get("/codebeamer/item-map", params={"project_id": project_id}).get("ok", False),
     }
 
 
@@ -495,153 +495,16 @@ def codebeamer_create_item(request, tracker_id):
     return _redirect("app_main:codebeamer_tracker", tracker_id=tracker_id)
 
 
-def _cb_project_json_path(project_id):
-    return os.path.join(settings.BASE_DIR, "..", "data", f"codebeamer-prj-{project_id}.json")
-
-
-def _cb_load_project_data(project_id):
-    path = _cb_project_json_path(project_id)
-    if not os.path.exists(path):
-        return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _cb_build_item_tracker_map(project_id):
-    """Returns dict: item_id -> {icon, color} based on its tracker type."""
-    data = _cb_load_project_data(project_id)
-    if data is None:
-        return {}
-    result = {}
-    for tracker in data.get("trackers", []):
-        t_type_id = tracker.get("type_id")
-        icon  = _CODEBEAMER_TRACKER_ICONS.get(t_type_id, "label")
-        color = tracker.get("color") or "#6c757d"
-        for item in tracker.get("items", []):
-            iid = item.get("id")
-            if iid:
-                status = item.get("status")
-                result[iid] = {
-                    "icon":  icon,
-                    "color": _STATUS_COLORS.get(status, color) if status else color,
-                }
-    return result
-
-
-def _cb_build_full_item_map(project_id, downstream_map):
-    """Build {item_id: {id, name, icon, color, upstream, downstream}} from saved JSON."""
-    data = _cb_load_project_data(project_id)
-    if data is None:
-        return {}
-    item_map = {}
-    for tracker in data.get("trackers", []):
-        t_type_id = tracker.get("type_id")
-        icon  = _CODEBEAMER_TRACKER_ICONS.get(t_type_id, "label")
-        color = tracker.get("color") or "#6c757d"
-        for item in tracker.get("items", []):
-            iid = item.get("id")
-            if not iid:
-                continue
-            upstream = [s.get("id") for s in item.get("subjects", []) if s.get("id")]
-            status = item.get("status")
-            item_map[iid] = {
-                "id":           iid,
-                "name":         item.get("name", ""),
-                "icon":         icon,
-                "color":        _STATUS_COLORS.get(status, color) if status else color,
-                "upstream":     upstream,
-                "downstream":   [d["id"] for d in downstream_map.get(iid, [])],
-            }
-    return item_map
-
-
-def _cb_build_downstream_map(project_id):
-    """Returns dict: item_id -> list of {id, name, icon, color} items that reference it upstream."""
-    data = _cb_load_project_data(project_id)
-    if data is None:
-        return {}
-    downstream = {}
-    for tracker in data.get("trackers", []):
-        t_type_id = tracker.get("type_id")
-        icon  = _CODEBEAMER_TRACKER_ICONS.get(t_type_id, "label")
-        color = tracker.get("color") or "#6c757d"
-        for item in tracker.get("items", []):
-            item_id = item.get("id")
-            item_name = item.get("name", "")
-            for s in item.get("subjects", []):
-                sid = s.get("id")
-                if sid:
-                    status = item.get("status")
-                    downstream.setdefault(sid, []).append({
-                        "id":    item_id,
-                        "name":  item_name,
-                        "icon":  icon,
-                        "color": _STATUS_COLORS.get(status, color) if status else color,
-                    })
-    return downstream
-
 
 def codebeamer_save(request):
-    import json as _json
-    from datetime import datetime
-    from django.http import HttpResponse
-
     credentials = _cb_load_credentials()
     if not credentials or not credentials.get("project_id"):
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
-
-    cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
-    project = cb.get_project(credentials["project_id"])
-
-    def _safe(fn):
-        try: return fn()
-        except: return None
-
-    trackers_data = []
-    for t in project.get_trackers():
-        items_data = []
-        for item in t.get_items():
-            subjects = _safe(lambda: [
-                {
-                    "id":        s.get("id") if isinstance(s, dict) else getattr(s, "id", None),
-                    "name":      s.get("name") if isinstance(s, dict) else getattr(s, "name", None),
-                    "type_name": s.get("typeName", s.get("type", {}).get("name") if isinstance(s.get("type"), dict) else s.get("type")) if isinstance(s, dict) else getattr(s, "type_name", None),
-                }
-                for s in item.subjects
-            ] if item.subjects else [])
-            items_data.append({
-                "id":                 item.id,
-                "name":               item.name,
-                "description":        item.description,
-                "description_format": item.description_format,
-                "type_name":          item.type_name,
-                "status":             _safe(lambda: item.status.value.name if item.status and item.status.value else None),
-                "subjects":           subjects or [],
-            })
-        trackers_data.append({
-            "id":        t.id,
-            "name":      t.name,
-            "type_id":   t.type_id,
-            "type_name": t.type_name,
-            "key_name":  t.key_name,
-            "color":     t.color or "#6c757d",
-            "items":     items_data,
-        })
-
-    payload = {
-        "project_id":   credentials["project_id"],
-        "project_name": project.name,
-        "exported_at":  datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
-        "trackers":     trackers_data,
-    }
-    content = _json.dumps(payload, ensure_ascii=False, indent=2)
-
-    save_path = os.path.join(settings.BASE_DIR, "..", "data", f"codebeamer-prj-{credentials['project_id']}.json")
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    with open(save_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
+    try:
+        backend_post("/codebeamer/save", {"project_id": credentials["project_id"]})
+    except Exception:
+        pass
     from django.shortcuts import redirect as _redirect
     return _redirect("app_main:codebeamer")
 
@@ -721,31 +584,30 @@ def codebeamer_item(request, item_id):
         context["max_levels"] = max_levels
         context["levels_range"] = range(1, 11)
 
-        downstream_map = _cb_build_downstream_map(project_id)
-        if downstream_map is None:
+        # Collect IDs needing enrichment (subjects + versions of this item)
+        cur_item = context.get("item") or {}
+        enrich_ids = [str(s.get("id")) for s in cur_item.get("subjects", []) if s.get("id")]
+        enrich_ids += [str(v.get("id")) for v in cur_item.get("versions", []) if v.get("id")]
+
+        tree_resp = backend_get(f"/codebeamer/tree/{item_id}", params={
+            "project_id": project_id,
+            "levels": max_levels,
+            "enrich_ids": ",".join(enrich_ids),
+        })
+        if not tree_resp.get("ok"):
             context["no_project_json"] = True
             context["upstream_rows"] = []
             context["downstream_rows"] = []
             context["upstream_cols"] = max_levels
             context["downstream_cols"] = max_levels
         else:
-            item_map = _cb_build_full_item_map(project_id, downstream_map)
+            context["upstream_rows"]   = tree_resp["upstream_rows"]
+            context["downstream_rows"] = tree_resp["downstream_rows"]
+            context["upstream_cols"]   = tree_resp["cols"]
+            context["downstream_cols"] = tree_resp["cols"]
 
-            # Upstream: subjects + versions as level 1
-            up_ids = [s.get("id") for s in (context.get("item") or {}).get("subjects", []) if s.get("id")]
-            up_ids += [v.get("id") for v in (context.get("item") or {}).get("versions", []) if v.get("id")]
-            up_tree = build_tree(up_ids, 1, max_levels, item_map)
-            context["upstream_rows"] = tree_to_rows(up_tree, max_levels)
-            context["upstream_cols"] = max_levels
-
-            # Downstream: items referencing current
-            dn_ids = [d["id"] for d in downstream_map.get(item_id, [])]
-            dn_tree = build_tree(dn_ids, 1, max_levels, item_map, direction="downstream", visited={item_id})
-            context["downstream_rows"] = tree_to_rows(dn_tree, max_levels)
-            context["downstream_cols"] = max_levels
-
-            # Enrich subjects/versions with icon/color
-            item_tracker_map = _cb_build_item_tracker_map(project_id)
+            # Enrich subjects/versions using only the needed entries
+            item_tracker_map = {int(k): v for k, v in tree_resp.get("enriched", {}).items()}
             def _enrich(items):
                 for i in items:
                     info = item_tracker_map.get(i.get("id"), {"icon": "article", "color": "#6c757d"})

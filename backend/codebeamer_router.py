@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from pybeamer import Codebeamer
+from pybeamer.tree import build_tree, tree_to_rows
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 CORPUS_ROOT = APP_ROOT / "corpus"
@@ -20,6 +21,71 @@ _CB_LOG = logging.getLogger("backend.codebeamer")
 codebeamer_router = APIRouter(tags=["codebeamer"])
 
 _CB_TASKS: dict[int, dict[str, Any]] = {}
+_CB_ITEM_MAPS: dict[int, dict] = {}   # project_id → full item map (in-memory cache)
+
+_STATUS_COLORS = {
+    "New":      "#dc3545",
+    "Verified": "#fd7e14",
+    "Reopened": "#fd7e14",
+    "Resolved": "#198754",
+    "Closed":   "#0f5132",
+    "Rejected": "#6c757d",
+    "Draft":    "#ffab46",
+}
+
+_TRACKER_ICONS: dict[int, str] = {
+    2:"bug_report",
+    3:"published_with_changes",
+    5:"lightbulb",
+    6:"check_circle",
+    8:"schedule",
+    9:"play_arrow",
+    10:"cloud",
+    11:"warning",
+    102:"outlined_flag",
+    103:"directions_subway",
+    107:"phone",
+    108:"playlist_play",
+    109:"tune",
+    150:"groups",
+    12:"e_mobiledata",
+    13:"description",
+    1:"fireplace",
+    105:"extension",
+}
+
+
+def _corpus_json_path(project_id: int) -> Path:
+    p = CORPUS_ROOT / str(project_id) / "codebeamer.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _build_item_map(data: dict) -> dict:
+    """Build {item_id: {id, name, icon, color, upstream, downstream}} from saved JSON."""
+    item_map: dict[int, dict] = {}
+    for tracker in data.get("trackers", []):
+        t_type_id = tracker.get("type_id")
+        icon  = _TRACKER_ICONS.get(t_type_id, "label")
+        t_color = tracker.get("color") or "#6c757d"
+        for item in tracker.get("items", []):
+            iid = item.get("id")
+            if not iid:
+                continue
+            status = item.get("status")
+            color = _STATUS_COLORS.get(status, t_color) if status else t_color
+            upstream = [s.get("id") for s in item.get("subjects", []) if s.get("id")]
+            item_map[iid] = {
+                "id": iid, "name": item.get("name", ""),
+                "icon": icon, "color": color,
+                "upstream": upstream, "downstream": [],
+            }
+    # build downstream (inverse of upstream)
+    for iid, entry in item_map.items():
+        for uid in entry["upstream"]:
+            if uid in item_map:
+                item_map[uid]["downstream"].append(iid)
+    return item_map
 
 
 # ---------------------------------------------------------------------------
@@ -147,16 +213,57 @@ async def codebeamer_pswd_save(req: CodebeamerPswdSaveRequest) -> Dict[str, Any]
 # Project / tree endpoints
 # ---------------------------------------------------------------------------
 
+def _fetch_and_build_item_map(project_id: int, saved: dict) -> None:
+    """Fetch all trackers+items from Codebeamer API and build item_map in memory."""
+    try:
+        cb = _make_client(saved)
+        project = cb.get_project(project_id)
+        trackers_data = []
+        for t in project.get_trackers():
+            items_data = []
+            for item in t.get_items():
+                status = None
+                try:
+                    status = item.status.value.name if item.status and item.status.value else None
+                except Exception:
+                    pass
+                subjects = []
+                try:
+                    subjects = [{"id": s.get("id"), "name": s.get("name", "")}
+                                for s in (item.subjects or []) if isinstance(s, dict) and s.get("id")]
+                except Exception:
+                    pass
+                items_data.append({
+                    "id": item.id, "name": item.name,
+                    "status": status, "subjects": subjects,
+                })
+            trackers_data.append({
+                "id": t.id, "name": t.name,
+                "type_id": t.type_id, "color": t.color or "#6c757d",
+                "items": items_data,
+            })
+        data = {"project_id": project_id, "trackers": trackers_data}
+        _CB_ITEM_MAPS[project_id] = _build_item_map(data)
+        _CB_LOG.info("item_map built project_id=%d items=%d", project_id, len(_CB_ITEM_MAPS[project_id]))
+    except Exception as exc:
+        _CB_LOG.exception("fetch_and_build_item_map failed project_id=%s err=%s", project_id, exc)
+
+
 @codebeamer_router.post("/codebeamer/project", tags=["codebeamer"])
 async def codebeamer_set_project(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Set or clear current project_id (pass None to clear)."""
+    """Set or clear current project_id. On set — triggers async item_map build from API."""
     project_id = payload.get("project_id")
     cur = json.loads(_secrets_path().read_text(encoding="utf-8")) if _secrets_path().exists() else {}
     if project_id:
         cur["project_id"] = project_id
+        _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
+        saved = _load_saved_pswd()
+        if saved:
+            t = threading.Thread(target=_fetch_and_build_item_map, args=(project_id, saved), daemon=True)
+            t.start()
     else:
         cur.pop("project_id", None)
-    _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
+        _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
     return {"ok": True}
 
 
@@ -506,6 +613,119 @@ def codebeamer_evaluate(req: CodebeamerEvaluateRequest) -> Dict[str, Any]:
     _CB_TASKS.setdefault(req.project_id, {})["thread"] = t
     t.start()
     return {"ok": True, "run_id": run_id}
+
+
+@codebeamer_router.post("/codebeamer/save", tags=["codebeamer"])
+async def codebeamer_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Save all trackers+items for a project to corpus/<project_id>/codebeamer.json."""
+    project_id = payload.get("project_id")
+    if not project_id:
+        raise HTTPException(status_code=400, detail="project_id required")
+    saved = _load_saved_pswd()
+    if not saved:
+        raise HTTPException(status_code=400, detail="Password not configured")
+    try:
+        cb = _make_client(saved)
+        project = cb.get_project(project_id)
+        trackers_data = []
+        for t in project.get_trackers():
+            items_data = []
+            for item in t.get_items():
+                status = None
+                try:
+                    status = item.status.value.name if item.status and item.status.value else None
+                except Exception:
+                    pass
+                subjects = []
+                try:
+                    subjects = [{"id": s.get("id"), "name": s.get("name", "")}
+                                for s in (item.subjects or []) if isinstance(s, dict) and s.get("id")]
+                except Exception:
+                    pass
+                items_data.append({
+                    "id": item.id, "name": item.name,
+                    "description": item.description,
+                    "description_format": item.description_format,
+                    "type_name": item.type_name,
+                    "status": status, "subjects": subjects,
+                })
+            trackers_data.append({
+                "id": t.id, "name": t.name,
+                "type_id": t.type_id, "type_name": t.type_name,
+                "key_name": t.key_name, "color": t.color or "#6c757d",
+                "items": items_data,
+            })
+        data = {"project_id": project_id, "project_name": project.name, "trackers": trackers_data}
+        path = _corpus_json_path(project_id)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        _CB_ITEM_MAPS[project_id] = _build_item_map(data)
+        return {"ok": True}
+    except Exception as exc:
+        _CB_LOG.exception("save error project_id=%s err=%s", project_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@codebeamer_router.get("/codebeamer/item-map", tags=["codebeamer"])
+async def codebeamer_item_map(project_id: int) -> Dict[str, Any]:
+    """Return full item map from memory. Fallback to corpus JSON if not yet loaded."""
+    if project_id in _CB_ITEM_MAPS:
+        return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
+    # fallback: load from saved JSON if available
+    path = _corpus_json_path(project_id)
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        _CB_ITEM_MAPS[project_id] = _build_item_map(data)
+        return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
+    return {"ok": False, "error": "Item map not ready yet"}
+
+
+@codebeamer_router.get("/codebeamer/tree/{item_id}", tags=["codebeamer"])
+async def codebeamer_tree_item(
+    item_id: int,
+    project_id: int,
+    levels: int = 2,
+    enrich_ids: str = "",  # comma-separated IDs to enrich (subjects + versions)
+) -> Dict[str, Any]:
+    """Build upstream/downstream trees and enrich specific item IDs."""
+    item_map = _CB_ITEM_MAPS.get(project_id)
+    if not item_map:
+        path = _corpus_json_path(project_id)
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            item_map = _build_item_map(data)
+            _CB_ITEM_MAPS[project_id] = item_map
+        else:
+            return {"ok": False, "error": "Item map not ready"}
+
+    entry = item_map.get(item_id, {})
+
+    # Upstream tree
+    up_ids = entry.get("upstream", [])
+    up_tree = build_tree(up_ids, 1, levels, item_map, direction="upstream")
+
+    # Downstream tree
+    dn_ids = entry.get("downstream", [])
+    dn_tree = build_tree(dn_ids, 1, levels, item_map, direction="downstream", visited={item_id})
+
+    # Enrich only requested IDs — no full map transfer
+    enriched = {}
+    if enrich_ids:
+        for sid in enrich_ids.split(","):
+            try:
+                iid = int(sid.strip())
+                e = item_map.get(iid)
+                if e:
+                    enriched[iid] = {"icon": e["icon"], "color": e["color"]}
+            except ValueError:
+                pass
+
+    return {
+        "ok": True,
+        "upstream_rows": tree_to_rows(up_tree, levels),
+        "downstream_rows": tree_to_rows(dn_tree, levels),
+        "cols": levels,
+        "enriched": enriched,
+    }
 
 
 @codebeamer_router.get("/codebeamer/status", tags=["codebeamer"])
