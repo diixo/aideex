@@ -237,7 +237,7 @@ function startTask(url) {
   document.getElementById('progress-text').textContent = '…';
   document.getElementById('progress-stage-badge').textContent = 'starting';
   var fd = new FormData();
-  fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd})
+  fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd, redirect: 'manual'})
     .finally(function() { pollStatus(); });
 }
 
