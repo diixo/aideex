@@ -150,7 +150,7 @@ class TestCbPull:
         cb = _make_cb_mock()
         evaluate_called = []
 
-        def fake_evaluate(pid, saved, workers):
+        def fake_evaluate(pid, saved, workers, _stage="evaluate"):
             evaluate_called.append(pid)
             # write tree.json as evaluate would
             sync_dir = Path(router.CORPUS_ROOT) / str(pid) / ".sync"
@@ -172,7 +172,7 @@ class TestCbPull:
         cb = _make_cb_mock()
         evaluate_called = []
 
-        def fake_evaluate(pid, saved, workers):
+        def fake_evaluate(pid, saved, workers, _stage="evaluate"):
             evaluate_called.append(pid)
             sync_dir = Path(router.CORPUS_ROOT) / str(pid) / ".sync"
             sync_dir.mkdir(parents=True, exist_ok=True)

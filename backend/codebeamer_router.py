@@ -26,12 +26,28 @@ codebeamer_router = APIRouter(tags=["codebeamer"])
 
 _CB_TASKS: dict[int, dict[str, Any]] = {}
 _CB_ITEM_MAPS: dict[int, dict] = {}         # project_id → full item map (in-memory cache)
+_CB_CORPUS: dict[int, dict] = {}            # project_id → parsed codebeamer.json (in-memory cache)
 
 
 def _corpus_json_path(project_id: int) -> Path:
     p = CORPUS_ROOT / str(project_id) / "codebeamer.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def _load_corpus(project_id: int) -> dict | None:
+    """Return corpus for project_id from memory; load from disk on first access."""
+    if project_id in _CB_CORPUS:
+        return _CB_CORPUS[project_id]
+    path = _corpus_json_path(project_id)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        _CB_CORPUS[project_id] = data
+        return data
+    except Exception:
+        return None
 
 
 def _build_item_map(payload: dict) -> dict:
@@ -470,7 +486,7 @@ def _run_cb_task(project_id: int, fn, *args, **kwargs) -> None:
 # Pipeline functions (run in background threads)
 # ---------------------------------------------------------------------------
 
-def _cb_evaluate(project_id: int, saved: dict, workers: int = 4) -> None:
+def _cb_evaluate(project_id: int, saved: dict, workers: int = 4, _stage: str = "evaluate") -> None:
     """Build plan/tree/manifest for a Codebeamer project.
 
     Phase 1 — traverse: get project + all its trackers.
@@ -491,7 +507,7 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4) -> None:
         prev_manifest = {}
 
     # Phase 1: resolve project and trackers
-    _update_cb_status(project_id, "evaluate", {
+    _update_cb_status(project_id, _stage, {
         "phase": "traverse",
         "progress": {"total": 0, "done": 0},
         "started_at": started_wall,
@@ -518,7 +534,7 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4) -> None:
     _CB_LOG.info("evaluate: project_id=%d name=%s trackers=%d", project_id, project_name, total_trackers)
     time.sleep(0.5)
 
-    _update_cb_status(project_id, "evaluate", {
+    _update_cb_status(project_id, _stage, {
         "phase": "items",
         "progress": {"total": total_trackers, "done": 0},
         "started_at": started_wall,
@@ -565,7 +581,7 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4) -> None:
                 refs = []
             tracker_results[t["id"]] = (plan_entry, refs)
             done_trackers += 1
-            _update_cb_status(project_id, "evaluate", {
+            _update_cb_status(project_id, _stage, {
                 "phase": "items",
                 "progress": {"total": total_trackers, "done": done_trackers},
                 "started_at": started_wall,
@@ -655,16 +671,11 @@ async def codebeamer_item_map(project_id: int) -> Dict[str, Any]:
     """Return full item map from memory. Fallback to corpus JSON if not yet loaded."""
     if project_id in _CB_ITEM_MAPS:
         return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
-    # fallback: load from saved JSON if available
-    path = _corpus_json_path(project_id)
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            return {"ok": False, "error": f"Corrupted corpus file: {exc}"}
-        _CB_ITEM_MAPS[project_id] = _build_item_map(data)
-        return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
-    return {"ok": False, "error": "Item map not ready yet"}
+    data = _load_corpus(project_id)
+    if data is None:
+        return {"ok": False, "error": "Item map not ready yet"}
+    _CB_ITEM_MAPS[project_id] = _build_item_map(data)
+    return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
 
 
 @codebeamer_router.get("/codebeamer/items-by-tracker-type", tags=["codebeamer"])
@@ -674,13 +685,9 @@ async def codebeamer_items_by_tracker_type(
     type_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Return items from trackers matching type_name (case-insensitive) or type_id, read from corpus JSON."""
-    path = _corpus_json_path(project_id)
-    if not path.exists():
+    data = _load_corpus(project_id)
+    if data is None:
         return {"ok": False, "error": "Corpus not found — run Pull first", "items": []}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        return {"ok": False, "error": f"Corrupted corpus file: {exc}", "items": []}
 
     type_name_lower = type_name.lower()
     items_by_id: dict[int, dict] = {
@@ -716,16 +723,11 @@ async def codebeamer_tree_item(
     """Build upstream/downstream trees and enrich specific item IDs."""
     item_map = _CB_ITEM_MAPS.get(project_id)
     if not item_map:
-        path = _corpus_json_path(project_id)
-        if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except Exception as exc:
-                return {"ok": False, "error": f"Corrupted corpus file: {exc}"}
-            item_map = _build_item_map(data)
-            _CB_ITEM_MAPS[project_id] = item_map
-        else:
+        data = _load_corpus(project_id)
+        if data is None:
             return {"ok": False, "error": "Item map not ready"}
+        item_map = _build_item_map(data)
+        _CB_ITEM_MAPS[project_id] = item_map
 
     entry = item_map.get(item_id, {})
 
@@ -935,6 +937,7 @@ def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
         "tracker_fields": tracker_fields
     }
     _corpus_json_path(project_id).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    _CB_CORPUS[project_id] = data
     _CB_ITEM_MAPS[project_id] = _build_item_map(data)
 
     _CB_LOG.info("pull done: project_id=%d items=%d failed=%d", project_id, total_items, progress.failures)
@@ -978,14 +981,11 @@ def codebeamer_tracker_fields(tracker_id: int, project_id: Optional[int] = None)
     Caller is responsible for field mapping/filtering.
     """
     if project_id is not None:
-        path = _corpus_json_path(project_id)
-        if path.exists():
-            try:
-                raw_fields = json.loads(path.read_text(encoding="utf-8")).get("tracker_fields", {}).get(str(tracker_id))
-                if raw_fields is not None:
-                    return {"ok": True, "fields": raw_fields, "source": "corpus"}
-            except Exception as exc:
-                _CB_LOG.warning("tracker-fields: corpus read failed tracker_id=%s err=%s", tracker_id, exc)
+        data = _load_corpus(project_id)
+        if data is not None:
+            raw_fields = data.get("tracker_fields", {}).get(str(tracker_id))
+            if raw_fields is not None:
+                return {"ok": True, "fields": raw_fields, "source": "corpus"}
 
     # Fallback: live CB API — fetch raw field data directly without FieldDefinition lazy loading
     saved = _load_saved_pswd()
