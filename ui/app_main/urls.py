@@ -13,6 +13,7 @@ urlpatterns = [
     path("codebeamer", views.codebeamer, name="codebeamer"),
     path("codebeamer/select-project", views.codebeamer_select_project, name="codebeamer_select_project"),
     path("codebeamer/evaluate", views.codebeamer_evaluate, name="codebeamer_evaluate"),
+    path("codebeamer/pull", views.codebeamer_pull_view, name="codebeamer_pull"),
     path("api/codebeamer/status/<int:project_id>", views.codebeamer_status_proxy, name="codebeamer_status"),
     path("codebeamer/tracker/<int:tracker_id>", views.codebeamer_tracker, name="codebeamer_tracker"),
     path("codebeamer/tracker/<int:tracker_id>/create-item", views.codebeamer_create_item, name="codebeamer_create_item"),

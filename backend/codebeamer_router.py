@@ -11,6 +11,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from pybeamer import Codebeamer
+from pybeamer.tracker import Tracker
+from pybeamer.tracker_item import TrackerItem
 from pybeamer.tree import build_tree, tree_to_rows
 from pybeamer.render import STATUS_COLORS, TRACKER_ICONS
 
@@ -23,7 +25,7 @@ _CB_LOG = logging.getLogger("backend.codebeamer")
 codebeamer_router = APIRouter(tags=["codebeamer"])
 
 _CB_TASKS: dict[int, dict[str, Any]] = {}
-_CB_ITEM_MAPS: dict[int, dict] = {}   # project_id → full item map (in-memory cache)
+_CB_ITEM_MAPS: dict[int, dict] = {}         # project_id → full item map (in-memory cache)
 
 
 def _corpus_json_path(project_id: int) -> Path:
@@ -32,26 +34,55 @@ def _corpus_json_path(project_id: int) -> Path:
     return p
 
 
-def _build_item_map(data: dict) -> dict:
-    """Build {item_id: {id, name, icon, color, upstream, downstream}} from saved JSON."""
+def _build_item_map(payload: dict) -> dict:
+    """Build {item_id: {id, name, icon, color, upstream, downstream}} from raw codebeamer.json.
+
+    Expected payload structure:
+      {
+        "trackers": [{id, name, type, color, "items": [{id, name}, ...]}, ...],
+        "items":    [{full TrackerItem response}, ...]   ← top-level, from GET /items/{id}
+      }
+    Uses TrackerItem(client=None) offline mode — _load() skips all API calls.
+    """
+    # tracker metadata keyed by the item refs stored inside each tracker
+    tracker_by_item: dict[int, tuple[str, str]] = {}  # item_id → (icon, tracker_color)
+    for raw_tracker in payload.get("trackers", []):
+        tracker = Tracker(**raw_tracker, client=None)
+        icon    = TRACKER_ICONS.get(tracker.type_id, "label")
+        t_color = tracker.color or "#6c757d"
+        for ref in raw_tracker.get("items", []):
+            iid = ref.get("id")
+            if iid:
+                tracker_by_item[iid] = (icon, t_color)
+
+    # full item objects keyed by id
+    items_by_id: dict[int, dict] = {}
+    for raw_item in payload.get("items", []):
+        iid = raw_item.get("id")
+        if iid:
+            items_by_id[iid] = raw_item
+
     item_map: dict[int, dict] = {}
-    for tracker in data.get("trackers", []):
-        t_type_id = tracker.get("type_id")
-        icon  = TRACKER_ICONS.get(t_type_id, "label")
-        t_color = tracker.get("color") or "#6c757d"
-        for item in tracker.get("items", []):
-            iid = item.get("id")
-            if not iid:
-                continue
-            status = item.get("status")
-            color = STATUS_COLORS.get(status, t_color) if status else t_color
-            upstream = [s.get("id") for s in item.get("subjects", []) if s.get("id")]
-            item_map[iid] = {
-                "id": iid, "name": item.get("name", ""),
-                "icon": icon, "color": color,
-                "upstream": upstream, "downstream": [],
-            }
-    # build downstream (inverse of upstream)
+    for iid, (icon, t_color) in tracker_by_item.items():
+        raw_item = items_by_id.get(iid)
+        if raw_item is None:
+            continue
+        name = raw_item.get("name", "")
+        item = TrackerItem(**raw_item, client=None)
+        # offline: item.status is ChoiceValue (not Field wrapper)
+        status_val = item.status
+        status = status_val.name if status_val else None
+        color = STATUS_COLORS.get(status, t_color) if status else t_color
+        upstream = [
+            s["id"] for s in (item.subjects or [])
+            if isinstance(s, dict) and s.get("id")
+        ]
+        item_map[iid] = {
+            "id": iid, "name": name,
+            "icon": icon, "color": color,
+            "upstream": upstream, "downstream": [],
+        }
+
     for iid, entry in item_map.items():
         for uid in entry["upstream"]:
             if uid in item_map:
@@ -592,54 +623,6 @@ def codebeamer_evaluate(req: CodebeamerEvaluateRequest) -> Dict[str, Any]:
     return {"ok": True, "run_id": run_id}
 
 
-@codebeamer_router.post("/codebeamer/save", tags=["codebeamer"])
-async def codebeamer_save(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Save all trackers+items for a project to corpus/<project_id>/codebeamer.json."""
-    project_id = payload.get("project_id")
-    if not project_id:
-        raise HTTPException(status_code=400, detail="project_id required")
-    saved = _load_saved_pswd()
-    if not saved:
-        raise HTTPException(status_code=400, detail="Password not configured")
-    try:
-        cb = _make_client(saved)
-        project = cb.get_project(project_id)
-        trackers_data = []
-        for t in project.get_trackers():
-            items_data = []
-            for item in t.get_items():
-                status = None
-                try:
-                    status = item.status.value.name if item.status and item.status.value else None
-                except Exception:
-                    pass
-                subjects = []
-                try:
-                    subjects = [{"id": s.get("id"), "name": s.get("name", "")}
-                                for s in (item.subjects or []) if isinstance(s, dict) and s.get("id")]
-                except Exception:
-                    pass
-                items_data.append({
-                    "id": item.id, "name": item.name,
-                    "description": item.description,
-                    "description_format": item.description_format,
-                    "type_name": item.type_name,
-                    "status": status, "subjects": subjects,
-                })
-            trackers_data.append({
-                "id": t.id, "name": t.name,
-                "type_id": t.type_id, "type_name": t.type_name,
-                "key_name": t.key_name, "color": t.color or "#6c757d",
-                "items": items_data,
-            })
-        data = {"project_id": project_id, "project_name": project.name, "trackers": trackers_data}
-        path = _corpus_json_path(project_id)
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        _CB_ITEM_MAPS[project_id] = _build_item_map(data)
-        return {"ok": True}
-    except Exception as exc:
-        _CB_LOG.exception("save error project_id=%s err=%s", project_id, exc)
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @codebeamer_router.get("/codebeamer/item-map", tags=["codebeamer"])
@@ -650,10 +633,78 @@ async def codebeamer_item_map(project_id: int) -> Dict[str, Any]:
     # fallback: load from saved JSON if available
     path = _corpus_json_path(project_id)
     if path.exists():
-        data = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            return {"ok": False, "error": f"Corrupted corpus file: {exc}"}
         _CB_ITEM_MAPS[project_id] = _build_item_map(data)
         return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
     return {"ok": False, "error": "Item map not ready yet"}
+
+
+@codebeamer_router.get("/codebeamer/items-by-tracker-type", tags=["codebeamer"])
+async def codebeamer_items_by_tracker_type(
+    project_id: int,
+    type_name: str,
+    type_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Return items from trackers matching type_name (case-insensitive) or type_id, read from corpus JSON."""
+    path = _corpus_json_path(project_id)
+    if not path.exists():
+        return {"ok": False, "error": "Corpus not found — run Pull first", "items": []}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": f"Corrupted corpus file: {exc}", "items": []}
+
+    type_name_lower = type_name.lower()
+    items_by_id: dict[int, dict] = {
+        raw["id"]: raw for raw in data.get("items", []) if raw.get("id")
+    }
+
+    result: list[dict] = []
+    for t in data.get("trackers", []):
+        t_type = t.get("type") or {}
+        match = (
+            (t_type.get("name") or "").lower() == type_name_lower
+            or (type_id is not None and t_type.get("id") == type_id)
+        )
+        if not match:
+            continue
+        for ref in t.get("items", []):
+            iid = ref.get("id")
+            if not iid:
+                continue
+            full = items_by_id.get(iid)
+            result.append({"id": iid, "name": full.get("name", ref.get("name", "")) if full else ref.get("name", "")})
+
+    return {"ok": True, "items": result}
+
+
+@codebeamer_router.get("/codebeamer/tracker-fields/{tracker_id}", tags=["codebeamer"])
+def codebeamer_tracker_fields(tracker_id: int) -> Dict[str, Any]:
+    """Return serialized field definitions for a tracker."""
+    saved = _load_saved_pswd()
+    if not saved:
+        raise HTTPException(status_code=400, detail="Password not configured")
+    try:
+        client = _make_client(saved)
+        tracker = client.get_tracker(tracker_id)
+        fields = []
+        for f in tracker.get_fields():
+            if f.hidden:
+                continue
+            fields.append({
+                "id":           f.id,
+                "name":         f.name,
+                "type":         f._type,
+                "multiple":     f.multiple_values or False,
+                "options":      [{"id": o.id, "name": o.name} for o in f.options] if f.options else [],
+                "tracker_field": f.tracker_item_field,
+            })
+        return {"ok": True, "fields": fields}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @codebeamer_router.get("/codebeamer/tree/{item_id}", tags=["codebeamer"])
@@ -668,7 +719,10 @@ async def codebeamer_tree_item(
     if not item_map:
         path = _corpus_json_path(project_id)
         if path.exists():
-            data = json.loads(path.read_text(encoding="utf-8"))
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                return {"ok": False, "error": f"Corrupted corpus file: {exc}"}
             item_map = _build_item_map(data)
             _CB_ITEM_MAPS[project_id] = item_map
         else:
@@ -771,124 +825,101 @@ def codebeamer_status(project_id: int) -> Dict[str, Any]:
 
 
 
-def _fetch_item_content(item_id: int, item_name: str, staging_dir: Path, saved: dict, retries: int = 3) -> dict:
-    for attempt in range(1, retries + 1):
-        try:
-            tc = _make_client(saved)
-            data = tc._client.get(f"items/{item_id}")
-            if not isinstance(data, dict):
-                raise ValueError(f"unexpected response type: {type(data)}")
-            (staging_dir / f"{item_id}.json").write_text(
-                json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
-            time.sleep(0.5)
-            return {"ok": True, "item_id": item_id, "name": item_name, "attempts": attempt}
-        except Exception as exc:
-            if attempt == retries:
-                _CB_LOG.warning("pull: FAILED item_id=%s error=%s", item_id, str(exc))
-                return {"ok": False, "item_id": item_id, "name": item_name, "error": str(exc), "attempts": attempt}
-    return {"ok": False, "item_id": item_id, "name": item_name, "error": "max retries", "attempts": retries}
-
-
 def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     started_wall = time.time()
     sync_dir = CORPUS_ROOT / str(project_id) / ".sync"
-    staging_dir = CORPUS_ROOT / str(project_id) / "staging"
 
-    # Ensure plan exists
-    plan: dict = {}
+    # Require tree.json (created by evaluate)
     try:
-        plan = json.loads((sync_dir / "plan.json").read_text(encoding="utf-8"))
+        tree = json.loads((sync_dir / "tree.json").read_text(encoding="utf-8"))
     except Exception:
-        pass
-    if not plan or plan.get("project_id") != project_id:
-        raise SystemExit("plan.json missing or stale; run evaluate first")
+        raise SystemExit("tree.json missing; run evaluate first")
+    if tree.get("project_id") != project_id:
+        raise SystemExit("tree.json is stale; run evaluate first")
 
-    # Load selection
-    selection_ids: set[int] = set()
-    try:
-        sel = json.loads((sync_dir / "selection.json").read_text(encoding="utf-8"))
-        selection_ids = {int(x) for x in (sel.get("include_ids") or [])}
-    except Exception:
-        pass
-
-    # Load delta
-    delta_ids: set[int] = set()
-    try:
-        delta = json.loads((sync_dir / "delta.json").read_text(encoding="utf-8"))
-        delta_ids = {int(x) for x in (delta.get("added") or []) + (delta.get("changed") or [])}
-    except Exception:
-        pass
-
-    # Load manifest
-    manifest: dict[str, dict] = {}
-    try:
-        manifest = json.loads((sync_dir / "manifest.json").read_text(encoding="utf-8"))
-    except Exception:
-        pass
-
-    # selection > delta > full manifest
-    if selection_ids:
-        ids_to_fetch = selection_ids
-        mode = "selection"
-    elif delta_ids:
-        ids_to_fetch = delta_ids
-        mode = "delta"
-    else:
-        ids_to_fetch = {int(k) for k in manifest}
-        mode = "manifest"
-
-    _CB_LOG.info("pull: project_id=%d mode=%s ids=%d", project_id, mode, len(ids_to_fetch))
-
-    if not ids_to_fetch:
-        _CB_LOG.info("pull: nothing to fetch")
-        return
-
-    staging_dir.mkdir(parents=True, exist_ok=True)
-    item_meta = [(iid, (manifest.get(str(iid)) or {}).get("name") or str(iid)) for iid in sorted(ids_to_fetch)]
-    total = len(item_meta)
+    trackers_info = tree.get("trackers", [])
+    total_trackers = len(trackers_info)
+    total_items = sum(len(t.get("items", [])) for t in trackers_info)
+    total = total_trackers + total_items
     workers = max(1, min(int(workers or 4), 16))
-    successes = 0
-    failures = 0
-    failed_items: list[dict] = []
-    print(f"Starting pull with {workers} worker(s) — {total} page(s)…", flush=True)
 
+    _CB_LOG.info("pull: project_id=%d trackers=%d items=%d", project_id, total_trackers, total_items)
     _update_cb_status(project_id, "pull", {
         "phase": "fetch",
         "progress": {"total": total, "done": 0, "failed": 0},
-        "started_at": started_wall,
-        "eta_sec": 0.0,
+        "started_at": started_wall, "eta_sec": 0.0,
     })
 
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(_fetch_item_content, iid, name, staging_dir, saved) for iid, name in item_meta]
-        for fut in as_completed(futures):
-            res = fut.result()
-            if res.get("ok"):
-                successes += 1
-            else:
-                failures += 1
-                failed_items.append(res)
-                _CB_LOG.warning("pull: FAILED item_id=%s error=%s", res.get("item_id"), res.get("error"))
-            done = successes + failures
-            if done % 5 == 0 or done == total:
-                elapsed = time.time() - started_wall
-                eta = (total - done) * (elapsed / done) if done > 0 and total > done else 0.0
-                _update_cb_status(project_id, "pull", {
-                    "phase": "fetch",
-                    "progress": {"total": total, "done": done, "failed": failures},
-                    "started_at": started_wall,
-                    "eta_sec": max(0.0, float(eta)),
-                })
+    cb = _make_client(saved)
+    done = 0
+    failures = 0
 
-    if failed_items:
-        fail_path = APP_ROOT / "logs" / f"codebeamer_pull_failed_{project_id}.json"
-        fail_path.parent.mkdir(parents=True, exist_ok=True)
-        fail_path.write_text(json.dumps(failed_items, indent=2, ensure_ascii=False), encoding="utf-8")
+    def _fetch_raw(url: str) -> dict:
+        raw = cb._client.get(url)
+        return raw if isinstance(raw, dict) else {}
 
-    _CB_LOG.info("pull done: project_id=%d fetched=%d failed=%d mode=%s", project_id, successes, failures, mode)
+    last_write: list[float] = [0.0]  # mutable container for nonlocal write in nested fn
+
+    def _track_progress():
+        nonlocal done
+        done += 1
+        now = time.time()
+        if now - last_write[0] >= 0.5 or done == total:
+            last_write[0] = now
+            elapsed = now - started_wall
+            eta = (total - done) * (elapsed / done) if done > 0 and total > done else 0.0
+            _update_cb_status(project_id, "pull", {
+                "phase": "fetch",
+                "progress": {"total": total, "done": done, "failed": failures},
+                "started_at": started_wall,
+                "eta_sec": max(0.0, float(eta)),
+            })
+
+    # Fetch trackers + their items in parallel per tracker
+    trackers_data = []
+    all_items: list[dict] = []
+    for t_info in trackers_info:
+        tid = t_info["id"]
+        try:
+            raw_tracker = _fetch_raw(f"trackers/{tid}")
+        except Exception as exc:
+            _CB_LOG.warning("pull: tracker %s failed: %s", tid, exc)
+            failures += 1
+            raw_tracker = {"id": tid, "name": t_info.get("name", ""), "type": {}, "color": "#6c757d"}
+        _track_progress()
+
+        item_ids = [item["id"] for item in t_info.get("items", [])]
+
+        # Fetch full item objects for this tracker in parallel
+        items_data = []
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            fut_map = {ex.submit(_fetch_raw, f"items/{iid}"): iid for iid in item_ids}
+            for fut in as_completed(fut_map):
+                iid = fut_map[fut]
+                try:
+                    raw_item = fut.result()
+                    items_data.append(raw_item)
+                except Exception as exc:
+                    _CB_LOG.warning("pull: item %s failed: %s", iid, exc)
+                    failures += 1
+                    items_data.append({"id": iid, "name": str(iid)})
+                _track_progress()
+
+        # tracker keeps only lightweight refs; full objects go to top-level items
+        raw_tracker["items"] = [{"id": it.get("id"), "name": it.get("name", "")} for it in items_data]
+        trackers_data.append(raw_tracker)
+        all_items.extend(items_data)
+
+    # Save to codebeamer.json and rebuild item_map
+    data = {"project_id": project_id, "project_name": tree.get("project_name", ""), "trackers": trackers_data, "items": all_items}
+    _corpus_json_path(project_id).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    _CB_ITEM_MAPS[project_id] = _build_item_map(data)
+
+    _CB_LOG.info("pull done: project_id=%d items=%d failed=%d", project_id, total_items, failures)
     _update_cb_status(project_id, "pull", {
         "phase": "done",
         "progress": {"total": total, "done": total, "failed": failures},

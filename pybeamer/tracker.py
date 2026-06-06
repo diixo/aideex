@@ -209,10 +209,13 @@ class Tracker:
 		if self._loaded:
 			logger.info('Tracker already loaded, ignoring...')
 			return
+		offline = self._client is None
 		if not data:
+			if offline:
+				return
 			data: dict[str, Any] = self._client.get(f'trackers/{self.id}')
 		from .projects import Project
-		if not isinstance(self._project, Project):
+		if not offline and not isinstance(self._project, Project):
 			self._project = Project(**data.get('project'), client=self._client)
 		self._description = data.get('description')
 		self._description_format = data.get('descriptionFormat')
@@ -220,11 +223,15 @@ class Tracker:
 		self._version = data.get('version')
 		created_at = data.get('createdAt')
 		self._created_at = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%S.%f') if created_at else None
-		self._created_by = User(**data.get('createdBy'), client=self._client)
 		modified_at = data.get('modifiedAt')
 		self._modified_at = datetime.strptime(modified_at, '%Y-%m-%dT%H:%M:%S.%f') if modified_at else None
-		modified_by = data.get('modifiedBy')
-		self._modified_by = User(**modified_by, client=self._client) if modified_by else None
+		if offline:
+			self._created_by = None
+			self._modified_by = None
+		else:
+			self._created_by = User(**data.get('createdBy'), client=self._client)
+			modified_by = data.get('modifiedBy')
+			self._modified_by = User(**modified_by, client=self._client) if modified_by else None
 		
 		type_info = data.get('type')
 		if type_info and isinstance(type_info, dict):

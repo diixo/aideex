@@ -342,22 +342,25 @@ class TrackerItem:
 		# TODO
 
 	def _load(self, data: dict[str, Any] = None):
-		"""Loads the rest of the items's data. When an item is fetched using 
-		`Tracker.get_items` only the ID and Name of the item are retrieved. 
-		This prevents a lot of extra data that's not needed from being sent. Thus, 
-		this method exists to flush out the rest of the item information if it is 
+		"""Loads the rest of the items's data. When an item is fetched using
+		`Tracker.get_items` only the ID and Name of the item are retrieved.
+		This prevents a lot of extra data that's not needed from being sent. Thus,
+		this method exists to flush out the rest of the item information if it is
 		needed."""
 		if self._loaded:
 			logger.info('Item already loaded, ignoring...')
 			return
+		offline = self._client is None
 		if not data:
+			if offline:
+				return
 			data: dict[str, Any] = self._client.get(f'items/{self.id}')
 		from .tracker import Tracker
-		if not isinstance(self._tracker, Tracker):
+		if not offline and not isinstance(self._tracker, Tracker):
 			self._tracker = Tracker(**data.get('tracker'), client=self._client)
-		
-		# Cache field data first
-		self._fields = self.get_fields()
+
+		# Cache field data first — skip API call when offline
+		self._fields = [] if offline else self.get_fields()
 		
 		# Rest of the system fields
 		self._accrued_millis = data.get('accruedMillis')
@@ -377,57 +380,54 @@ class TrackerItem:
 		self._story_points = data.get('storyPoints')
 		self._description = data.get('description')
 		self._description_format = data.get('descriptionFormat')
-		self._created_at = datetime.strptime(data.get('createdAt'), '%Y-%m-%dT%H:%M:%S.%f')
-		self._created_by = User(**data.get('createdBy'), client=self._client)
-		self._modified_at = datetime.strptime(data.get('modifiedAt'), '%Y-%m-%dT%H:%M:%S.%f')
-		self._modified_by = User(**data.get('modifiedBy'), client=self._client)
-
-		# Want to link parents together
-		parent = data.get('parent')
-		if isinstance(parent, TrackerItem):
-			self._parent = parent
-		elif isinstance(parent, dict):
-			self._parent = TrackerItem(**parent, client=self._client, tracker=self._tracker)
-		else:
+		created_at = data.get('createdAt')
+		self._created_at = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%S.%f') if created_at else None
+		modified_at = data.get('modifiedAt')
+		self._modified_at = datetime.strptime(modified_at, '%Y-%m-%dT%H:%M:%S.%f') if modified_at else None
+		if offline:
+			self._created_by = None
+			self._modified_by = None
 			self._parent = None
-		
+			self._children = []
+			self._custom_fields = []
+		else:
+			self._created_by = User(**data.get('createdBy'), client=self._client)
+			self._modified_by = User(**data.get('modifiedBy'), client=self._client)
+			parent = data.get('parent')
+			if isinstance(parent, TrackerItem):
+				self._parent = parent
+			elif isinstance(parent, dict):
+				self._parent = TrackerItem(**parent, client=self._client, tracker=self._tracker)
+			else:
+				self._parent = None
+			self._children = [TrackerItem(**ti, client=self._client, parent=self, tracker=self._tracker) for ti in data.get('children', [])]
+			custom_fields: list[dict[str, Any]] = data.get('customFields') or []
+			self._custom_fields = []
+			for custom_field in custom_fields:
+				field = self.get_field(custom_field.get('fieldId'))
+				if field:
+					self._custom_fields.append(field)
+
 		self._version = data.get('version')
 		self._assigned_to = data.get('assignedTo')
 		closed_at = data.get('closedAt')
 		self._closed_at = datetime.strptime(closed_at, '%Y-%m-%dT%H:%M:%S.%f') if closed_at else None
-		self._children = [TrackerItem(**ti, client=self._client, parent=self, tracker=self._tracker) for ti in data.get('children', [])]
-		
-		# Fetch the field from the cached fields on load.
-		custom_fields: list[dict[str, Any]] = data.get('customFields')
-		self._custom_fields = []
-		for custom_field in custom_fields:
-			#print("@@:", custom_field)
-			field = self.get_field(custom_field.get('fieldId'))
-			if field:
-				self._custom_fields.append(field)
-		
-		# These are all fields that exist in the _fields prop but no editable information is provided
-		# Fetch them from the _fields property to get that info
-		# ! From the get_tracker_item Priority and Status (and the others probably) return the following
-		# ! "priority":{"id":0,"name":"Unset","type":"ChoiceOptionReference"}
-		# ! Which this doesn't handle. These will need to get the field from the issue by
-		# ! name and instantiate the ChoiceValue from the given information and set the 
-		# ! ChoiceField._value to the parsed ChoiceValue
-		field_map = {f.name: f for f in self._fields}
-		
-		# This isn't a field? but instead a choice value?
+
 		priority = data.get('priority')
 		priority_val = ChoiceValue(**priority) if priority else None
 		self._priority = priority_val
-		# priority_field = field_map.get('Priority')
-		# self._priority = priority_field
-		# self._priority._value = priority_val
 
 		status = data.get('status')
 		status_val = ChoiceValue(**status) if status else None
-		status_field = field_map.get('Status')
-		self._status = status_field
-		self._status._value = status_val
+		if offline:
+			# Offline: store ChoiceValue directly, no field wrapper needed
+			self._status = status_val
+		else:
+			field_map = {f.name: f for f in self._fields}
+			status_field = field_map.get('Status')
+			self._status = status_field
+			if self._status:
+				self._status._value = status_val
 
 		# TODO: These need to match the priority and status method from self._fields to get the extra information about the field and not just the id, name, and type that is provided on the item endpoint.
 

@@ -14,17 +14,15 @@
     <span class="material-icons" style="font-size:1rem;">swap_horiz</span>
     Change Project
   </a>
-  <a href="{% url 'app_main:codebeamer_save' %}" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1">
-    <span class="material-icons" style="font-size:1rem;">save</span>
-    Save JSON
-  </a>
-  <form method="post" action="{% url 'app_main:codebeamer_evaluate' %}" class="mb-0">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
-      <span class="material-icons" style="font-size:1rem;">analytics</span>
-      Evaluate
-    </button>
-  </form>
+
+  <button id="btn-evaluate" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+    <span class="material-icons" style="font-size:1rem;">analytics</span>
+    Evaluate
+  </button>
+  <button id="btn-pull" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+    <span class="material-icons" style="font-size:1rem;">cloud_download</span>
+    Pull
+  </button>
   {% endif %}
 </div>
 
@@ -129,8 +127,8 @@
 {% if selected_project_id %}
 <div class="card shadow-sm mb-3 d-none" id="progress-card">
   <div class="card-header py-2 d-flex align-items-center gap-2">
-    <span class="material-icons text-primary" style="font-size:1rem;">analytics</span>
-    <span class="fw-semibold">Evaluate</span>
+    <span class="material-icons text-primary" style="font-size:1rem;" id="progress-icon">analytics</span>
+    <span class="fw-semibold" id="progress-title">Processing</span>
     <span class="badge bg-primary ms-1" id="progress-stage-badge">—</span>
     <button class="btn btn-sm btn-outline-secondary ms-auto" id="btn-hide-progress">
       <i class="bi bi-x"></i>
@@ -160,6 +158,11 @@ function updateProgress(data) {
   var done = prog.done || 0;
   var failed = prog.failed || 0;
   var pct = total > 0 ? Math.round(done / total * 100) : (stage === 'idle' ? 100 : 5);
+
+  var titles = {'evaluate': 'Evaluate', 'pull': 'Pull'};
+  var icons  = {'evaluate': 'analytics', 'pull': 'cloud_download'};
+  document.getElementById('progress-title').textContent = titles[stage] || 'Processing';
+  document.getElementById('progress-icon').textContent  = icons[stage]  || 'sync';
 
   var badge = document.getElementById('progress-stage-badge');
   badge.textContent = stage + (data.phase ? ' · ' + data.phase : '');
@@ -218,6 +221,31 @@ document.getElementById('btn-hide-progress').addEventListener('click', function(
   _hidden = true;
   document.getElementById('progress-card').classList.add('d-none');
   if (_pollTimer) clearTimeout(_pollTimer);
+});
+
+function getCsrf() {
+  var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+function startTask(url) {
+  if (_pollTimer) clearTimeout(_pollTimer);
+  _hidden = false;
+  document.getElementById('progress-card').classList.remove('d-none');
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+  document.getElementById('progress-text').textContent = '…';
+  document.getElementById('progress-stage-badge').textContent = 'starting';
+  var fd = new FormData();
+  fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd})
+    .finally(function() { pollStatus(); });
+}
+
+document.getElementById('btn-evaluate').addEventListener('click', function() {
+  startTask('{% url "app_main:codebeamer_evaluate" %}');
+});
+document.getElementById('btn-pull').addEventListener('click', function() {
+  startTask('{% url "app_main:codebeamer_pull" %}');
 });
 
 pollStatus();
