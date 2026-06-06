@@ -233,25 +233,41 @@ def codebeamer(request):
     return render(request, "app_main/codebeamer.html", context)
 
 
-def _serialize_fields(tracker: Tracker):
-    import time as _t
+def _serialize_fields(tracker: Tracker, project_id: int = None):
+    pid = project_id or (tracker.project.id if tracker.project else None)
+    raw_fields = None
+    if pid:
+        resp = backend_get(f"/codebeamer/tracker-fields/{tracker.id}", params={"project_id": pid})
+        if resp.get("ok"):
+            raw_fields = resp.get("fields", [])
+
+    if raw_fields is not None:
+        fields = [
+            {
+                "id":            f.get("id"),
+                "name":          f.get("name"),
+                "type":          f.get("type"),
+                "multiple":      f.get("multipleValues") or False,
+                "options":       [{"id": o.get("id"), "name": o.get("name")} for o in (f.get("options") or [])],
+                "tracker_field": f.get("trackerItemField"),
+            }
+            for f in raw_fields if not f.get("hidden")
+        ]
+        return fields
+
+    # Fallback: live CB API via FieldDefinition (slow — N requests, no corpus available)
     fields = []
-    _t0 = _t.time()
-    cb_fields = tracker.get_fields()
-    print(f"[TIMING] get_fields ({len(cb_fields)} fields): {_t.time()-_t0:.2f}s")
-    _t0 = _t.time()
-    for f in cb_fields:
+    for f in tracker.get_fields():
         if f.hidden:
             continue
         fields.append({
-            "id":             f.id,
-            "name":           f.name,
-            "type":           f._type,
-            "multiple":       f.multiple_values or False,
-            "options":        [{"id": o.id, "name": o.name} for o in f.options] if f.options else [],
-            "tracker_field":  f.tracker_item_field,
+            "id":            f.id,
+            "name":          f.name,
+            "type":          f._type,
+            "multiple":      f.multiple_values or False,
+            "options":       [{"id": o.id, "name": o.name} for o in f.options] if f.options else [],
+            "tracker_field": f.tracker_item_field,
         })
-    print(f"[TIMING] serialize_fields loop: {_t.time()-_t0:.2f}s")
     return fields
 
 
@@ -638,11 +654,8 @@ def codebeamer_tracker(request, tracker_id):
         "cb_url": credentials.get("cb_url", ""),
     }
     try:
-        import time as _time
-        _t0 = _time.time()
         cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
         tracker = cb.get_tracker(tracker_id)
-        print(f"[TIMING] get_tracker: {_time.time()-_t0:.2f}s"); _t0 = _time.time()
         context["tracker"] = {
             "id":          tracker.id,
             "name":        tracker.name,
@@ -660,9 +673,8 @@ def codebeamer_tracker(request, tracker_id):
             "icon":        TRACKER_ICONS.get(tracker.type_id, "label"),
         }
         from pybeamer.tracker_item import TrackerItem as _TI
-        fields_resp = backend_get(f"/codebeamer/tracker-fields/{tracker_id}")
-        all_fields = fields_resp.get("fields", []) if fields_resp.get("ok") else _serialize_fields(tracker)
-        print(f"[TIMING] serialize_fields: {_time.time()-_t0:.2f}s"); _t0 = _time.time()
+        _proj_id = tracker.project.id if tracker.project else credentials.get("project_id")
+        all_fields = _serialize_fields(tracker, project_id=_proj_id)
         # Category field drives the type_name — extract it separately
         category_field = next(
             (f for f in all_fields if f["tracker_field"] in ("categories", "category") or f["name"].lower() in ("category", "categories")),
@@ -689,7 +701,6 @@ def codebeamer_tracker(request, tracker_id):
                                params={"project_id": project_id, "type_name": "release", "type_id": 103})
             release_items = resp.get("items", [])
         context["release_items"] = release_items
-        print(f"[TIMING] release_items: {_time.time()-_t0:.2f}s"); _t0 = _time.time()
 
         # Pick form template by tracker type_name, fallback to default
         type_slug = (tracker.type_name or "").lower().replace(" ", "_").replace("/", "_")
@@ -703,7 +714,6 @@ def codebeamer_tracker(request, tracker_id):
             context["tracker_form_template"] = "app_main/cb_tracker_forms/default.html"
         items = tracker.get_items()
         context["items_total"] = len(items)
-        print(f"[TIMING] get_items ({len(items)}): {_time.time()-_t0:.2f}s"); _t0 = _time.time()
         is_issue = (tracker.type_name or "").lower() == "issue"
         context["is_issue_tracker"] = is_issue
 
@@ -727,7 +737,6 @@ def codebeamer_tracker(request, tracker_id):
             return base
 
         context["items"] = [_serialize_item(i) for i in items]
-        print(f"[TIMING] serialize_items: {_time.time()-_t0:.2f}s")
     except Exception as e:
         context["fetch_error"] = str(e)
 

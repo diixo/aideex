@@ -172,7 +172,7 @@ function updateProgress(data) {
   bar.style.width = pct + '%';
   bar.className = 'progress-bar' + (stage === 'idle' ? ' bg-success' : stage === 'error' ? ' bg-danger' : ' progress-bar-striped progress-bar-animated bg-primary');
 
-  var text = total > 0 ? (done + ' / ' + total + ' trackers') : stage;
+  var text = total > 0 ? (done + ' / ' + total + ' objects') : stage;
   if (failed > 0) text += ' (' + failed + ' failed)';
   if (data.eta_sec != null) text += ' · ETA ' + Math.round(data.eta_sec) + 's';
   if (data.error) text += ' — ' + data.error;

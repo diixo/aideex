@@ -415,6 +415,31 @@ async def codebeamer_selection_get(project_id: int) -> Dict[str, Any]:
 # Background task infrastructure
 # ---------------------------------------------------------------------------
 
+class _PullProgress:
+    """Tracks done/failures counters and throttles status file writes to ≤1 per 500ms."""
+    def __init__(self, project_id: int, total: int, started_wall: float):
+        self.project_id  = project_id
+        self.total       = total
+        self.started_wall = started_wall
+        self.done        = 0
+        self.failures    = 0
+        self._last_write = 0.0
+
+    def tick(self) -> None:
+        self.done += 1
+        now = time.time()
+        if now - self._last_write >= 0.5 or self.done == self.total:
+            self._last_write = now
+            elapsed = now - self.started_wall
+            eta = (self.total - self.done) * (elapsed / self.done) if self.done > 0 and self.total > self.done else 0.0
+            _update_cb_status(self.project_id, "pull", {
+                "phase": "fetch",
+                "progress": {"total": self.total, "done": self.done, "failed": self.failures},
+                "started_at": self.started_wall,
+                "eta_sec": max(0.0, float(eta)),
+            })
+
+
 def _update_cb_status(project_id: int, stage: str, extra: Dict[str, Any] | None = None) -> None:
     st: Dict[str, Any] = {"project_id": project_id, "stage": stage, "ts": time.time()}
     if extra:
@@ -681,32 +706,6 @@ async def codebeamer_items_by_tracker_type(
     return {"ok": True, "items": result}
 
 
-@codebeamer_router.get("/codebeamer/tracker-fields/{tracker_id}", tags=["codebeamer"])
-def codebeamer_tracker_fields(tracker_id: int) -> Dict[str, Any]:
-    """Return serialized field definitions for a tracker."""
-    saved = _load_saved_pswd()
-    if not saved:
-        raise HTTPException(status_code=400, detail="Password not configured")
-    try:
-        client = _make_client(saved)
-        tracker = client.get_tracker(tracker_id)
-        fields = []
-        for f in tracker.get_fields():
-            if f.hidden:
-                continue
-            fields.append({
-                "id":           f.id,
-                "name":         f.name,
-                "type":         f._type,
-                "multiple":     f.multiple_values or False,
-                "options":      [{"id": o.id, "name": o.name} for o in f.options] if f.options else [],
-                "tracker_field": f.tracker_item_field,
-            })
-        return {"ok": True, "fields": fields}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
 @codebeamer_router.get("/codebeamer/tree/{item_id}", tags=["codebeamer"])
 async def codebeamer_tree_item(
     item_id: int,
@@ -828,18 +827,23 @@ def codebeamer_status(project_id: int) -> Dict[str, Any]:
 def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
     started_wall = time.time()
     sync_dir = CORPUS_ROOT / str(project_id) / ".sync"
 
-    # Require tree.json (created by evaluate)
-    try:
-        tree = json.loads((sync_dir / "tree.json").read_text(encoding="utf-8"))
-    except Exception:
-        raise SystemExit("tree.json missing; run evaluate first")
+    # Load tree.json; run evaluate automatically if missing or stale
+    def _load_tree() -> dict:
+        try:
+            return json.loads((sync_dir / "tree.json").read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    tree = _load_tree()
     if tree.get("project_id") != project_id:
-        raise SystemExit("tree.json is stale; run evaluate first")
+        _CB_LOG.info("pull: tree.json missing/stale — running evaluate first project_id=%d", project_id)
+        _cb_evaluate(project_id, saved, workers)
+        tree = _load_tree()
+        if tree.get("project_id") != project_id:
+            raise SystemExit("evaluate did not produce a valid tree.json")
 
     trackers_info = tree.get("trackers", [])
     total_trackers = len(trackers_info)
@@ -855,44 +859,52 @@ def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
     })
 
     cb = _make_client(saved)
-    done = 0
-    failures = 0
+    progress = _PullProgress(project_id, total, started_wall)
 
     def _fetch_raw(url: str) -> dict:
         raw = cb._client.get(url)
         return raw if isinstance(raw, dict) else {}
 
-    last_write: list[float] = [0.0]  # mutable container for nonlocal write in nested fn
-
-    def _track_progress():
-        nonlocal done
-        done += 1
-        now = time.time()
-        if now - last_write[0] >= 0.5 or done == total:
-            last_write[0] = now
-            elapsed = now - started_wall
-            eta = (total - done) * (elapsed / done) if done > 0 and total > done else 0.0
-            _update_cb_status(project_id, "pull", {
-                "phase": "fetch",
-                "progress": {"total": total, "done": done, "failed": failures},
-                "started_at": started_wall,
-                "eta_sec": max(0.0, float(eta)),
-            })
+    def _fetch_list(url: str) -> list:
+        raw = cb._client.get(url)
+        return raw if isinstance(raw, list) else []
 
     # Fetch trackers + their items in parallel per tracker
     trackers_data = []
     all_items: list[dict] = []
+    tracker_fields: dict[str, list] = {}   # str(tracker_id) → list of full field dicts
     for t_info in trackers_info:
         tid = t_info["id"]
         try:
             raw_tracker = _fetch_raw(f"trackers/{tid}")
         except Exception as exc:
             _CB_LOG.warning("pull: tracker %s failed: %s", tid, exc)
-            failures += 1
-            raw_tracker = {"id": tid, "name": t_info.get("name", ""), "type": {}, "color": "#6c757d"}
-        _track_progress()
+            progress.failures += 1
+            raw_tracker = {"id": tid, "name": t_info.get("name", ""), "type": {"id": -1, "name": "Unknown", "type": "TrackerTypeReference"}, "color": "#6c757d"}
+
+        # Fetch full field definitions for this tracker in parallel
+        try:
+            field_refs = _fetch_list(f"trackers/{tid}/fields")
+            field_ids = [r.get("id") for r in field_refs if r.get("id")]
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futs = {ex.submit(_fetch_raw, f"trackers/{tid}/fields/{fid}"): fid for fid in field_ids}
+                raw_fields = []
+                for fut in as_completed(futs):
+                    try:
+                        raw_fields.append(fut.result())
+                    except Exception as exc:
+                        _CB_LOG.warning("pull: field %s/%s failed: %s", tid, futs[fut], exc)
+            tracker_fields[str(tid)] = raw_fields
+        except Exception as exc:
+            _CB_LOG.warning("pull: fields for tracker %s failed: %s", tid, exc)
+            tracker_fields[str(tid)] = []
+
+        progress.tick()  # tracker done: object + all fields fetched
 
         item_ids = [item["id"] for item in t_info.get("items", [])]
+
+        if len(item_ids) > 0:
+            _CB_LOG.info("pull: tracker_id=%s items=%d fetching details with %d workers", tid, len(item_ids), workers)
 
         # Fetch full item objects for this tracker in parallel
         items_data = []
@@ -905,9 +917,9 @@ def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
                     items_data.append(raw_item)
                 except Exception as exc:
                     _CB_LOG.warning("pull: item %s failed: %s", iid, exc)
-                    failures += 1
+                    progress.failures += 1
                     items_data.append({"id": iid, "name": str(iid)})
-                _track_progress()
+                progress.tick()
 
         # tracker keeps only lightweight refs; full objects go to top-level items
         raw_tracker["items"] = [{"id": it.get("id"), "name": it.get("name", "")} for it in items_data]
@@ -915,14 +927,20 @@ def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
         all_items.extend(items_data)
 
     # Save to codebeamer.json and rebuild item_map
-    data = {"project_id": project_id, "project_name": tree.get("project_name", ""), "trackers": trackers_data, "items": all_items}
+    data = {
+        "project_id": project_id,
+        "project_name": tree.get("project_name", ""),
+        "trackers": trackers_data,
+        "items": all_items,
+        "tracker_fields": tracker_fields
+    }
     _corpus_json_path(project_id).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     _CB_ITEM_MAPS[project_id] = _build_item_map(data)
 
-    _CB_LOG.info("pull done: project_id=%d items=%d failed=%d", project_id, total_items, failures)
+    _CB_LOG.info("pull done: project_id=%d items=%d failed=%d", project_id, total_items, progress.failures)
     _update_cb_status(project_id, "pull", {
         "phase": "done",
-        "progress": {"total": total, "done": total, "failed": failures},
+        "progress": {"total": total, "done": total, "failed": progress.failures},
         "started_at": started_wall,
         "elapsed_sec": round(time.time() - started_wall, 3),
         "eta_sec": 0.0,
@@ -951,3 +969,44 @@ def codebeamer_pull(req: CodebeamerPullRequest) -> Dict[str, Any]:
     _CB_TASKS.setdefault(req.project_id, {})["thread"] = t
     t.start()
     return {"ok": True, "run_id": run_id}
+
+
+@codebeamer_router.get("/codebeamer/tracker-fields/{tracker_id}", tags=["codebeamer"])
+def codebeamer_tracker_fields(tracker_id: int, project_id: Optional[int] = None) -> Dict[str, Any]:
+    """Return raw field definitions for a tracker.
+    Reads from corpus JSON if project_id provided and pull was run; falls back to live CB API.
+    Caller is responsible for field mapping/filtering.
+    """
+    if project_id is not None:
+        path = _corpus_json_path(project_id)
+        if path.exists():
+            try:
+                raw_fields = json.loads(path.read_text(encoding="utf-8")).get("tracker_fields", {}).get(str(tracker_id))
+                if raw_fields is not None:
+                    return {"ok": True, "fields": raw_fields, "source": "corpus"}
+            except Exception as exc:
+                _CB_LOG.warning("tracker-fields: corpus read failed tracker_id=%s err=%s", tracker_id, exc)
+
+    # Fallback: live CB API — fetch raw field data directly without FieldDefinition lazy loading
+    saved = _load_saved_pswd()
+    if not saved:
+        raise HTTPException(status_code=400, detail="Password not configured")
+    try:
+        client = _make_client(saved)
+        field_refs = client._client.get(f"trackers/{tracker_id}/fields")
+        if not isinstance(field_refs, list):
+            return {"ok": True, "fields": [], "source": "api"}
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        raw_fields = []
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futs = {ex.submit(client._client.get, f"trackers/{tracker_id}/fields/{r.get('id')}"): r.get("id")
+                    for r in field_refs if r.get("id")}
+            for fut in as_completed(futs):
+                try:
+                    raw_fields.append(fut.result())
+                except Exception:
+                    pass
+        return {"ok": True, "fields": raw_fields, "source": "api"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
