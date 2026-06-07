@@ -19,10 +19,8 @@
     <a href="{% url 'app_main:codebeamer_tracker' node.id %}" class="d-flex align-items-center gap-2 text-decoration-none text-body">
       <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ node.color }};border-radius:3px;padding:2px;">{{ node.icon }}</span>
       <span class="small">{{ node.name }}</span>
-      <span class="text-muted ms-auto d-flex align-items-center gap-1">
-        <span class="small text-muted">{{ node.type_name }}:</span>
-        <code class="text-muted" style="font-size:.72rem;">{{ node.type_id }}</code>
-      </span>
+      {% if node.item_count %}<span class="badge bg-light text-muted border small">{{ node.item_count }}</span>{% endif %}
+      <span class="text-muted ms-auto small">{{ node.type_name }}</span>
     </a>
   </li>
   {% endif %}

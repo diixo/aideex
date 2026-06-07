@@ -341,6 +341,7 @@ async def codebeamer_tree_view(project_id: int) -> Dict[str, Any]:
             if tid:
                 t_type = t.get("type") or {}
                 tracker_meta[str(tid)] = {
+                    "name":      t.get("name", ""),
                     "type_id":   t_type.get("id", -1),
                     "type_name": t_type.get("name"),
                     "color":     t.get("color") or "#6c757d",

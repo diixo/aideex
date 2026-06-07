@@ -321,13 +321,14 @@ def _serialize_tree(nodes: list, tracker_meta: dict = None) -> list:
             meta = (tracker_meta or {}).get(str(tid), {})
             type_id = meta.get("type_id", -1)
             result.append({
-                "kind":      "tracker",
-                "id":        tid,
-                "name":      node.get("text", str(tid)),
-                "type_id":   type_id,
-                "type_name": meta.get("type_name"),
-                "color":     meta.get("color", "#6c757d"),
-                "icon":      TRACKER_ICONS.get(type_id, "label"),
+                "kind":       "tracker",
+                "id":         tid,
+                "name":       meta.get("name") or str(tid),
+                "type_id":    type_id,
+                "type_name":  meta.get("type_name"),
+                "color":      meta.get("color", "#6c757d"),
+                "icon":       TRACKER_ICONS.get(type_id, "label"),
+                "item_count": len(node.get("items") or []),
             })
     return result
 
