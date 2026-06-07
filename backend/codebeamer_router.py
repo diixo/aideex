@@ -767,38 +767,22 @@ async def codebeamer_item_map(project_id: int) -> Dict[str, Any]:
     return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
 
 
-@codebeamer_router.get("/codebeamer/items-by-tracker-type", tags=["codebeamer"])
-async def codebeamer_items_by_tracker_type(
+@codebeamer_router.get("/codebeamer/items-by-type", tags=["codebeamer"])
+async def codebeamer_items_by_type(
     project_id: int,
     type_name: str,
-    type_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Return items from trackers matching type_name (case-insensitive) or type_id, read from corpus JSON."""
+    """Return items whose typeName matches type_name (case-insensitive), read from corpus JSON."""
     data = _load_corpus(project_id)
     if data is None:
         return {"ok": False, "error": "Corpus not found — run Pull first", "items": []}
 
     type_name_lower = type_name.lower()
-    items_by_id: dict[int, dict] = {
-        raw["id"]: raw for raw in data.get("items", []) if raw.get("id")
-    }
-
-    result: list[dict] = []
-    for t in data.get("trackers", []):
-        t_type = t.get("type") or {}
-        match = (
-            (t_type.get("name") or "").lower() == type_name_lower
-            or (type_id is not None and t_type.get("id") == type_id)
-        )
-        if not match:
-            continue
-        for ref in t.get("items", []):
-            iid = ref.get("id")
-            if not iid:
-                continue
-            full = items_by_id.get(iid)
-            result.append({"id": iid, "name": full.get("name", ref.get("name", "")) if full else ref.get("name", "")})
-
+    result = [
+        {"id": item["id"], "name": item.get("name", "")}
+        for item in data.get("items", [])
+        if item.get("id") and (item.get("typeName") or "").lower() == type_name_lower
+    ]
     return {"ok": True, "items": result}
 
 

@@ -735,8 +735,8 @@ def codebeamer_tracker(request, tracker_id):
         project_id = tracker.project.id if tracker.project else credentials.get("project_id")
         release_items = []
         if project_id:
-            resp = backend_get("/codebeamer/items-by-tracker-type",
-                               params={"project_id": project_id, "type_name": "release", "type_id": 103})
+            resp = backend_get("/codebeamer/items-by-type",
+                               params={"project_id": project_id, "type_name": "release"})
             release_items = resp.get("items", [])
         context["release_items"] = release_items
 
