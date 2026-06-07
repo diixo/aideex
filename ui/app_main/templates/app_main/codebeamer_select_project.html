@@ -61,6 +61,14 @@
           <span class="material-icons" style="font-size:1rem;">arrow_forward</span>
           Select
         </button>
+        <button id="btn-evaluate" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+          <span class="material-icons" style="font-size:1rem;">analytics</span>
+          Evaluate
+        </button>
+        <button id="btn-pull" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+          <span class="material-icons" style="font-size:1rem;">cloud_download</span>
+          Pull
+        </button>
       </div>
     </div>
   </div>
@@ -179,6 +187,12 @@ function renderLocalProjects(projects) {
         '<button id="btn-select-local" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">' +
           '<span class="material-icons" style="font-size:1rem;">arrow_forward</span> Select' +
         '</button>' +
+        '<button id="btn-evaluate" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">' +
+          '<span class="material-icons" style="font-size:1rem;">analytics</span> Evaluate' +
+        '</button>' +
+        '<button id="btn-pull" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">' +
+          '<span class="material-icons" style="font-size:1rem;">cloud_download</span> Pull' +
+        '</button>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -193,19 +207,55 @@ function refreshLocalProjects() {
     });
 }
 
+function getSelectedProjectId() {
+  var sel = document.getElementById('local-project-select');
+  return sel && sel.value ? parseInt(sel.value) : null;
+}
+
+function startTask(url, projectId) {
+  if (_pollTimer) clearTimeout(_pollTimer);
+  _hidden = false;
+  _activePullId = projectId;
+  document.getElementById('progress-card').classList.remove('d-none');
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+  document.getElementById('progress-text').textContent = '…';
+  document.getElementById('progress-stage-badge').textContent = 'starting';
+  var fd = new FormData();
+  fd.append('project_id', projectId);
+  fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd, redirect: 'manual'})
+    .finally(function() { pollStatus(); });
+}
+
 function bindSelectBtn() {
-  var btn = document.getElementById('btn-select-local');
-  if (!btn) return;
-  btn.addEventListener('click', function() {
-    var sel = document.getElementById('local-project-select');
-    if (!sel || !sel.value) return;
-    var projectId = parseInt(sel.value);
-    var fd = new FormData();
-    fd.append('project_id', projectId);
-    fd.append('csrfmiddlewaretoken', getCsrf());
-    fetch('{% url "app_main:codebeamer_select_project" %}', {method: 'POST', body: fd, redirect: 'manual'})
-      .finally(function() { window.location.href = '{% url "app_main:codebeamer" %}'; });
-  });
+  var btnSelect = document.getElementById('btn-select-local');
+  if (btnSelect) {
+    btnSelect.addEventListener('click', function() {
+      var projectId = getSelectedProjectId();
+      if (!projectId) return;
+      var fd = new FormData();
+      fd.append('project_id', projectId);
+      fd.append('csrfmiddlewaretoken', getCsrf());
+      fetch('{% url "app_main:codebeamer_select_project" %}', {method: 'POST', body: fd, redirect: 'manual'})
+        .finally(function() { window.location.href = '{% url "app_main:codebeamer" %}'; });
+    });
+  }
+  var btnEval = document.getElementById('btn-evaluate');
+  if (btnEval) {
+    btnEval.addEventListener('click', function() {
+      var projectId = getSelectedProjectId();
+      if (!projectId) return;
+      startTask('{% url "app_main:codebeamer_evaluate" %}', projectId);
+    });
+  }
+  var btnPull = document.getElementById('btn-pull');
+  if (btnPull) {
+    btnPull.addEventListener('click', function() {
+      var projectId = getSelectedProjectId();
+      if (!projectId) return;
+      startTask('{% url "app_main:codebeamer_pull" %}', projectId);
+    });
+  }
 }
 
 bindSelectBtn();

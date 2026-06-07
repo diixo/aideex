@@ -176,8 +176,12 @@ def codebeamer_pull_view(request):
 
 def codebeamer_evaluate(request):
     if request.method == "POST":
-        saved = _cb_load_credentials()
-        project_id = saved.get("project_id")
+        project_id = request.POST.get("project_id")
+        if project_id:
+            project_id = int(project_id)
+        else:
+            saved = _cb_load_credentials()
+            project_id = saved.get("project_id")
         if project_id:
             try:
                 backend_post("/codebeamer/evaluate", {"project_id": project_id, "workers": 4})

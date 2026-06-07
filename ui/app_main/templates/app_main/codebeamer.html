@@ -15,14 +15,6 @@
     Change Project
   </a>
 
-  <button id="btn-evaluate" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
-    <span class="material-icons" style="font-size:1rem;">analytics</span>
-    Evaluate
-  </button>
-  <button id="btn-pull" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
-    <span class="material-icons" style="font-size:1rem;">cloud_download</span>
-    Pull
-  </button>
   {% endif %}
 </div>
 
@@ -221,31 +213,6 @@ document.getElementById('btn-hide-progress').addEventListener('click', function(
   _hidden = true;
   document.getElementById('progress-card').classList.add('d-none');
   if (_pollTimer) clearTimeout(_pollTimer);
-});
-
-function getCsrf() {
-  var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
-  return m ? m[1] : '';
-}
-
-function startTask(url) {
-  if (_pollTimer) clearTimeout(_pollTimer);
-  _hidden = false;
-  document.getElementById('progress-card').classList.remove('d-none');
-  document.getElementById('progress-bar').style.width = '0%';
-  document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
-  document.getElementById('progress-text').textContent = '…';
-  document.getElementById('progress-stage-badge').textContent = 'starting';
-  var fd = new FormData();
-  fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd, redirect: 'manual'})
-    .finally(function() { pollStatus(); });
-}
-
-document.getElementById('btn-evaluate').addEventListener('click', function() {
-  startTask('{% url "app_main:codebeamer_evaluate" %}');
-});
-document.getElementById('btn-pull').addEventListener('click', function() {
-  startTask('{% url "app_main:codebeamer_pull" %}');
 });
 
 pollStatus();
