@@ -73,7 +73,7 @@
     </div>
   </div>
   {% else %}
-  <p class="text-muted small">No local projects yet. Click <strong>Add Project</strong> to pull one.</p>
+  <p class="text-muted small">No local available projects yet. Click <strong>Add Project</strong> to pull one.</p>
   {% endif %}
 </div>
 
@@ -165,7 +165,7 @@ document.getElementById('btn-hide-progress').addEventListener('click', function(
 
 function renderLocalProjects(projects) {
   if (!projects.length) {
-    return '<p class="text-muted small">No local projects yet. Click <strong>Add Project</strong> to pull one.</p>';
+    return '<p class="text-muted small">No local available projects yet. Click <strong>Add Project</strong> to pull one.</p>';
   }
   var opts = projects.map(function(p) {
     var sel = p.id === _selectedId ? ' selected' : '';
