@@ -216,6 +216,7 @@ function startTask(url, projectId) {
   if (_pollTimer) clearTimeout(_pollTimer);
   _hidden = false;
   _activePullId = projectId;
+  _selectedId = projectId;
   document.getElementById('progress-card').classList.remove('d-none');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';

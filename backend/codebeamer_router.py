@@ -313,6 +313,15 @@ async def codebeamer_projects() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@codebeamer_router.get("/codebeamer/trackers", tags=["codebeamer"])
+async def codebeamer_trackers(project_id: int) -> Dict[str, Any]:
+    """Return raw tracker list from corpus. Returns ok=False if corpus not available."""
+    corpus = _load_corpus(project_id)
+    if not corpus:
+        return {"ok": False, "error": "Corpus not found — run Pull first"}
+    return {"ok": True, "trackers": corpus.get("trackers", [])}
+
+
 @codebeamer_router.get("/codebeamer/tree-view", tags=["codebeamer"])
 async def codebeamer_tree_view(project_id: int) -> Dict[str, Any]:
     """Return raw tree nodes (from tree.json) + tracker metadata lookup (from corpus).

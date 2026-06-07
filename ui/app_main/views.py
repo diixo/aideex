@@ -95,22 +95,25 @@ def _cb_load_credentials():
     return {}
 
 
-def _cb_load_tracker_context(cb, project_id, projects):
-    project = cb.get_project(project_id)
-    trackers = project.get_trackers()
+def _cb_load_tracker_context(project_id, projects):
+    """Returns context dict or None if corpus not available."""
+    resp = backend_get("/codebeamer/trackers", params={"project_id": project_id})
+    if not resp.get("ok"):
+        return None
     project_name = next((p["name"] for p in projects if p["id"] == project_id), str(project_id))
-    all_trackers = [
-        {
-            "id":        t.id,
-            "name":      t.name,
-            "type_id":   t.type_id,
-            "type_name": t.type_name,
-            "color":    t.color or "#6c757d",
-            "icon":     TRACKER_ICONS.get(t.type_id, "label"),
-            "key_name": t.key_name,
-        }
-        for t in trackers
-    ]
+    all_trackers = []
+    for t in resp.get("trackers", []):
+        t_type = t.get("type") or {}
+        type_id = t_type.get("id", -1)
+        all_trackers.append({
+            "id":        t.get("id"),
+            "name":      t.get("name", ""),
+            "type_id":   type_id,
+            "type_name": t_type.get("name"),
+            "color":     t.get("color") or "#6c757d",
+            "icon":      TRACKER_ICONS.get(type_id, "label"),
+            "key_name":  t.get("keyName"),
+        })
     return {
         "selected_project_id":   project_id,
         "selected_project_name": project_name,
@@ -219,10 +222,13 @@ def codebeamer(request):
 
     if request.method == "GET" and credentials:
         try:
-            cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
             context["projects"] = _cb_load_projects()
             if credentials.get("project_id"):
-                context.update(_cb_load_tracker_context(cb, credentials["project_id"], context["projects"]))
+                tracker_ctx = _cb_load_tracker_context(credentials["project_id"], context["projects"])
+                if tracker_ctx is None:
+                    from django.shortcuts import redirect as _redirect
+                    return _redirect("app_main:codebeamer_select_project")
+                context.update(tracker_ctx)
         except Exception as e:
             context["fetch_error"] = str(e)
         context.update({"cb_url": credentials.get("cb_url", ""), "username": credentials.get("username", ""), "password": credentials.get("password", "")})
@@ -250,7 +256,9 @@ def codebeamer(request):
                     project_id = int(request.POST.get("project_id", 0))
                     context["projects"] = _cb_load_projects()
                     _cb_set_project(project_id)
-                    context.update(_cb_load_tracker_context(cb, project_id, context["projects"]))
+                    tracker_ctx = _cb_load_tracker_context(project_id, context["projects"])
+                    if tracker_ctx:
+                        context.update(tracker_ctx)
 
             except Exception as e:
                 context["fetch_error"] = str(e)
