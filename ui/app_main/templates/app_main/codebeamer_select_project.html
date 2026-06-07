@@ -114,8 +114,10 @@ function updateProgress(data) {
   var done  = prog.done  || 0;
   var pct   = total > 0 ? Math.round(done / total * 100) : (stage === 'idle' ? 100 : 5);
 
-  document.getElementById('progress-title').textContent = stage === 'idle' ? 'Done' : 'Pull';
-  document.getElementById('progress-icon').textContent  = stage === 'idle' ? 'check_circle' : 'cloud_download';
+  var titles = {'evaluate': 'Evaluate', 'pull': 'Pull', 'idle': 'Done'};
+  var icons  = {'evaluate': 'analytics', 'pull': 'cloud_download', 'idle': 'check_circle'};
+  document.getElementById('progress-title').textContent = titles[stage] || 'Processing';
+  document.getElementById('progress-icon').textContent  = icons[stage]  || 'sync';
 
   var badge = document.getElementById('progress-stage-badge');
   badge.textContent = stage + (data.phase ? ' · ' + data.phase : '');
@@ -308,6 +310,7 @@ document.getElementById('addProjectModal').addEventListener('click', function(e)
   // Show progress bar immediately
   _hidden = false;
   _activePullId = projectId;
+  _selectedId = projectId;
   document.getElementById('progress-card').classList.remove('d-none');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
