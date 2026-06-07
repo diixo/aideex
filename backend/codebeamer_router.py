@@ -313,6 +313,38 @@ async def codebeamer_projects() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@codebeamer_router.get("/codebeamer/tree-view", tags=["codebeamer"])
+async def codebeamer_tree_view(project_id: int) -> Dict[str, Any]:
+    """Return raw tree nodes (from tree.json) + tracker metadata lookup (from corpus).
+    Serialization is done on the caller side.
+    """
+    sync_dir = CORPUS_ROOT / str(project_id) / ".sync"
+    try:
+        raw_tree_doc = json.loads((sync_dir / "tree.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {"ok": False, "error": "tree.json not found — run Evaluate first"}
+
+    corpus = _load_corpus(project_id)
+    tracker_meta: dict[str, dict] = {}
+    if corpus:
+        for t in corpus.get("trackers", []):
+            tid = t.get("id")
+            if tid:
+                t_type = t.get("type") or {}
+                tracker_meta[str(tid)] = {
+                    "type_id":   t_type.get("id", -1),
+                    "type_name": t_type.get("name"),
+                    "color":     t.get("color") or "#6c757d",
+                }
+
+    return {
+        "ok":           True,
+        "project_name": raw_tree_doc.get("project_name", ""),
+        "tree":         raw_tree_doc.get("tree", []),
+        "tracker_meta": tracker_meta,
+    }
+
+
 @codebeamer_router.get("/codebeamer/local-projects", tags=["codebeamer"])
 async def codebeamer_local_projects() -> Dict[str, Any]:
     """Return projects that have been pulled locally (exist in corpus/)."""

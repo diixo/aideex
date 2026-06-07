@@ -298,26 +298,28 @@ def _serialize_fields(tracker: Tracker, project_id: int = None):
     return fields
 
 
-def _serialize_tree(nodes):
-    from pybeamer.folder import Folder
-    from pybeamer.tracker import Tracker
+def _serialize_tree(nodes: list, tracker_meta: dict = None) -> list:
+    """Convert raw CB tree nodes (from tree.json) to template-ready dicts."""
     result = []
     for node in nodes:
-        if isinstance(node, Folder):
+        if node.get("isFolder"):
             result.append({
-                "kind": "folder",
-                "name": node.name,
-                "children": _serialize_tree(node.children),
+                "kind":     "folder",
+                "name":     node.get("text", ""),
+                "children": _serialize_tree(node.get("children") or [], tracker_meta),
             })
-        elif isinstance(node, Tracker):
+        elif node.get("trackerId"):
+            tid = node["trackerId"]
+            meta = (tracker_meta or {}).get(str(tid), {})
+            type_id = meta.get("type_id", -1)
             result.append({
-                "kind": "tracker",
-                "id":        node.id,
-                "name":      node.name,
-                "type_id":   node.type_id,
-                "type_name": node.type_name,
-                "color":     node.color or "#6c757d",
-                "icon":      TRACKER_ICONS.get(node.type_id, "label"),
+                "kind":      "tracker",
+                "id":        tid,
+                "name":      node.get("text", str(tid)),
+                "type_id":   type_id,
+                "type_name": meta.get("type_name"),
+                "color":     meta.get("color", "#6c757d"),
+                "icon":      TRACKER_ICONS.get(type_id, "label"),
             })
     return result
 
@@ -654,17 +656,17 @@ def codebeamer_tree(request):
         from django.shortcuts import redirect as _redirect
         return _redirect("app_main:codebeamer")
 
+    project_id = credentials["project_id"]
     context = {
         "title": "AI-delix - Codebeamer Tree",
         "cb_url": credentials.get("cb_url", ""),
     }
-    try:
-        cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
-        project = cb.get_project(credentials["project_id"])
-        context["project_name"] = project.name
-        context["tree"] = _serialize_tree(project.get_tree())
-    except Exception as e:
-        context["fetch_error"] = str(e)
+    resp = backend_get("/codebeamer/tree-view", params={"project_id": project_id})
+    if resp.get("ok"):
+        context["project_name"] = resp.get("project_name", "")
+        context["tree"] = _serialize_tree(resp.get("tree", []), resp.get("tracker_meta", {}))
+    else:
+        context["fetch_error"] = resp.get("error", "Tree not available")
 
     return render(request, "app_main/codebeamer_tree.html", context)
 
