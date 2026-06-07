@@ -17,6 +17,11 @@ py -3.10 .\scripts\run_backend_server.py
 ```
 
 
+### Fast-API documentation:
+`http://127.0.0.1:8001/docs`
+
+
+
 ## Create repository structure
 
 ```bash
