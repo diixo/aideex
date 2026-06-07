@@ -281,10 +281,15 @@ async def codebeamer_set_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     if project_id:
         cur["project_id"] = project_id
         _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
-        saved = _load_saved_pswd()
-        if saved:
-            t = threading.Thread(target=_fetch_and_build_item_map, args=(project_id, saved), daemon=True)
-            t.start()
+        corpus = _load_corpus(project_id)
+        if corpus:
+            _CB_ITEM_MAPS[project_id] = _build_item_map(corpus)
+            _CB_LOG.info("item_map built from corpus project_id=%d items=%d", project_id, len(_CB_ITEM_MAPS[project_id]))
+        else:
+            saved = _load_saved_pswd()
+            if saved:
+                t = threading.Thread(target=_fetch_and_build_item_map, args=(project_id, saved), daemon=True)
+                t.start()
     else:
         cur.pop("project_id", None)
         _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -517,22 +522,25 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4, _stage: str = "
 
     # Resolve project name
     project = client.get_project(int(project_id))
-    # project_resp = client._client.get(f"projects/{project_id}")
-    # if not isinstance(project_resp, dict):
-    #     raise SystemExit(f"Project {project_id} not found")
     project_name = project.name
 
-    # GET /projects/{id}/trackers returns {"trackers": [...], "total": N, ...}
-    trackers_resp = project.get_ref_trackers()
+    # Fetch hierarchical tree — gives us Folder structure + flat tracker list in one call
+    raw_tree: list[dict] = client._client.get("trackers/tree", params={"projectId": project_id})
+    if not isinstance(raw_tree, list):
+        raw_tree = []
 
-    if isinstance(trackers_resp, list):
-        raw_trackers = trackers_resp
-    else:
-        raw_trackers = []
+    def _flatten_tree(nodes: list[dict]) -> list[dict]:
+        result = []
+        for node in nodes:
+            if node.get("isFolder"):
+                result.extend(_flatten_tree(node.get("children") or []))
+            elif node.get("trackerId"):
+                result.append({"id": node["trackerId"], "name": str(node.get("text") or node["trackerId"])})
+        return result
 
+    raw_trackers = _flatten_tree(raw_tree)
     total_trackers = len(raw_trackers)
     _CB_LOG.info("evaluate: project_id=%d name=%s trackers=%d", project_id, project_name, total_trackers)
-    time.sleep(0.5)
 
     _update_cb_status(project_id, _stage, {
         "phase": "items",
@@ -588,17 +596,31 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4, _stage: str = "
             })
             _CB_LOG.info("evaluate: tracker %d (%s) items=%d", t["id"], t.get("name"), len(refs))
 
-    # Assemble results in original tracker order
+    # Enrich tree nodes with fetched item refs (in-place copy, preserving hierarchy)
+    def _enrich_tree(nodes: list[dict]) -> list[dict]:
+        result = []
+        for node in nodes:
+            if node.get("isFolder"):
+                result.append({**node, "children": _enrich_tree(node.get("children") or [])})
+            elif node.get("trackerId"):
+                tid = node["trackerId"]
+                _, refs = tracker_results.get(tid, ({}, []))
+                result.append({**node, "items": refs})
+            else:
+                result.append(node)
+        return result
+
+    enriched_tree = _enrich_tree(raw_tree)
+
+    # Assemble manifest and plan from flat tracker list
     current_manifest: dict[str, dict] = {}
     trackers_plan: list[dict] = []
-    tree_trackers: list[dict] = []
     total_items = 0
 
     for tracker in raw_trackers:
         tid = tracker["id"]
         plan_entry, refs = tracker_results[tid]
         trackers_plan.append(plan_entry)
-        tree_trackers.append({"id": tid, "name": str(tracker.get("name") or tid), "items": refs})
         for ref in refs:
             current_manifest[str(ref["id"])] = {"tracker_id": tid, "name": ref["name"]}
         total_items += plan_entry["item_count"]
@@ -623,7 +645,11 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4, _stage: str = "
         "trackers": trackers_plan,
         "total_items": total_items,
     }
-    tree = {"project_id": project_id, "project_name": project_name, "trackers": tree_trackers}
+    tree = {
+        "project_id":   project_id,
+        "project_name": project_name,
+        "tree":         enriched_tree,  # hierarchical nodes with items; flatten to get tracker list
+    }
 
     (sync_dir / "plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
     (sync_dir / "delta.json").write_text(json.dumps(delta, indent=2), encoding="utf-8")
@@ -847,7 +873,20 @@ def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
         if tree.get("project_id") != project_id:
             raise SystemExit("evaluate did not produce a valid tree.json")
 
-    trackers_info = tree.get("trackers", [])
+    def _flatten_tree(nodes: list[dict]) -> list[dict]:
+        result = []
+        for node in nodes:
+            if node.get("isFolder"):
+                result.extend(_flatten_tree(node.get("children") or []))
+            elif node.get("trackerId"):
+                result.append({
+                    "id":    node["trackerId"],
+                    "name":  str(node.get("text") or node["trackerId"]),
+                    "items": node.get("items", []),
+                })
+        return result
+
+    trackers_info = _flatten_tree(tree.get("tree", []))
     total_trackers = len(trackers_info)
     total_items = sum(len(t.get("items", [])) for t in trackers_info)
     total = total_trackers + total_items

@@ -17,11 +17,16 @@ SAVED = {"codebeamer_host": "http://cb.test", "username": "u", "pswd": "p"}
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 def _tree(project_id=PROJECT_ID, trackers=None):
+    """Build tree.json structure. trackers: list of {id, name, items}."""
+    tracker_list = trackers or [
+        {"id": 1, "name": "T1", "items": [{"id": 101, "name": "I1"}, {"id": 102, "name": "I2"}]},
+    ]
     return {
-        "project_id": project_id,
+        "project_id":   project_id,
         "project_name": "TestProject",
-        "trackers": trackers or [
-            {"id": 1, "name": "T1", "items": [{"id": 101, "name": "I1"}, {"id": 102, "name": "I2"}]},
+        "tree": [
+            {"trackerId": t["id"], "text": t["name"], "items": t.get("items", [])}
+            for t in tracker_list
         ],
     }
 
