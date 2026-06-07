@@ -138,15 +138,37 @@ def codebeamer_status_proxy(request, project_id):
     return JsonResponse(data)
 
 
+def codebeamer_local_projects_proxy(request):
+    from django.http import JsonResponse
+    try:
+        data = backend_get("/codebeamer/local-projects")
+    except Exception as e:
+        data = {"ok": False, "projects": [], "error": str(e)}
+    return JsonResponse(data)
+
+
+def codebeamer_server_projects_proxy(request):
+    from django.http import JsonResponse
+    try:
+        data = backend_get("/codebeamer/projects")
+    except Exception as e:
+        data = {"ok": False, "projects": [], "error": str(e)}
+    return JsonResponse(data)
+
+
 def codebeamer_pull_view(request):
     if request.method == "POST":
-        saved = _cb_load_credentials()
-        project_id = saved.get("project_id")
+        project_id = request.POST.get("project_id")
+        if project_id:
+            project_id = int(project_id)
+            _cb_set_project(project_id)
+        else:
+            saved = _cb_load_credentials()
+            project_id = saved.get("project_id")
         if project_id:
             try:
-                resp = backend_post("/codebeamer/pull", {"project_id": project_id, "workers": 4})
-            except Exception as e:
-                # Surface "run evaluate first" error back to UI
+                backend_post("/codebeamer/pull", {"project_id": project_id, "workers": 4})
+            except Exception:
                 pass
     from django.shortcuts import redirect as _redirect
     return _redirect("app_main:codebeamer")
@@ -166,8 +188,10 @@ def codebeamer_evaluate(request):
 
 
 def codebeamer_select_project(request):
+    from django.http import JsonResponse
     saved = _cb_load_credentials()
     context = {"title": "AI-delix - Select Project", "selected_project_id": saved.get("project_id")}
+
     if request.method == "POST":
         project_id = int(request.POST.get("project_id", 0))
         if project_id:
@@ -175,10 +199,9 @@ def codebeamer_select_project(request):
             from django.shortcuts import redirect as _redirect
             return _redirect("app_main:codebeamer")
 
-    try:
-        context["projects"] = _cb_load_projects()
-    except Exception as e:
-        context["fetch_error"] = str(e)
+    # Local projects from corpus
+    resp = backend_get("/codebeamer/local-projects")
+    context["local_projects"] = resp.get("projects", [])
     return render(request, "app_main/codebeamer_select_project.html", context)
 
 

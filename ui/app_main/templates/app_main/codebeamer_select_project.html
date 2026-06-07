@@ -10,41 +10,269 @@
   <a href="{% url 'app_main:codebeamer' %}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left"></i>
   </a>
-  <h5 class="fw-bold mb-0">Codebeamer</h5>
+  <h5 class="fw-bold mb-0">Select Project</h5>
+  <button class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 ms-auto" id="btn-add-project">
+    <span class="material-icons" style="font-size:1rem;">add</span>
+    Add Project
+  </button>
 </div>
 
-{% if fetch_error %}
-<div class="alert alert-danger d-flex align-items-center gap-2 py-2">
-  <span class="material-icons">error</span>{{ fetch_error }}
-</div>
-{% endif %}
-
-{% if projects %}
-<div class="card shadow-sm mb-4">
+<!-- Progress bar -->
+<div class="card shadow-sm mb-3 d-none" id="progress-card">
   <div class="card-header py-2 d-flex align-items-center gap-2">
-    <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 2</span>
-    <span class="fw-semibold">Pick a Project</span>
-    <small class="text-muted ms-auto">{{ projects|length }} project{{ projects|length|pluralize }} found</small>
+    <span class="material-icons text-primary" style="font-size:1rem;" id="progress-icon">cloud_download</span>
+    <span class="fw-semibold" id="progress-title">Pull</span>
+    <span class="badge bg-primary ms-1" id="progress-stage-badge">—</span>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" id="btn-hide-progress">
+      <i class="bi bi-x"></i>
+    </button>
   </div>
-  <div class="card-body py-3">
-    <form method="post" class="d-flex align-items-end gap-2 flex-wrap">
-      {% csrf_token %}
-      <div style="min-width:320px;">
-        <label class="form-label small mb-1">Project</label>
-        <select name="project_id" class="form-select form-select-sm" required>
-          <option value="" disabled selected>— pick one —</option>
-          {% for p in projects %}
-          <option value="{{ p.id }}">{{ p.name }} (id {{ p.id }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
-        <span class="material-icons" style="font-size:1rem;">arrow_forward</span>
-        Load Trackers
-      </button>
-    </form>
+  <div class="card-body py-2">
+    <div class="progress mb-2" style="height:8px;">
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="progress-bar" style="width:0%"></div>
+    </div>
+    <div class="d-flex justify-content-between">
+      <small class="text-muted" id="progress-text">—</small>
+      <small class="text-muted" id="progress-ts">—</small>
+    </div>
   </div>
 </div>
-{% endif %}
+
+<!-- Local projects list -->
+<div id="local-projects-container">
+  {% if local_projects %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header py-2 d-flex align-items-center gap-2">
+      <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Projects</span>
+      <span class="fw-semibold">Pick a Project</span>
+      <small class="text-muted ms-auto">{{ local_projects|length }} project{{ local_projects|length|pluralize }} found</small>
+    </div>
+    <div class="card-body py-3">
+      <div class="d-flex align-items-end gap-2 flex-wrap">
+        <div style="min-width:320px;">
+          <select id="local-project-select" class="form-select form-select-sm">
+            <option value="" disabled {% if not selected_project_id %}selected{% endif %}>— pick one —</option>
+            {% for p in local_projects %}
+            <option value="{{ p.id }}" {% if p.id == selected_project_id %}selected{% endif %}>{{ p.name }} (id {{ p.id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button id="btn-select-local" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+          <span class="material-icons" style="font-size:1rem;">arrow_forward</span>
+          Select
+        </button>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-muted small">No local projects yet. Click <strong>Add Project</strong> to pull one.</p>
+  {% endif %}
+</div>
+
+<!-- Add Project Modal -->
+<div class="modal fade" id="addProjectModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">Add Project</h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2" id="modal-projects-body">
+        <div class="d-flex justify-content-center py-3">
+          <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var _activePullId = null;
+var _pollTimer = null;
+var _hidden = false;
+var _selectedId = {{ selected_project_id|default:"null" }};
+
+function getCsrf() {
+  var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+// ── Progress bar ──────────────────────────────────────────────────────────────
+
+function updateProgress(data) {
+  var stage = data.stage || 'idle';
+  var prog  = data.progress || {};
+  var total = prog.total || 0;
+  var done  = prog.done  || 0;
+  var pct   = total > 0 ? Math.round(done / total * 100) : (stage === 'idle' ? 100 : 5);
+
+  document.getElementById('progress-title').textContent = stage === 'idle' ? 'Done' : 'Pull';
+  document.getElementById('progress-icon').textContent  = stage === 'idle' ? 'check_circle' : 'cloud_download';
+
+  var badge = document.getElementById('progress-stage-badge');
+  badge.textContent = stage + (data.phase ? ' · ' + data.phase : '');
+  badge.className   = 'badge ms-1 ' + (stage === 'idle' ? 'bg-success' : stage === 'error' ? 'bg-danger' : 'bg-primary');
+
+  var bar = document.getElementById('progress-bar');
+  bar.style.width = pct + '%';
+  bar.className   = 'progress-bar' + (stage === 'idle' ? ' bg-success' : stage === 'error' ? ' bg-danger' : ' progress-bar-striped progress-bar-animated bg-primary');
+
+  var text = total > 0 ? (done + ' / ' + total) : stage;
+  if (data.eta_sec != null && stage !== 'idle') text += ' · ETA ' + Math.round(data.eta_sec) + 's';
+  if (data.error) text += ' — ' + data.error;
+  document.getElementById('progress-text').textContent = text;
+  document.getElementById('progress-ts').textContent = data.elapsed_sec != null ? 'elapsed ' + Math.round(data.elapsed_sec) + 's' : '';
+
+  if (!_hidden && stage !== 'idle') {
+    document.getElementById('progress-card').classList.remove('d-none');
+  }
+
+  if (stage === 'idle' && _activePullId !== null) {
+    _activePullId = null;
+    refreshLocalProjects();
+  }
+}
+
+function pollStatus() {
+  if (_activePullId === null) return;
+  fetch('/api/codebeamer/status/' + _activePullId)
+    .then(r => r.json())
+    .then(function(data) {
+      updateProgress(data);
+      var s = data.stage || 'idle';
+      if (s !== 'idle' && s !== 'error') {
+        _pollTimer = setTimeout(pollStatus, 1000);
+      }
+    })
+    .catch(function() { _pollTimer = setTimeout(pollStatus, 4000); });
+}
+
+document.getElementById('btn-hide-progress').addEventListener('click', function() {
+  _hidden = true;
+  document.getElementById('progress-card').classList.add('d-none');
+  if (_pollTimer) clearTimeout(_pollTimer);
+});
+
+// ── Local projects refresh ────────────────────────────────────────────────────
+
+function renderLocalProjects(projects) {
+  if (!projects.length) {
+    return '<p class="text-muted small">No local projects yet. Click <strong>Add Project</strong> to pull one.</p>';
+  }
+  var opts = projects.map(function(p) {
+    var sel = p.id === _selectedId ? ' selected' : '';
+    return '<option value="' + p.id + '"' + sel + '>' + p.name + ' (id ' + p.id + ')</option>';
+  }).join('');
+  return '<div class="card shadow-sm mb-4">' +
+    '<div class="card-header py-2 d-flex align-items-center gap-2">' +
+      '<span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Projects</span>' +
+      '<span class="fw-semibold">Pick a Project</span>' +
+      '<small class="text-muted ms-auto">' + projects.length + ' project' + (projects.length !== 1 ? 's' : '') + ' found</small>' +
+    '</div>' +
+    '<div class="card-body py-3">' +
+      '<div class="d-flex align-items-end gap-2 flex-wrap">' +
+        '<div style="min-width:320px;">' +
+          '<select id="local-project-select" class="form-select form-select-sm">' +
+            '<option value="" disabled' + (_selectedId ? '' : ' selected') + '>— pick one —</option>' + opts +
+          '</select>' +
+        '</div>' +
+        '<button id="btn-select-local" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">' +
+          '<span class="material-icons" style="font-size:1rem;">arrow_forward</span> Select' +
+        '</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function refreshLocalProjects() {
+  fetch('/api/codebeamer/local-projects')
+    .then(r => r.json())
+    .then(function(data) {
+      document.getElementById('local-projects-container').innerHTML = renderLocalProjects(data.projects || []);
+      bindSelectBtn();
+    });
+}
+
+function bindSelectBtn() {
+  var btn = document.getElementById('btn-select-local');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    var sel = document.getElementById('local-project-select');
+    if (!sel || !sel.value) return;
+    var projectId = parseInt(sel.value);
+    var fd = new FormData();
+    fd.append('project_id', projectId);
+    fd.append('csrfmiddlewaretoken', getCsrf());
+    fetch('{% url "app_main:codebeamer_select_project" %}', {method: 'POST', body: fd, redirect: 'manual'})
+      .finally(function() { window.location.href = '{% url "app_main:codebeamer" %}'; });
+  });
+}
+
+bindSelectBtn();
+
+// ── Add Project Modal ─────────────────────────────────────────────────────────
+
+var _modal = null;
+function getModal() {
+  if (!_modal) _modal = new bootstrap.Modal(document.getElementById('addProjectModal'));
+  return _modal;
+}
+
+document.getElementById('btn-add-project').addEventListener('click', function() {
+  document.getElementById('modal-projects-body').innerHTML =
+    '<div class="d-flex justify-content-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>';
+  getModal().show();
+  fetch('/api/codebeamer/server-projects')
+    .then(r => r.json())
+    .then(function(data) {
+      var projects = data.projects || [];
+      if (!projects.length) {
+        document.getElementById('modal-projects-body').innerHTML = '<p class="text-muted small py-2">No projects found.</p>';
+        return;
+      }
+      var opts = projects.map(function(p) {
+        return '<option value="' + p.id + '">' + p.name + ' (id ' + p.id + ')</option>';
+      }).join('');
+      document.getElementById('modal-projects-body').innerHTML =
+        '<p class="text-muted small mb-2">' + projects.length + ' project' + (projects.length !== 1 ? 's' : '') + ' found</p>' +
+        '<div class="d-flex gap-2">' +
+          '<select id="modal-project-select" class="form-select form-select-sm">' +
+            '<option value="" disabled selected>— pick one —</option>' + opts +
+          '</select>' +
+          '<button id="btn-modal-load" class="btn btn-primary btn-sm text-nowrap">Load</button>' +
+        '</div>';
+    })
+    .catch(function() {
+      document.getElementById('modal-projects-body').innerHTML = '<p class="text-danger small py-2">Failed to load projects.</p>';
+    });
+});
+
+document.getElementById('addProjectModal').addEventListener('click', function(e) {
+  if (!e.target.closest('#btn-modal-load')) return;
+  var sel = document.getElementById('modal-project-select');
+  if (!sel || !sel.value) return;
+  var projectId = parseInt(sel.value);
+  _modal.hide();
+
+  // Show progress bar immediately
+  _hidden = false;
+  _activePullId = projectId;
+  document.getElementById('progress-card').classList.remove('d-none');
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+  document.getElementById('progress-text').textContent = '…';
+  document.getElementById('progress-stage-badge').textContent = 'starting';
+
+  // Set project then pull
+  var fd = new FormData();
+  fd.append('project_id', projectId);
+  fetch('{% url "app_main:codebeamer_pull" %}', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCsrf()},
+    body: fd,
+    redirect: 'manual',
+  }).finally(function() { pollStatus(); });
+});
+</script>
 
 {% endblock %}

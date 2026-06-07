@@ -313,6 +313,27 @@ async def codebeamer_projects() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@codebeamer_router.get("/codebeamer/local-projects", tags=["codebeamer"])
+async def codebeamer_local_projects() -> Dict[str, Any]:
+    """Return projects that have been pulled locally (exist in corpus/)."""
+    projects = []
+    if CORPUS_ROOT.exists():
+        for p in sorted(CORPUS_ROOT.iterdir()):
+            if not p.is_dir():
+                continue
+            try:
+                project_id = int(p.name)
+            except ValueError:
+                continue
+            corpus = _load_corpus(project_id)
+            if corpus:
+                projects.append({
+                    "id":   project_id,
+                    "name": corpus.get("project_name") or str(project_id),
+                })
+    return {"ok": True, "projects": projects}
+
+
 @codebeamer_router.post("/codebeamer/tracker/{tracker_id}/items", tags=["codebeamer"])
 async def codebeamer_push_items(tracker_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Bulk-create tracker items in the given tracker.
