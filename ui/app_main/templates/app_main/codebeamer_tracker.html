@@ -96,9 +96,7 @@
               <td><a href="{{ cb_url }}/item/{{ item.id }}" target="_blank" class="text-decoration-none"><code>{{ item.id }}</code></a></td>
               <td>
                 <div class="d-flex align-items-center gap-1">
-                  {% if is_issue_tracker %}
-                  <span class="material-icons" style="font-size:18px;color:{{ item.status_color }};border-radius:4px;padding:2px;">{{ tracker.icon }}</span>
-                  {% endif %}
+                  <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ item.color }};border-radius:4px;padding:2px;">{{ item.icon }}</span>
                   <a href="{% url 'app_main:codebeamer_item' item.id %}" class="text-decoration-none" style="color:#0093b8;">{{ item.name }}</a>
                 </div>
               </td>

@@ -755,19 +755,33 @@ def codebeamer_tracker(request, tracker_id):
         is_issue = (tracker.type_name or "").lower() == "issue"
         context["is_issue_tracker"] = is_issue
 
+        # item_map for icon + status-color lookup (built during pull)
+        _proj_id = tracker.project.id if tracker.project else credentials.get("project_id")
+        _item_map_resp = backend_get("/codebeamer/item-map", params={"project_id": _proj_id}) if _proj_id else {}
+        _item_map = _item_map_resp.get("item_map", {}) if _item_map_resp.get("ok") else {}
+        tracker_icon  = TRACKER_ICONS.get(tracker.type_id, "label")
+        tracker_color = tracker.color or "#6c757d"
+
         def _safe(fn):
             try: return fn()
             except: return None
 
         def _serialize_item(i):
-            base = {"id": i.id, "name": i.name, "type_name": i.type_name}
+            entry = _item_map.get(str(i.id)) or _item_map.get(i.id) or {}
+            status_name = _safe(lambda: i.status.value.name if i.status and i.status.value else None)
+            base = {
+                "id":          i.id,
+                "name":        i.name,
+                "type_name":   i.type_name,
+                "icon":        entry.get("icon", tracker_icon),
+                "color":       entry.get("color") or STATUS_COLORS.get(status_name, tracker_color),
+                "status":      status_name,
+                "status_color": STATUS_COLORS.get(status_name, tracker_color),
+            }
             if is_issue:
                 priority_name = _safe(lambda: i.priority.name if i.priority else None)
-                base["priority"] = priority_name
+                base["priority"]       = priority_name
                 base["priority_color"] = PRIORITY_COLORS.get(priority_name, "#adb5bd")
-                status_name = _safe(lambda: i.status.value.name if i.status and i.status.value else None)
-                base["status"] = status_name
-                base["status_color"] = STATUS_COLORS.get(status_name, "#6c757d")
                 base["severity"]   = _safe(lambda: i.severities[0].get("name") if i.severities else None)
                 base["resolution"] = _safe(lambda: i.resolutions[0].get("name") if i.resolutions else None)
                 base["start_date"] = _safe(lambda: str(i.start_date.date()) if i.start_date else None)
