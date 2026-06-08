@@ -99,7 +99,6 @@ var _activePullId = null;
 var _pollTimer = null;
 var _hidden = false;
 var _selectedId = {{ selected_project_id|default:"null" }};
-var _seenActive = false;  // true после первого non-idle статуса
 
 function getCsrf() {
   var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -135,13 +134,11 @@ function updateProgress(data) {
   document.getElementById('progress-ts').textContent = data.elapsed_sec != null ? 'elapsed ' + Math.round(data.elapsed_sec) + 's' : '';
 
   if (!_hidden && stage !== 'idle') {
-    _seenActive = true;
     document.getElementById('progress-card').classList.remove('d-none');
   }
 
-  if (stage === 'idle' && _activePullId !== null && _seenActive) {
+  if (stage === 'idle' && _activePullId !== null) {
     _activePullId = null;
-    _seenActive = false;
     refreshLocalProjects();
   }
 }
@@ -222,7 +219,6 @@ function startTask(url, projectId) {
   _hidden = false;
   _activePullId = projectId;
   _selectedId = projectId;
-  _seenActive = false;
   document.getElementById('progress-card').classList.remove('d-none');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
@@ -315,7 +311,6 @@ document.getElementById('addProjectModal').addEventListener('click', function(e)
   _hidden = false;
   _activePullId = projectId;
   _selectedId = projectId;
-  _seenActive = false;
   document.getElementById('progress-card').classList.remove('d-none');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-bar').className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
