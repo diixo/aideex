@@ -1,0 +1,414 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+<meta name="description" content="{{ description }}">
+{% endblock %}
+
+{% block extra_style %}
+<style>
+  .metric-card { min-width: 140px; }
+  .process-bar { height: .55rem; }
+  .mono-id { font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .82rem; }
+  .graph-box { max-height: 540px; overflow: auto; border: 1px solid #e9ecef; border-radius: .5rem; background: #fff; }
+  .mode-pane { display: none; }
+  .mode-pane.active { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mt-3 mb-3">
+  <h5 class="fw-bold mb-0">Codebeamer ASPICE Assessment</h5>
+  <div class="d-flex gap-2">
+    <a href="{% url 'app_main:codebeamer' %}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1rem;">arrow_back</span>
+      Back to Codebeamer
+    </a>
+    <a href="{% url 'app_main:codebeamer_tree' %}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1rem;">account_tree</span>
+      Tree
+    </a>
+  </div>
+</div>
+
+<form method="get" class="card shadow-sm mb-3">
+  <div class="card-body py-2 d-flex align-items-end gap-2 flex-wrap">
+    <div>
+      <label class="form-label small mb-1">Project ID</label>
+      <input class="form-control form-control-sm" type="number" name="project_id" value="{{ project_id }}" min="1" required>
+    </div>
+    <div class="form-check mb-1 ms-2">
+      <input class="form-check-input" type="checkbox" name="include_security" value="1" id="include_security" {% if include_security %}checked{% endif %}>
+      <label class="form-check-label small" for="include_security">Include security test lane</label>
+    </div>
+    <button class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" type="submit">
+      <span class="material-icons" style="font-size:1rem;">play_arrow</span>
+      Recalculate
+    </button>
+  </div>
+</form>
+
+{% if fetch_error %}
+<div class="alert alert-danger py-2 d-flex align-items-center gap-2">
+  <span class="material-icons">error</span>
+  {{ fetch_error }}
+</div>
+{% endif %}
+
+{% if summary %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="text-muted small">Project: <span class="text-dark fw-semibold">{{ project_name }}</span></div>
+  <div class="badge text-bg-light border">score {{ summary.assessment_score }}</div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Requirements</div>
+    <div class="fw-bold">{{ summary.requirements_total }}</div>
+  </div>
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Req With Tests</div>
+    <div class="fw-bold text-primary">{{ summary.requirements_with_tests }}</div>
+  </div>
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Req With Runs</div>
+    <div class="fw-bold text-info">{{ summary.requirements_with_runs }}</div>
+  </div>
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Tests</div>
+    <div class="fw-bold">{{ summary.tests_total }}</div>
+  </div>
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Runs</div>
+    <div class="fw-bold">{{ summary.runs_total }}</div>
+  </div>
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Passed</div>
+    <div class="fw-bold text-success">{{ summary.runs_passed }}</div>
+  </div>
+  <div class="metric-card bg-light rounded p-2 text-center">
+    <div class="small text-muted">Failed</div>
+    <div class="fw-bold text-danger">{{ summary.runs_failed }}</div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-header py-2 fw-semibold">Process Coverage Graph</div>
+  <div class="card-body py-2">
+    {% for p in process_breakdown %}
+    <div class="mb-3">
+      <div class="d-flex justify-content-between small mb-1">
+        <span class="fw-semibold">{{ p.process_area }}</span>
+        <span class="text-muted">req {{ p.requirements_with_tests }}/{{ p.requirements_total }} | tests {{ p.tests_total }} | runs {{ p.runs_total }}</span>
+      </div>
+      {% if p.requirements_total %}
+      <div class="progress process-bar mb-1">
+        <div class="progress-bar" role="progressbar" style="width: {% widthratio p.requirements_with_tests p.requirements_total 100 %}%">
+        </div>
+      </div>
+      {% else %}
+      <div class="progress process-bar mb-1">
+        <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+      </div>
+      {% endif %}
+      <div class="small text-muted">Pass rate: {{ p.pass_rate }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="small text-muted">Graph mode</span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Graph mode">
+      <button type="button" class="btn btn-outline-primary active" id="btn-view-aspice">ASPICE View</button>
+      <button type="button" class="btn btn-outline-primary" id="btn-view-behavior">Behavior View</button>
+      <button type="button" class="btn btn-outline-primary" id="btn-view-chain">Full Chain</button>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-header py-2 fw-semibold">Traceability Graph</div>
+      <div class="card-body py-2">
+        <div class="mode-pane active" id="pane-aspice">
+          <div class="small text-muted mb-2">Requirement -> Test Case -> Test Run</div>
+          {% if mermaid_graph %}
+          <div class="graph-box p-2">
+            <pre class="mermaid">{{ mermaid_graph }}</pre>
+          </div>
+          {% else %}
+          <div class="alert alert-light border py-2 mb-0 small">No lifecycle graph edges available.</div>
+          {% endif %}
+        </div>
+
+        <div class="mode-pane" id="pane-behavior">
+          <div class="small text-muted mb-2">Feature -> Behavior Type -> Requirement -> Test Case</div>
+          {% if behavior_mermaid_graph %}
+          <div class="graph-box p-2">
+            <pre class="mermaid">{{ behavior_mermaid_graph }}</pre>
+          </div>
+          {% else %}
+          <div class="alert alert-light border py-2 mb-0 small">No behavior graph edges available.</div>
+          {% endif %}
+        </div>
+
+        <div class="mode-pane" id="pane-chain">
+          <div class="small text-muted mb-2">Stakeholder → System Req → Software Req → Test Case → Test Run</div>
+          {% if full_chain_mermaid_graph %}
+          <div class="graph-box p-2">
+            <pre class="mermaid">{{ full_chain_mermaid_graph }}</pre>
+          </div>
+          {% else %}
+          <div class="alert alert-light border py-2 mb-0 small">No upstream chain data available.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100">
+      <div class="card-header py-2 fw-semibold">Behavior Mix</div>
+      <div class="card-body py-2 border-bottom">
+        <div class="d-flex flex-wrap gap-2">
+          {% for key, val in behavior_summary.items %}
+          <span class="badge text-bg-light border">{{ key }}: {{ val }}</span>
+          {% empty %}
+          <span class="small text-muted">No behavior distribution data.</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-header py-2 fw-semibold border-top">Test Trackers</div>
+      <div class="card-body py-0">
+        <table class="table table-sm align-middle mb-0" style="font-size:13px;">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Process</th>
+              <th>Refs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in test_trackers %}
+            <tr>
+              <td class="mono-id">{{ t.tracker_id }}</td>
+              <td>{{ t.tracker_name }}</td>
+              <td><span class="text-muted">{{ t.type_name }}</span></td>
+              <td><span class="badge text-bg-light border">{{ t.process_area }}</span></td>
+              <td>{{ t.item_refs }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+    <span class="fw-semibold">Detected Gaps</span>
+    <span class="badge text-bg-danger">{{ gaps|length }}</span>
+  </div>
+  <div class="card-body py-0">
+    <table class="table table-sm align-middle mb-0" style="font-size:13px;">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Code</th>
+          <th>Process</th>
+          <th>Target</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in gaps %}
+        <tr>
+          <td>
+            {% if g.severity == 'error' %}
+            <span class="badge bg-danger">error</span>
+            {% elif g.severity == 'warning' %}
+            <span class="badge bg-warning text-dark">warning</span>
+            {% else %}
+            <span class="badge bg-info text-dark">info</span>
+            {% endif %}
+          </td>
+          <td><code>{{ g.gap_code }}</code></td>
+          <td>{{ g.process_area }}</td>
+          <td><code>{{ g.target_id }}</code></td>
+          <td>{{ g.message }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="text-muted py-3">No gaps detected for selected filters.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if sample_req_items %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header py-2 d-flex align-items-center gap-2">
+    <span class="material-icons text-success" style="font-size:1rem;">schema</span>
+    <span class="fw-semibold">Behavior Scenario Extractor</span>
+    <small class="text-muted ms-1">— extract actors, triggers, acceptance criteria from a requirement</small>
+  </div>
+  <div class="card-body py-2">
+    <div class="d-flex align-items-end gap-2 flex-wrap mb-2">
+      <div style="min-width:340px;">
+        <label class="form-label small mb-1">Requirement (no test case)</label>
+        <select id="behavior-req-select" class="form-select form-select-sm">
+          {% for req in sample_req_items %}
+          <option value="{{ req.id }}">{{ req.id }} — {{ req.name|truncatechars:60 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1" id="btn-extract-behavior">
+        <span class="material-icons" style="font-size:1rem;">auto_awesome</span>
+        Extract Behavior
+      </button>
+    </div>
+    <div id="behavior-scenario-body" class="small text-muted">Select a requirement and click Extract Behavior.</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header py-2 d-flex align-items-center gap-2">
+    <span class="material-icons text-primary" style="font-size:1rem;">psychology</span>
+    <span class="fw-semibold">AI Gap Analysis</span>
+    <button class="btn btn-sm btn-outline-primary ms-auto d-inline-flex align-items-center gap-1" id="btn-ai-analyze">
+      <span class="material-icons" style="font-size:1rem;">auto_awesome</span>
+      Analyze with AI
+    </button>
+  </div>
+  <div class="card-body py-2" id="ai-analysis-body">
+    <span class="text-muted small">Click "Analyze with AI" to get a Claude assessment of the detected gaps.</span>
+  </div>
+</div>
+{% endif %}
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', maxTextSize: 120000 });
+  window._mermaid = mermaid;
+  // Only render the initially visible pane — hidden panes render on first show
+  const initialPane = document.querySelector('.mode-pane.active');
+  if (initialPane) {
+    const nodes = Array.from(initialPane.querySelectorAll('pre.mermaid'));
+    if (nodes.length) mermaid.run({ nodes });
+  }
+</script>
+
+<script>
+  (function () {
+    const btnAspice   = document.getElementById('btn-view-aspice');
+    const btnBehavior = document.getElementById('btn-view-behavior');
+    const btnChain    = document.getElementById('btn-view-chain');
+    const paneAspice  = document.getElementById('pane-aspice');
+    const paneBehavior= document.getElementById('pane-behavior');
+    const paneChain   = document.getElementById('pane-chain');
+
+    function showPane(mode) {
+      [paneAspice,  btnAspice ].forEach(el => el && el.classList.toggle('active', mode === 'aspice'));
+      [paneBehavior,btnBehavior].forEach(el => el && el.classList.toggle('active', mode === 'behavior'));
+      [paneChain,   btnChain  ].forEach(el => el && el.classList.toggle('active', mode === 'chain'));
+      // Render any not-yet-rendered diagram in the newly visible pane
+      const paneEl = {aspice: paneAspice, behavior: paneBehavior, chain: paneChain}[mode];
+      if (paneEl && window._mermaid) {
+        const nodes = Array.from(paneEl.querySelectorAll('pre.mermaid'));
+        if (nodes.length) window._mermaid.run({ nodes });
+      }
+    }
+
+    if (btnAspice)   btnAspice.addEventListener('click',   () => showPane('aspice'));
+    if (btnBehavior) btnBehavior.addEventListener('click', () => showPane('behavior'));
+    if (btnChain)    btnChain.addEventListener('click',    () => showPane('chain'));
+  })();
+
+  const btnExtract = document.getElementById('btn-extract-behavior');
+  if (btnExtract) {
+    btnExtract.addEventListener('click', function () {
+      const sel = document.getElementById('behavior-req-select');
+      const itemId = sel && sel.value;
+      if (!itemId) return;
+      const body = document.getElementById('behavior-scenario-body');
+      btnExtract.disabled = true;
+      btnExtract.innerHTML = '<span class="material-icons spin" style="font-size:1rem;">sync</span> Extracting…';
+      body.innerHTML = '<div class="d-flex align-items-center gap-2 text-muted"><div class="spinner-border spinner-border-sm"></div> Running Claude extraction…</div>';
+      const params = new URLSearchParams({ project_id: '{{ project_id }}', item_id: itemId });
+      fetch('{% url "app_main:codebeamer_behavior_scenario" %}?' + params)
+        .then(r => r.json())
+        .then(function (data) {
+          btnExtract.disabled = false;
+          btnExtract.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Extract Behavior';
+          if (!data.ok || !data.scenario) {
+            body.innerHTML = '<span class="text-danger">' + (data.error || 'No scenario returned') + '</span>';
+            return;
+          }
+          const s = data.scenario;
+          const rows = [
+            ['Trigger',              s.trigger],
+            ['Actors',               (s.actors||[]).join(', ')],
+            ['Preconditions',        (s.preconditions||[]).join('; ')],
+            ['System Actions',       (s.system_actions||[]).join('; ')],
+            ['States',               (s.states||[]).join(', ')],
+            ['Outputs',              (s.outputs||[]).join('; ')],
+            ['Exceptions',           (s.exceptions||[]).join('; ')],
+            ['Timing Constraints',   (s.timing_constraints||[]).join('; ')],
+            ['Acceptance Criteria',  (s.acceptance_criteria||[]).join('; ')],
+            ['Test Case Ideas',      (s.test_case_ideas||[]).join('; ')],
+          ].filter(r => r[1]);
+          const html = '<table class="table table-sm mb-0" style="font-size:12px;">' +
+            rows.map(r => '<tr><td class="fw-semibold text-nowrap" style="width:9rem;">' + r[0] + '</td><td>' + r[1].replace(/</g,'&lt;') + '</td></tr>').join('') +
+            '</table>';
+          body.innerHTML = '<div class="text-muted small mb-1">Requirement <code>' + itemId + '</code></div>' + html;
+        })
+        .catch(function (e) {
+          btnExtract.disabled = false;
+          btnExtract.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Extract Behavior';
+          body.innerHTML = '<span class="text-danger">Request failed: ' + e + '</span>';
+        });
+    });
+  }
+
+  const btnAI = document.getElementById('btn-ai-analyze');
+  if (btnAI) {
+    btnAI.addEventListener('click', function () {
+      const body = document.getElementById('ai-analysis-body');
+      btnAI.disabled = true;
+      btnAI.innerHTML = '<span class="material-icons spin" style="font-size:1rem;">sync</span> Analyzing…';
+      body.innerHTML = '<div class="d-flex align-items-center gap-2 text-muted small"><div class="spinner-border spinner-border-sm"></div> Running Claude analysis, this may take 30–60 seconds…</div>';
+
+      const params = new URLSearchParams({
+        project_id: '{{ project_id }}',
+        include_security: '{{ include_security|yesno:"1,0" }}',
+      });
+      fetch('{% url "app_main:codebeamer_assessment_ai_analysis" %}?' + params)
+        .then(r => r.json())
+        .then(function (data) {
+          btnAI.disabled = false;
+          btnAI.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Analyze with AI';
+          if (data.ok && data.analysis) {
+            body.innerHTML = '<pre style="white-space:pre-wrap;font-size:13px;margin:0;">' + data.analysis.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+          } else {
+            body.innerHTML = '<span class="text-danger small">' + (data.error || 'Analysis failed') + '</span>';
+          }
+        })
+        .catch(function (e) {
+          btnAI.disabled = false;
+          btnAI.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Analyze with AI';
+          body.innerHTML = '<span class="text-danger small">Request failed: ' + e + '</span>';
+        });
+    });
+  }
+</script>
+{% endblock %}

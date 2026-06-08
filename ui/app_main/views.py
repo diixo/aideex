@@ -159,6 +159,37 @@ def codebeamer_server_projects_proxy(request):
     return JsonResponse(data)
 
 
+def codebeamer_behavior_scenario_proxy(request):
+    from django.http import JsonResponse
+    project_id = request.GET.get("project_id")
+    item_id = request.GET.get("item_id")
+    try:
+        data = backend_get(
+            "/codebeamer/assessment/behavior-scenario",
+            params={"project_id": project_id, "item_id": item_id},
+        )
+    except Exception as e:
+        data = {"ok": False, "scenario": {}, "error": str(e)}
+    return JsonResponse(data)
+
+
+def codebeamer_assessment_ai_analysis_proxy(request):
+    from django.http import JsonResponse
+    project_id = request.GET.get("project_id")
+    include_security = request.GET.get("include_security", "1")
+    try:
+        data = backend_get(
+            "/codebeamer/assessment/ai-analysis",
+            params={
+                "project_id": project_id,
+                "include_security": "true" if include_security == "1" else "false",
+            },
+        )
+    except Exception as e:
+        data = {"ok": False, "analysis": "", "error": str(e)}
+    return JsonResponse(data)
+
+
 def codebeamer_pull_view(request):
     if request.method == "POST":
         project_id = request.POST.get("project_id")
@@ -679,6 +710,155 @@ def codebeamer_tree(request):
         context["fetch_error"] = resp.get("error", "Tree not available")
 
     return render(request, "app_main/codebeamer_tree.html", context)
+
+
+def codebeamer_assessment(request):
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
+        from django.shortcuts import redirect as _redirect
+        return _redirect("app_main:codebeamer_select_project")
+
+    project_id = int(request.GET.get("project_id") or credentials.get("project_id"))
+    if request.GET:
+        include_security = "include_security" in request.GET
+    else:
+        include_security = True
+
+    context = {
+        "title": "AI-delix - Codebeamer ASPICE Assessment",
+        "description": "Codebeamer ASPICE test assessment and traceability",
+        "project_id": project_id,
+        "include_security": include_security,
+        "summary": {},
+        "process_breakdown": [],
+        "gaps": [],
+        "test_trackers": [],
+        "mermaid_graph": "",
+        "behavior_mermaid_graph": "",
+        "full_chain_mermaid_graph": "",
+        "behavior_summary": {},
+        "behavior_feature_summary": [],
+        "sample_req_items": [],
+    }
+
+    try:
+        resp = backend_get(
+            "/codebeamer/assessment/test-coverage",
+            params={
+                "project_id": project_id,
+                "include_security": "true" if include_security else "false",
+            },
+        )
+        if not resp.get("ok"):
+            context["fetch_error"] = resp.get("error", "Assessment data is unavailable")
+            return render(request, "app_main/codebeamer_assessment.html", context)
+
+        context["project_name"] = resp.get("project_name", str(project_id))
+        context["summary"] = resp.get("summary") or {}
+        context["process_breakdown"] = resp.get("process_breakdown") or []
+        context["gaps"] = (resp.get("gaps") or [])[:300]
+        context["test_trackers"] = resp.get("test_trackers") or []
+        context["behavior_summary"] = resp.get("behavior_summary") or {}
+        feature_summary = resp.get("behavior_feature_summary") or {}
+        context["behavior_feature_summary"] = [
+            {"feature": k, "counts": v}
+            for k, v in list(feature_summary.items())[:80]
+        ]
+        # Expose first 10 uncovered requirements for the behavior-scenario widget
+        _entity_names = {
+            e["entity_id"]: e.get("name", "") for e in (resp.get("entities") or [])
+        }
+        context["sample_req_items"] = [
+            {"id": int(g["target_id"]), "name": _entity_names.get(g["target_id"], g["target_id"])}
+            for g in (resp.get("gaps") or [])
+            if g.get("gap_code") == "REQ_NO_TESTCASE"
+        ][:10]
+
+        # Build compact Mermaid graph for requirement -> testcase -> testrun links.
+        graph = resp.get("graph") or {}
+        nodes = {n.get("id"): n for n in (graph.get("nodes") or []) if n.get("id")}
+        edges = graph.get("edges") or []
+        edge_lines = []
+        for e in edges[:200]:
+            src = e.get("from")
+            dst = e.get("to")
+            if not src or not dst or src not in nodes or dst not in nodes:
+                continue
+            src_id = src.replace(":", "_")
+            dst_id = dst.replace(":", "_")
+            src_label = nodes[src].get("label", src)
+            dst_label = nodes[dst].get("label", dst)
+            edge_lines.append(f"{src_id}[{src_label}] --> {dst_id}[{dst_label}]")
+
+        if edge_lines:
+            context["mermaid_graph"] = "graph LR\n" + "\n".join(edge_lines)
+
+        # Build behavior graph for Feature Behavior view.
+        b_graph = resp.get("behavior_graph") or {}
+        b_nodes = {n.get("id"): n for n in (b_graph.get("nodes") or []) if n.get("id")}
+        b_edges = b_graph.get("edges") or []
+        b_edge_lines = []
+        for e in b_edges[:260]:
+            src = e.get("from")
+            dst = e.get("to")
+            if not src or not dst or src not in b_nodes or dst not in b_nodes:
+                continue
+            src_id = src.replace(":", "_")
+            dst_id = dst.replace(":", "_")
+            src_label = str(b_nodes[src].get("label", src)).replace('"', "'")
+            dst_label = str(b_nodes[dst].get("label", dst)).replace('"', "'")
+            b_edge_lines.append(f'{src_id}["{src_label}"] --> {dst_id}["{dst_label}"]')
+
+        if b_edge_lines:
+            context["behavior_mermaid_graph"] = "graph LR\n" + "\n".join(b_edge_lines)
+
+        # Build full upstream chain graph: TestRun → TestCase → Req → … → Stakeholder (TD)
+        _TYPE_STYLE = {
+            "testrun":      ("TR", "run"),
+            "testcase":     ("TC", "tc"),
+            "requirement":  ("R",  "req"),
+            "system_req":   ("SR", "sreq"),
+            "software_req": ("SW", "swreq"),
+            "stakeholder":  ("SH", "stakeholder"),
+        }
+        c_graph = resp.get("full_chain_graph") or {}
+        c_nodes = {n["id"]: n for n in (c_graph.get("nodes") or []) if n.get("id")}
+        c_edges = c_graph.get("edges") or []
+        c_lines = []
+        c_class_assignments: dict[str, list[str]] = {}
+        for nid, n in c_nodes.items():
+            ntype = n.get("type", "unknown")
+            prefix, cls = _TYPE_STYLE.get(ntype, ("N", "req"))
+            safe_id = nid.replace(":", "_")
+            label = str(n.get("label", nid)).replace('"', "'")
+            c_lines.append(f'  {safe_id}["{prefix}: {label}"]')
+            c_class_assignments.setdefault(cls, []).append(safe_id)
+        for e in c_edges:
+            s, d = e.get("from"), e.get("to")
+            if s and d and s in c_nodes and d in c_nodes:
+                c_lines.append(f"  {s.replace(':', '_')} --> {d.replace(':', '_')}")
+        if c_lines:
+            header = "graph TD\n"
+            class_defs = (
+                "  classDef stakeholder fill:#fff3cd,stroke:#856404,color:#000\n"
+                "  classDef sreq fill:#cfe2ff,stroke:#084298,color:#000\n"
+                "  classDef swreq fill:#d1ecf1,stroke:#0c5460,color:#000\n"
+                "  classDef req fill:#e2e3e5,stroke:#383d41,color:#000\n"
+                "  classDef tc fill:#d1e7dd,stroke:#0f5132,color:#000\n"
+                "  classDef run fill:#f8d7da,stroke:#842029,color:#000\n"
+            )
+            class_assigns = "\n".join(
+                f"  class {','.join(ids)} {cls}"
+                for cls, ids in c_class_assignments.items()
+            )
+            context["full_chain_mermaid_graph"] = (
+                header + class_defs + "\n".join(c_lines) + "\n" + class_assigns
+            )
+
+    except Exception as e:
+        context["fetch_error"] = str(e)
+
+    return render(request, "app_main/codebeamer_assessment.html", context)
 
 
 def codebeamer_tracker(request, tracker_id):

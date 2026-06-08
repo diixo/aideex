@@ -20,6 +20,9 @@ urlpatterns = [
     path("codebeamer/tracker/<int:tracker_id>", views.codebeamer_tracker, name="codebeamer_tracker"),
     path("codebeamer/tracker/<int:tracker_id>/create-item", views.codebeamer_create_item, name="codebeamer_create_item"),
     path("codebeamer/tree", views.codebeamer_tree, name="codebeamer_tree"),
+    path("codebeamer/assessment", views.codebeamer_assessment, name="codebeamer_assessment"),
+    path("api/codebeamer/assessment/ai-analysis", views.codebeamer_assessment_ai_analysis_proxy, name="codebeamer_assessment_ai_analysis"),
+    path("api/codebeamer/assessment/behavior-scenario", views.codebeamer_behavior_scenario_proxy, name="codebeamer_behavior_scenario"),
     path("codebeamer/item/<int:item_id>", views.codebeamer_item, name="codebeamer_item"),
     path("codebeamer/save", views.codebeamer_save, name="codebeamer_save"),
 ]

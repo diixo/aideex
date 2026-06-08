@@ -1,9 +1,12 @@
 import logging
 import json
 import shutil
+import subprocess
+import sys
 import threading
 import time
 import uuid as _uuid
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Set
@@ -28,6 +31,231 @@ _CB_TASKS: dict[int, dict[str, Any]] = {}
 _CB_ITEM_MAPS: dict[int, dict] = {}         # project_id → full item map (in-memory cache)
 _CB_CORPUS: dict[int, dict] = {}            # project_id → parsed codebeamer.json (in-memory cache)
 _CB_ITEMS_IDX: dict[int, dict[int, dict]] = {}  # project_id → {item_id → raw_item}
+_CB_TRACKER_PROCESS_MAP: dict[int, dict[int, str]] = {}  # project_id → {tracker_id → process_area}
+
+
+def _claude_argv(prompt: str) -> tuple[list[str], str]:
+    """Return (argv, stdin_input) for a claude subprocess call.
+
+    The prompt is passed via stdin to avoid Windows command-line length limits
+    (~8191 chars).  Claude Code enters non-interactive print mode automatically
+    when its stdin is a pipe rather than a TTY.
+    On Windows the .cmd wrapper requires cmd.exe.
+    """
+    if sys.platform == "win32":
+        return ["cmd", "/c", "claude"], prompt
+    return ["claude"], prompt
+
+
+def _classify_trackers_claude(trackers: list[dict]) -> dict[int, str]:
+    """Use claude CLI to classify trackers to ASPICE process areas.
+
+    Calls `claude -p <prompt>` as a subprocess and parses the JSON response.
+    Returns {tracker_id: process_area} or empty dict on failure (caller falls
+    back to name-based heuristics).
+    """
+    tracker_list = [
+        {
+            "id": t.get("id"),
+            "name": t.get("name", ""),
+            "type": (t.get("type") or {}).get("name", ""),
+        }
+        for t in trackers
+        if t.get("id")
+    ]
+    if not tracker_list:
+        return {}
+
+    prompt = (
+        "You are an ASPICE process expert. Classify each Codebeamer tracker to an ASPICE process area.\n"
+        "Process areas:\n"
+        "  SYS.4    – System Integration Test\n"
+        "  SYS.5    – System Qualification Test / Acceptance Test\n"
+        "  SWE.4    – Software Unit Verification / Component Verification\n"
+        "  SWE.5    – Software Integration Verification\n"
+        "  SEC      – Security / CySec testing\n"
+        "  UNMAPPED – cannot determine or not a test tracker\n\n"
+        "Trackers (JSON list):\n"
+        + json.dumps(tracker_list, ensure_ascii=False)
+        + "\n\nReturn ONLY a valid JSON object mapping tracker id (string key) to process area string.\n"
+        "Example: {\"123\": \"SYS.4\", \"456\": \"UNMAPPED\"}\n"
+        "No explanation, no markdown, just the JSON object."
+    )
+
+    try:
+        argv, stdin_data = _claude_argv(prompt)
+        result = subprocess.run(
+            argv,
+            input=stdin_data,
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        if result.returncode != 0:
+            _CB_LOG.warning("claude classify exited %d: %s", result.returncode, result.stderr[:200])
+            return {}
+        text = result.stdout.strip()
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start == -1 or end <= start:
+            _CB_LOG.warning("claude classify: no JSON in response: %s", text[:200])
+            return {}
+        mapping = json.loads(text[start:end])
+        return {int(k): str(v) for k, v in mapping.items() if v}
+    except Exception as exc:
+        _CB_LOG.warning("claude classify failed: %s", exc)
+        return {}
+
+
+def _analyze_gaps_claude(
+    summary: dict,
+    process_breakdown: list,
+    gaps: list,
+    sample_items: Optional[list] = None,
+) -> str:
+    """Use claude CLI to produce a text analysis of ASPICE traceability gaps.
+
+    sample_items: list of {id, name, description} for requirements lacking test cases.
+    When provided, Claude also checks for missing behavioral elements (triggers,
+    timing constraints, acceptance criteria, exceptions) in the requirement texts.
+    """
+    from collections import Counter
+    gap_counts = dict(Counter(g["gap_code"] for g in gaps))
+    gap_by_process: dict[str, list] = {}
+    for g in gaps:
+        gap_by_process.setdefault(g.get("process_area", "UNMAPPED"), []).append(g["gap_code"])
+
+    prompt = (
+        "You are an ASPICE test coverage expert. Analyze the following test coverage data "
+        "for a Codebeamer project and produce a concise actionable assessment.\n\n"
+        "## Summary metrics\n"
+        + json.dumps(summary, indent=2)
+        + "\n\n## Process breakdown\n"
+        + json.dumps(process_breakdown, indent=2)
+        + "\n\n## Gap counts by type\n"
+        + json.dumps(gap_counts, indent=2)
+        + "\n\n## Gap counts by process area\n"
+        + json.dumps({k: dict(Counter(v)) for k, v in gap_by_process.items()}, indent=2)
+        + "\n\n## Sample gaps (first 25)\n"
+        + json.dumps(gaps[:25], indent=2)
+    )
+
+    if sample_items:
+        prompt += (
+            "\n\n## Sample requirements lacking test cases (for behavioral analysis)\n"
+            + json.dumps(sample_items, indent=2, ensure_ascii=False)
+            + "\n\nFor each sample requirement above, identify which behavioral elements are missing:\n"
+            "trigger, preconditions, system actions, timing constraints, exceptions, acceptance criteria.\n"
+            "A requirement that lacks these elements cannot be reliably tested."
+        )
+
+    prompt += (
+        "\n\nProvide your analysis in plain text (no markdown headers, no bullet symbols):\n"
+        "1. Overall ASPICE test coverage assessment — 2-3 sentences.\n"
+        "2. Top 3 critical traceability gap chains to fix, with process area context.\n"
+        "3. Behavioral completeness issues found in sample requirements (if provided).\n"
+        "4. Prioritized recommendations — what to do first to improve the score.\n"
+        "Be concise, specific, and focused on ASPICE compliance."
+    )
+
+    try:
+        argv, stdin_data = _claude_argv(prompt)
+        result = subprocess.run(
+            argv,
+            input=stdin_data,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            _CB_LOG.warning("claude gap analysis exited %d: %s", result.returncode, result.stderr[:200])
+            return ""
+        return result.stdout.strip()
+    except Exception as exc:
+        _CB_LOG.warning("claude gap analysis failed: %s", exc)
+        return ""
+
+
+def _extract_behavior_scenario_claude(item: dict) -> dict:
+    """Use claude CLI to extract a structured behavior scenario from a requirement.
+
+    Returns a dict with keys: actors, trigger, preconditions, system_actions,
+    states, outputs, exceptions, timing_constraints, acceptance_criteria,
+    test_case_ideas. Empty dict on failure.
+    """
+    name = (item.get("name") or "").strip()
+    desc = (item.get("description") or "").strip()
+    if not name and not desc:
+        return {}
+
+    prompt = (
+        "You are an ASPICE/systems engineering expert. "
+        "Extract a structured behavior scenario from the following requirement.\n\n"
+        f"Requirement name: {name}\n"
+        f"Description: {desc[:1200]}\n\n"
+        "Return ONLY a valid JSON object with exactly these keys:\n"
+        "{\n"
+        '  "actors": ["list of actors involved"],\n'
+        '  "trigger": "what event or condition initiates this behavior",\n'
+        '  "preconditions": ["conditions that must hold before the behavior starts"],\n'
+        '  "system_actions": ["ordered list of system actions"],\n'
+        '  "states": ["system states involved"],\n'
+        '  "outputs": ["outputs, signals or results produced"],\n'
+        '  "exceptions": ["error or alternative behaviors"],\n'
+        '  "timing_constraints": ["any timing or performance requirements"],\n'
+        '  "acceptance_criteria": ["verifiable pass/fail criteria"],\n'
+        '  "test_case_ideas": ["concrete test case ideas derived from this behavior"]\n'
+        "}\n"
+        "If a field cannot be determined from the text, use an empty list (or empty string for trigger).\n"
+        "No explanation, no markdown — only the JSON object."
+    )
+
+    try:
+        argv, stdin_data = _claude_argv(prompt)
+        result = subprocess.run(
+            argv,
+            input=stdin_data,
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        if result.returncode != 0:
+            _CB_LOG.warning("claude behavior scenario exited %d", result.returncode)
+            return {}
+        text = result.stdout.strip()
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start == -1 or end <= start:
+            return {}
+        return json.loads(text[start:end])
+    except Exception as exc:
+        _CB_LOG.warning("claude behavior scenario failed: %s", exc)
+        return {}
+
+
+def _item_display_type(iid: int, item_tracker: dict, tracker_meta: dict) -> str:
+    """Classify an item into a display type for the traceability graph."""
+    tid = item_tracker.get(iid)
+    if tid is None:
+        return "unknown"
+    meta = tracker_meta.get(int(tid), {})
+    t = (meta.get("type_name") or "").lower()
+    n = (meta.get("name") or "").lower()
+    if t == "testrun":
+        return "testrun"
+    if t in ("testcase", "testset", "testconf"):
+        return "testcase"
+    if t in ("bug", "issue", "defect"):
+        return "defect"
+    if t == "requirement":
+        if any(k in n for k in ("stakeholder", "customer", "user story", "epic")):
+            return "stakeholder"
+        if any(k in n for k in ("software", "swe", "component", "unit")):
+            return "software_req"
+        if any(k in n for k in ("system", "sys")):
+            return "system_req"
+        return "requirement"
+    return t or "unknown"
 
 
 def _corpus_json_path(project_id: int) -> Path:
@@ -793,6 +1021,554 @@ async def codebeamer_item_map(project_id: int) -> Dict[str, Any]:
         return {"ok": False, "error": "Item map not ready yet"}
     _CB_ITEM_MAPS[project_id] = _build_item_map(data)
     return {"ok": True, "item_map": _CB_ITEM_MAPS[project_id]}
+
+
+# Override map for specific tracker IDs from a known project.
+# For other projects the name-based fallback in _tracker_process_area() is used.
+_TEST_PROCESS_BY_TRACKER_ID = {
+    87637: "SYS.5",  # System Verification Test Cases
+    88271: "SYS.5",  # Acceptance Testing Test Cases
+    87749: "SYS.4",  # System Integration Test Cases
+    87848: "SWE.4",  # Software Verification Test Cases
+    88020: "SWE.4",  # Software Component Verification Test Cases
+    87934: "SWE.5",  # Software Integration Verification Test Cases
+    146738: "SEC",   # CySec Validation Test Cases
+}
+
+
+def _tracker_process_area(tracker_id: int, tracker_name: str) -> str:
+    if tracker_id in _TEST_PROCESS_BY_TRACKER_ID:
+        return _TEST_PROCESS_BY_TRACKER_ID[tracker_id]
+
+    name = (tracker_name or "").lower()
+    if "cysec" in name or "security" in name:
+        return "SEC"
+    if "acceptance" in name:
+        return "SYS.5"
+    if "system integration" in name:
+        return "SYS.4"
+    if "system verification" in name:
+        return "SYS.5"
+    if "software integration" in name:
+        return "SWE.5"
+    if "component verification" in name or "software verification" in name:
+        return "SWE.4"
+    return "UNMAPPED"
+
+
+def _item_status_name(raw_item: dict) -> str:
+    st = raw_item.get("status")
+    if isinstance(st, dict):
+        return str(st.get("name") or "")
+    if isinstance(st, str):
+        return st
+    return ""
+
+
+def _item_timestamp(raw_item: dict) -> Optional[datetime]:
+    for key in ("modifiedAt", "closedAt", "createdAt", "submittedAt"):
+        val = raw_item.get(key)
+        if not isinstance(val, str) or not val.strip():
+            continue
+        try:
+            return datetime.fromisoformat(val.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+    return None
+
+
+def _run_outcome(raw_item: dict) -> str:
+    status = _item_status_name(raw_item).lower()
+    if any(tok in status for tok in ("pass", "passed", "success", "ok")):
+        return "passed"
+    if any(tok in status for tok in ("fail", "failed", "error", "blocked")):
+        return "failed"
+    return "other"
+
+
+def _normalize_feature_key(name: str) -> str:
+    txt = (name or "").strip()
+    if not txt:
+        return "Uncategorized"
+    if "-" in txt:
+        return txt.split("-", 1)[0].strip() or txt
+    if "/" in txt:
+        return txt.split("/", 1)[0].strip() or txt
+    return txt
+
+
+def _guess_behavior_type(text: str) -> str:
+    t = (text or "").lower()
+    if any(k in t for k in ("error", "fault", "invalid", "fail", "diagnostic", "nrc")):
+        return "error"
+    if any(k in t for k in ("within", "timeout", "latency", "time", "kpi", "performance")):
+        return "timing"
+    if any(k in t for k in ("recover", "restore", "reconnect", "again", "after")):
+        return "recovery"
+    if any(k in t for k in ("user", "ack", "button", "select", "tap", "widget")):
+        return "interaction"
+    return "normal"
+
+
+@codebeamer_router.get("/codebeamer/assessment/test-coverage", tags=["codebeamer"])
+async def codebeamer_assessment_test_coverage(
+    project_id: int,
+    include_security: bool = True,
+) -> Dict[str, Any]:
+    """Return ASPICE-oriented assessment report from pulled Codebeamer corpus."""
+    data = _load_corpus(project_id)
+    if data is None:
+        return {"ok": False, "error": "Corpus not found — run Pull first"}
+
+    if project_id in _CB_ITEM_MAPS:
+        item_map = _CB_ITEM_MAPS[project_id]
+    else:
+        item_map = _build_item_map(data)
+        _CB_ITEM_MAPS[project_id] = item_map
+
+    items = data.get("items", [])
+    item_by_id: dict[int, dict] = {it["id"]: it for it in items if it.get("id")}
+
+    if project_id not in _CB_TRACKER_PROCESS_MAP:
+        _CB_LOG.info("Classifying trackers via claude CLI for project %d", project_id)
+        _CB_TRACKER_PROCESS_MAP[project_id] = _classify_trackers_claude(data.get("trackers", []))
+    claude_map = _CB_TRACKER_PROCESS_MAP.get(project_id, {})
+
+    tracker_meta: dict[int, dict] = {}
+    item_tracker: dict[int, int] = {}
+    for t in data.get("trackers", []):
+        tid = int(t.get("id") or 0)
+        if not tid:
+            continue
+        t_type = (t.get("type") or {}).get("name", "")
+        process_area = claude_map.get(tid) or _tracker_process_area(tid, t.get("name", ""))
+        tracker_meta[tid] = {
+            "name": t.get("name", ""),
+            "type_name": t_type,
+            "process_area": process_area,
+            "item_refs": len(t.get("items") or []),
+        }
+        for ref in t.get("items") or []:
+            rid = ref.get("id")
+            if rid:
+                item_tracker[int(rid)] = tid
+
+    requirement_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() == "requirement"
+    }
+    testcase_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() == "testcase"
+    }
+    testset_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() == "testset"
+    }
+    testrun_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() == "testrun"
+    }
+    testconf_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() == "testconf"
+    }
+    defect_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() in {"bug", "issue"}
+    }
+
+    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids}
+    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids}
+    testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids}
+    testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids}
+    testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids}
+    defect_ids = {iid for iid, tid in item_tracker.items() if tid in defect_tracker_ids}
+
+    if not include_security:
+        sec_tracker_ids = {
+            tid for tid, meta in tracker_meta.items()
+            if meta.get("process_area") == "SEC"
+        }
+        sec_testcase_ids = {iid for iid, tid in item_tracker.items() if tid in sec_tracker_ids}
+        testcase_ids -= sec_testcase_ids
+
+    req_with_tests: set[int] = set()
+    req_with_runs: set[int] = set()
+    tests_with_runs: set[int] = set()
+    gaps: list[dict] = []
+    behavior_summary: defaultdict[str, int] = defaultdict(int)
+    behavior_feature_summary: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+    process_req_total: defaultdict[str, int] = defaultdict(int)
+    process_req_with_tests: defaultdict[str, int] = defaultdict(int)
+    process_req_with_runs: defaultdict[str, int] = defaultdict(int)
+    process_tests_total: defaultdict[str, int] = defaultdict(int)
+    process_runs_total: defaultdict[str, int] = defaultdict(int)
+    process_runs_passed: defaultdict[str, int] = defaultdict(int)
+
+    runs_passed = 0
+    runs_failed = 0
+
+    # Precompute testcase process area by tracker.
+    testcase_process: dict[int, str] = {}
+    for tcid in testcase_ids:
+        tid = item_tracker.get(tcid)
+        meta = tracker_meta.get(int(tid or 0), {})
+        area = meta.get("process_area", "UNMAPPED")
+        testcase_process[tcid] = area
+        process_tests_total[area] += 1
+
+    # Testcase-level checks and run metrics.
+    for tcid in testcase_ids:
+        tc_entry = item_map.get(tcid, {})
+        tc_up = set(tc_entry.get("upstream") or [])
+        tc_down = set(tc_entry.get("downstream") or [])
+        linked_requirements = (tc_up | tc_down) & requirement_ids
+        linked_runs = tc_down & testrun_ids
+        area = testcase_process.get(tcid, "UNMAPPED")
+
+        if not linked_requirements:
+            gaps.append({
+                "gap_code": "TESTCASE_NO_REQUIREMENT",
+                "severity": "warning",
+                "process_area": area,
+                "target_id": str(tcid),
+                "message": "Test case has no linked requirement.",
+            })
+
+        if linked_runs:
+            tests_with_runs.add(tcid)
+        else:
+            gaps.append({
+                "gap_code": "TESTCASE_NO_RUN",
+                "severity": "warning",
+                "process_area": area,
+                "target_id": str(tcid),
+                "message": "Test case has no execution evidence.",
+            })
+
+        for rid in linked_runs:
+            process_runs_total[area] += 1
+            raw_run = item_by_id.get(rid, {})
+            outcome = _run_outcome(raw_run)
+            if outcome == "passed":
+                runs_passed += 1
+                process_runs_passed[area] += 1
+            elif outcome == "failed":
+                runs_failed += 1
+                run_up = set(item_map.get(rid, {}).get("upstream") or [])
+                run_down = set(item_map.get(rid, {}).get("downstream") or [])
+                linked_defect = bool((run_up | run_down) & defect_ids)
+                if not linked_defect:
+                    gaps.append({
+                        "gap_code": "FAILED_NO_DEFECT",
+                        "severity": "warning",
+                        "process_area": area,
+                        "target_id": str(rid),
+                        "message": "Failed test run has no linked defect/change item.",
+                    })
+
+    # Requirement-level checks.
+    entities: list[dict] = []
+    for req_id in requirement_ids:
+        req_entry = item_map.get(req_id, {})
+        req_down = set(req_entry.get("downstream") or [])
+        linked_tests = req_down & testcase_ids
+        linked_runs: set[int] = set()
+        areas: set[str] = set()
+        req_raw = item_by_id.get(req_id, {})
+        req_name = str(req_raw.get("name") or req_id)
+        req_tracker_id = item_tracker.get(req_id)
+        req_tracker_name = tracker_meta.get(int(req_tracker_id or 0), {}).get("name", "")
+        feature_key = _normalize_feature_key(req_tracker_name)
+        behavior_type = _guess_behavior_type(req_name)
+        behavior_summary[behavior_type] += 1
+        behavior_feature_summary[feature_key][behavior_type] += 1
+
+        for tcid in linked_tests:
+            linked_runs |= (set(item_map.get(tcid, {}).get("downstream") or []) & testrun_ids)
+            areas.add(testcase_process.get(tcid, "UNMAPPED"))
+
+        if not areas:
+            areas = {"UNMAPPED"}
+
+        for area in areas:
+            process_req_total[area] += 1
+        if linked_tests:
+            req_with_tests.add(req_id)
+            for area in areas:
+                process_req_with_tests[area] += 1
+        else:
+            gaps.append({
+                "gap_code": "REQ_NO_TESTCASE",
+                "severity": "error",
+                "process_area": next(iter(areas)),
+                "target_id": str(req_id),
+                "message": "Requirement has no linked test case.",
+            })
+
+        if linked_runs:
+            req_with_runs.add(req_id)
+            for area in areas:
+                process_req_with_runs[area] += 1
+        elif linked_tests:
+            gaps.append({
+                "gap_code": "REQ_NO_RUN_EVIDENCE",
+                "severity": "warning",
+                "process_area": next(iter(areas)),
+                "target_id": str(req_id),
+                "message": "Requirement has tests, but no test run evidence.",
+            })
+
+        if len(entities) < 250:
+            req_gaps = [g for g in gaps if g.get("target_id") == str(req_id)]
+            entities.append({
+                "entity_id": str(req_id),
+                "entity_type": "requirement",
+                "name": req_name,
+                "feature": feature_key,
+                "behavior_type": behavior_type,
+                "metrics": {
+                    "coverage": 1.0 if linked_tests else 0.0,
+                    "execution": 1.0 if linked_runs else 0.0,
+                },
+                "gaps": req_gaps,
+            })
+
+    requirements_total = len(requirement_ids)
+    tests_total = len(testcase_ids)
+    runs_total = len(testrun_ids)
+
+    coverage_ratio = (len(req_with_tests) / requirements_total) if requirements_total else 0.0
+    execution_ratio = (len(req_with_runs) / requirements_total) if requirements_total else 0.0
+    pass_rate = (runs_passed / runs_total) if runs_total else 0.0
+    assessment_score = 0.45 * coverage_ratio + 0.30 * execution_ratio + 0.25 * pass_rate
+
+    process_areas = sorted(set(
+        list(process_req_total.keys()) +
+        list(process_tests_total.keys()) +
+        list(process_runs_total.keys())
+    ))
+    process_breakdown = []
+    for area in process_areas:
+        p_runs_total = process_runs_total[area]
+        process_breakdown.append({
+            "process_area": area,
+            "requirements_total": process_req_total[area],
+            "requirements_with_tests": process_req_with_tests[area],
+            "requirements_with_runs": process_req_with_runs[area],
+            "tests_total": process_tests_total[area],
+            "runs_total": p_runs_total,
+            "pass_rate": (process_runs_passed[area] / p_runs_total) if p_runs_total else 0.0,
+        })
+
+    # Build a compact graph for UI visualization.
+    graph_nodes: dict[str, dict] = {}
+    graph_edges: list[dict] = []
+    max_root_reqs = 25
+    for req_id in sorted(req_with_tests)[:max_root_reqs]:
+        req_key = f"REQ:{req_id}"
+        graph_nodes[req_key] = {"id": req_key, "label": str(req_id), "type": "requirement"}
+        req_down = set(item_map.get(req_id, {}).get("downstream") or [])
+        for tcid in sorted(req_down & testcase_ids)[:8]:
+            tc_key = f"TC:{tcid}"
+            graph_nodes[tc_key] = {"id": tc_key, "label": str(tcid), "type": "testcase"}
+            graph_edges.append({"from": req_key, "to": tc_key, "type": "verified_by"})
+            tc_down = set(item_map.get(tcid, {}).get("downstream") or [])
+            for rid in sorted(tc_down & testrun_ids)[:6]:
+                run_key = f"TR:{rid}"
+                graph_nodes[run_key] = {"id": run_key, "label": str(rid), "type": "testrun"}
+                graph_edges.append({"from": tc_key, "to": run_key, "type": "executed_as"})
+
+    # Build Feature Behavior graph (Feature -> BehaviorType -> Requirement -> TestCase)
+    behavior_nodes: dict[str, dict] = {}
+    behavior_edges: list[dict] = []
+    for ent in entities[:200]:
+        if ent.get("entity_type") != "requirement":
+            continue
+        req_id = ent.get("entity_id")
+        req_name = ent.get("name") or req_id
+        feature_key = ent.get("feature") or "Uncategorized"
+        behavior_type = ent.get("behavior_type") or "normal"
+
+        feature_node = f"F:{feature_key}"
+        behavior_node = f"B:{feature_key}:{behavior_type}"
+        req_node = f"REQ:{req_id}"
+
+        behavior_nodes[feature_node] = {"id": feature_node, "label": feature_key, "type": "feature"}
+        behavior_nodes[behavior_node] = {
+            "id": behavior_node,
+            "label": f"{behavior_type} behavior",
+            "type": "behavior",
+        }
+        behavior_nodes[req_node] = {"id": req_node, "label": str(req_name)[:52], "type": "requirement"}
+
+        behavior_edges.append({"from": feature_node, "to": behavior_node, "type": "has_behavior"})
+        behavior_edges.append({"from": behavior_node, "to": req_node, "type": "derived_as"})
+
+        req_down = set(item_map.get(int(req_id), {}).get("downstream") or [])
+        for tcid in sorted(req_down & testcase_ids)[:4]:
+            tc_node = f"TC:{tcid}"
+            behavior_nodes[tc_node] = {"id": tc_node, "label": str(tcid), "type": "testcase"}
+            behavior_edges.append({"from": req_node, "to": tc_node, "type": "verified_by"})
+
+    test_trackers = [
+        {
+            "tracker_id": tid,
+            "tracker_name": meta["name"],
+            "type_name": meta["type_name"],
+            "process_area": meta["process_area"],
+            "item_refs": meta["item_refs"],
+        }
+        for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() in {"testcase", "testrun", "testset", "testconf"}
+    ]
+    test_trackers.sort(key=lambda x: x["tracker_id"])
+
+    # ── Full upstream chain graph: TestRun → TestCase → Req → ... → Stakeholder ──
+    # Walks upstream through item_map subjects from test runs up to root artifacts.
+    chain_nodes: dict[str, dict] = {}
+    chain_edges: list[dict] = []
+    chain_visited: set[int] = set()
+
+    def _nkey(iid: int) -> str:
+        return f"N{iid}"
+
+    def _nlabel(iid: int) -> str:
+        raw = item_by_id.get(iid, {})
+        name = str(raw.get("name") or "").strip()
+        return (name[:40] if name else str(iid)).replace('"', "'")
+
+    def _walk_up(iid: int, child_key: str, depth: int) -> None:
+        if depth > 5 or len(chain_nodes) >= 80 or iid in chain_visited:
+            return
+        chain_visited.add(iid)
+        dtype = _item_display_type(iid, item_tracker, tracker_meta)
+        nk = _nkey(iid)
+        chain_nodes[nk] = {"id": nk, "label": _nlabel(iid), "type": dtype}
+        chain_edges.append({"from": nk, "to": child_key})
+        parents = sorted(set(item_map.get(iid, {}).get("upstream") or []))
+        for pid in parents[:3]:
+            _walk_up(pid, nk, depth + 1)
+
+    for rid in sorted(testrun_ids & set(item_map.keys()))[:12]:
+        if len(chain_nodes) >= 80:
+            break
+        run_up = set(item_map.get(rid, {}).get("upstream") or [])
+        linked_tcs = run_up & testcase_ids
+        if not linked_tcs:
+            continue
+        rk = _nkey(rid)
+        chain_nodes[rk] = {"id": rk, "label": _nlabel(rid), "type": "testrun"}
+        for tcid in sorted(linked_tcs)[:2]:
+            if len(chain_nodes) >= 80:
+                break
+            tck = _nkey(tcid)
+            chain_nodes[tck] = {"id": tck, "label": _nlabel(tcid), "type": "testcase"}
+            chain_edges.append({"from": tck, "to": rk})
+            tc_up = sorted(set(item_map.get(tcid, {}).get("upstream") or []))
+            for req_id in tc_up[:3]:
+                _walk_up(req_id, tck, 0)
+
+    return {
+        "ok": True,
+        "project_id": project_id,
+        "project_name": data.get("project_name", ""),
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "summary": {
+            "requirements_total": requirements_total,
+            "requirements_with_tests": len(req_with_tests),
+            "requirements_with_runs": len(req_with_runs),
+            "tests_total": tests_total,
+            "tests_with_runs": len(tests_with_runs),
+            "testsets_total": len(testset_ids),
+            "testconf_total": len(testconf_ids),
+            "runs_total": runs_total,
+            "runs_passed": runs_passed,
+            "runs_failed": runs_failed,
+            "defects_total": len(defect_ids),
+            "coverage_ratio": round(coverage_ratio, 4),
+            "execution_ratio": round(execution_ratio, 4),
+            "pass_rate": round(pass_rate, 4),
+            "assessment_score": round(assessment_score, 4),
+        },
+        "process_breakdown": process_breakdown,
+        "test_trackers": test_trackers,
+        "entities": entities,
+        "gaps": gaps,
+        "behavior_summary": dict(behavior_summary),
+        "behavior_feature_summary": {
+            fk: dict(v) for fk, v in behavior_feature_summary.items()
+        },
+        "graph": {
+            "nodes": list(graph_nodes.values()),
+            "edges": graph_edges,
+        },
+        "behavior_graph": {
+            "nodes": list(behavior_nodes.values()),
+            "edges": behavior_edges,
+        },
+        "full_chain_graph": {
+            "nodes": list(chain_nodes.values()),
+            "edges": chain_edges,
+        },
+    }
+
+
+@codebeamer_router.get("/codebeamer/assessment/behavior-scenario", tags=["codebeamer"])
+async def codebeamer_behavior_scenario(project_id: int, item_id: int) -> Dict[str, Any]:
+    """Extract structured behavior scenario from a requirement item using Claude CLI."""
+    idx = _CB_ITEMS_IDX.get(project_id)
+    if not idx:
+        data = _load_corpus(project_id)
+        if data is None:
+            return {"ok": False, "error": "Corpus not found"}
+    item = (_CB_ITEMS_IDX.get(project_id) or {}).get(item_id)
+    if not item:
+        return {"ok": False, "error": f"Item {item_id} not found in corpus"}
+    scenario = _extract_behavior_scenario_claude(item)
+    return {"ok": True, "item_id": item_id, "scenario": scenario}
+
+
+@codebeamer_router.get("/codebeamer/assessment/ai-analysis", tags=["codebeamer"])
+async def codebeamer_assessment_ai_analysis(
+    project_id: int,
+    include_security: bool = True,
+) -> Dict[str, Any]:
+    """Run Claude gap analysis on assessment data and return plain-text result."""
+    result = await codebeamer_assessment_test_coverage(
+        project_id=project_id,
+        include_security=include_security,
+    )
+    if not result.get("ok"):
+        return {"ok": False, "error": result.get("error", "Assessment unavailable")}
+
+    # Collect sample requirements that lack test cases for behavioral analysis
+    sample_items: list[dict] = []
+    corpus = _CB_CORPUS.get(project_id)
+    if corpus:
+        idx = _CB_ITEMS_IDX.get(project_id) or {}
+        gap_req_ids = [
+            int(g["target_id"]) for g in result["gaps"]
+            if g["gap_code"] == "REQ_NO_TESTCASE"
+        ][:10]
+        for rid in gap_req_ids:
+            raw = idx.get(rid, {})
+            if raw:
+                sample_items.append({
+                    "id": rid,
+                    "name": raw.get("name", ""),
+                    "description": (raw.get("description") or "")[:500],
+                })
+
+    analysis = _analyze_gaps_claude(
+        summary=result["summary"],
+        process_breakdown=result["process_breakdown"],
+        gaps=result["gaps"],
+        sample_items=sample_items or None,
+    )
+    return {"ok": True, "analysis": analysis}
 
 
 @codebeamer_router.get("/codebeamer/items-by-type", tags=["codebeamer"])
