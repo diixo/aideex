@@ -1138,6 +1138,8 @@ async def codebeamer_assessment_test_coverage(
     include_security: bool = True,
 ) -> Dict[str, Any]:
     """Return ASPICE-oriented assessment report from pulled Codebeamer corpus."""
+    saved = _load_saved_pswd()
+    cb_host = (saved or {}).get("codebeamer_host", "").rstrip("/")
     data = _load_corpus(project_id)
     if data is None:
         return {"ok": False, "error": "Corpus not found — run Pull first"}
@@ -1432,18 +1434,22 @@ async def codebeamer_assessment_test_coverage(
     # Build a compact graph for UI visualization.
     graph_nodes: dict[str, dict] = {}
     graph_edges: list[dict] = []
+    def _item_label(iid: int, max_len: int = 48) -> str:
+        name = (item_map.get(iid, {}).get("name") or "").strip()
+        return (name[:max_len] + "…") if len(name) > max_len else (name or str(iid))
+
     max_root_reqs = 8
     for req_id in sorted(req_with_tests)[:max_root_reqs]:
         req_key = f"REQ:{req_id}"
-        graph_nodes[req_key] = {"id": req_key, "label": str(req_id), "type": "requirement"}
+        graph_nodes[req_key] = {"id": req_key, "label": _item_label(req_id), "item_id": req_id, "type": "requirement"}
         req_down = set(item_map.get(req_id, {}).get("downstream") or [])
         for tcid in sorted(req_down & testcase_ids)[:3]:
             tc_key = f"TC:{tcid}"
-            graph_nodes[tc_key] = {"id": tc_key, "label": str(tcid), "type": "testcase"}
+            graph_nodes[tc_key] = {"id": tc_key, "label": _item_label(tcid), "item_id": tcid, "type": "testcase"}
             graph_edges.append({"from": req_key, "to": tc_key, "type": "verified_by"})
             for rid in sorted(testcase_to_runs.get(tcid, set()))[:2]:
                 run_key = f"TR:{rid}"
-                graph_nodes[run_key] = {"id": run_key, "label": str(rid), "type": "testrun"}
+                graph_nodes[run_key] = {"id": run_key, "label": _item_label(rid), "item_id": rid, "type": "testrun"}
                 graph_edges.append({"from": tc_key, "to": run_key, "type": "executed_as"})
 
     # Build Feature Behavior graph (Feature -> BehaviorType -> Requirement -> TestCase)
@@ -1569,6 +1575,7 @@ async def codebeamer_assessment_test_coverage(
         "behavior_feature_summary": {
             fk: dict(v) for fk, v in behavior_feature_summary.items()
         },
+        "cb_host": cb_host,
         "graph": {
             "nodes": list(graph_nodes.values()),
             "edges": graph_edges,

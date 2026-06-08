@@ -790,21 +790,33 @@ def codebeamer_assessment(request):
             return re.sub(r'[^A-Za-z0-9_]', '_', s)
 
         # Build compact Mermaid graph for requirement -> testcase -> testrun links.
+        cb_host = (resp.get("cb_host") or "").rstrip("/")
         graph = resp.get("graph") or {}
         nodes = {n.get("id"): n for n in (graph.get("nodes") or []) if n.get("id")}
         edges = graph.get("edges") or []
         edge_lines = []
+        click_lines = []
+        seen_node_ids = set()
         for e in edges[:200]:
             src = e.get("from")
             dst = e.get("to")
             if not src or not dst or src not in nodes or dst not in nodes:
                 continue
-            src_label = nodes[src].get("label", src)
-            dst_label = nodes[dst].get("label", dst)
-            edge_lines.append(f"{_mid(src)}[{src_label}] --> {_mid(dst)}[{dst_label}]")
+            src_label = nodes[src].get("label", src).replace('"', "'")
+            dst_label = nodes[dst].get("label", dst).replace('"', "'")
+            edge_lines.append(f'{_mid(src)}["{src_label}"] --> {_mid(dst)}["{dst_label}"]')
+            for nid in (src, dst):
+                if nid not in seen_node_ids:
+                    seen_node_ids.add(nid)
+                    item_id = nodes[nid].get("item_id")
+                    if cb_host and item_id:
+                        url = f"{cb_host}/cb/item/{item_id}"
+                        click_lines.append(f'click {_mid(nid)} "{url}" "_blank"')
 
         if edge_lines:
-            context["mermaid_graph"] = "graph LR\n" + "\n".join(edge_lines)
+            context["mermaid_graph"] = "graph LR\n" + "\n".join(edge_lines) + (
+                "\n" + "\n".join(click_lines) if click_lines else ""
+            )
 
         # Build behavior graph for Feature Behavior view.
         b_graph = resp.get("behavior_graph") or {}
