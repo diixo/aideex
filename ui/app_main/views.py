@@ -1,5 +1,7 @@
 import json
 import os
+from pathlib import Path
+from typing import Any
 
 from django.conf import settings
 from django.shortcuts import render, redirect
@@ -41,6 +43,8 @@ _FEATURES_04_DATASET = os.path.join(
     settings.BASE_DIR, "..", "data", "aspice-new",
     "aspice_compliance_checker_test_dataset_v04.json",
 )
+
+_CORPUS_ROOT = (Path(settings.BASE_DIR).parent / "corpus").resolve()
 
 
 def _collect_aspice_counts(dataset):
@@ -866,6 +870,614 @@ def aispice(request):
         "gap_total_warnings": gap_total_warnings,
         "validation_issues": validation_issues,
         "validation_summary": validation_summary,
+    })
+
+
+def aspice_process_grid(request):
+    """Render ProcessGrid view using local corpus + Django-only processing."""
+
+    def corpus_json_path(project_id: int) -> Path:
+        return _CORPUS_ROOT / str(project_id) / "codebeamer.json"
+
+    def scenarios_output_path(project_id: int) -> Path:
+        return _CORPUS_ROOT / str(project_id) / ".sync" / "aspice_scenarios.json"
+
+    def load_corpus(project_id: int) -> dict[str, Any] | None:
+        path = corpus_json_path(project_id)
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def normalize_tracker_role(tracker_name: str, tracker_key: str) -> str:
+        tn = tracker_name.lower()
+        tk = tracker_key.lower()
+        if "feature" in tn or tk == "feat":
+            return "feature"
+        if "customer requirement" in tn or "stakeholder requirement" in tn or tk in {"crs", "stk"}:
+            return "stakeholder_requirement"
+        if "system requirement" in tn or tk == "srs":
+            return "system_requirement"
+        if "software requirement" in tn:
+            return "software_requirement"
+        if "test case" in tn or "qualification test" in tn or tk in {"tc", "test", "testcase"}:
+            return "test_case"
+        return "other"
+
+    def aspice_process_for_role(role: str) -> str:
+        return {
+            "stakeholder_requirement": "SYS.1",
+            "system_requirement": "SYS.2",
+            "software_requirement": "SWE.1",
+            "test_case": "SYS.5",
+        }.get(role, "UNKNOWN")
+
+    def build_records_from_corpus(corpus: dict[str, Any]) -> list[dict[str, Any]]:
+        trackers = corpus.get("trackers") or []
+        items = corpus.get("items") or []
+        if not isinstance(trackers, list) or not isinstance(items, list):
+            return []
+
+        trackers_by_id: dict[int, dict[str, Any]] = {}
+        for tracker in trackers:
+            if isinstance(tracker, dict) and isinstance(tracker.get("id"), int):
+                trackers_by_id[tracker["id"]] = tracker
+
+        items_by_id: dict[int, dict[str, Any]] = {}
+        upstream_by_id: dict[int, list[int]] = {}
+        downstream_by_id: dict[int, list[int]] = {}
+        roles_by_id: dict[int, str] = {}
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            iid = item.get("id")
+            if not isinstance(iid, int):
+                continue
+            items_by_id[iid] = item
+
+            upstream: list[int] = []
+            for subj in item.get("subjects") or []:
+                if not isinstance(subj, dict):
+                    continue
+                sid = subj.get("id")
+                if isinstance(sid, int):
+                    upstream.append(sid)
+                    downstream_by_id.setdefault(sid, []).append(iid)
+            upstream_by_id[iid] = upstream
+
+            tracker_ref = item.get("tracker") or {}
+            tracker = trackers_by_id.get(tracker_ref.get("id") if isinstance(tracker_ref, dict) else None, {})
+            roles_by_id[iid] = normalize_tracker_role(str(tracker.get("name") or ""), str(tracker.get("keyName") or ""))
+
+        feature_ids = [iid for iid, role in roles_by_id.items() if role == "feature"]
+        if not feature_ids:
+            feature_ids = [
+                iid
+                for iid, role in roles_by_id.items()
+                if role == "stakeholder_requirement" and not upstream_by_id.get(iid)
+            ]
+
+        def collect_descendants(root_id: int) -> set[int]:
+            visited: set[int] = set()
+            queue: list[int] = [root_id]
+            while queue:
+                cur = queue.pop(0)
+                if cur in visited:
+                    continue
+                visited.add(cur)
+                for nxt in downstream_by_id.get(cur, []):
+                    if nxt not in visited:
+                        queue.append(nxt)
+            return visited
+
+        records: list[dict[str, Any]] = []
+        for feature_id in feature_ids:
+            feature_item = items_by_id.get(feature_id)
+            if not feature_item:
+                continue
+
+            cluster = collect_descendants(feature_id)
+            cluster.add(feature_id)
+
+            requirements: list[dict[str, Any]] = []
+            test_cases: list[dict[str, Any]] = []
+            trace_links: list[dict[str, Any]] = []
+
+            for iid in sorted(cluster):
+                item = items_by_id.get(iid)
+                if not item:
+                    continue
+                role = roles_by_id.get(iid, "other")
+                upstream = [uid for uid in upstream_by_id.get(iid, []) if uid in cluster]
+
+                for uid in upstream:
+                    trace_links.append({
+                        "id": f"trace-{uid}-{iid}",
+                        "from": str(uid),
+                        "to": str(iid),
+                        "link_type": "derived_by",
+                    })
+
+                if role in {"stakeholder_requirement", "system_requirement", "software_requirement"}:
+                    requirements.append({
+                        "id": str(iid),
+                        "feature_id": str(feature_id),
+                        "type": role,
+                        "aspice_process": aspice_process_for_role(role),
+                        "statement": str(item.get("name") or ""),
+                        "derived_from": [str(uid) for uid in upstream],
+                        "source_evidence": [],
+                        "verification_criteria": "",
+                        "safety_relevance": "",
+                        "review_state": "",
+                        "status": str(((item.get("status") or {}).get("name")) if isinstance(item.get("status"), dict) else ""),
+                    })
+
+                if role == "test_case":
+                    verifies = [
+                        str(uid)
+                        for uid in upstream
+                        if roles_by_id.get(uid) in {"stakeholder_requirement", "system_requirement", "software_requirement"}
+                    ]
+                    test_cases.append({
+                        "id": str(iid),
+                        "feature_id": str(feature_id),
+                        "type": "test_case",
+                        "aspice_process": "SYS.5",
+                        "title": str(item.get("name") or ""),
+                        "verifies": verifies,
+                        "test_steps": [],
+                        "expected_result": "",
+                    })
+
+            feature_status = ""
+            if isinstance(feature_item.get("status"), dict):
+                feature_status = str(feature_item.get("status", {}).get("name") or "")
+
+            records.append({
+                "sample_id": f"SCN-FEAT-{feature_id}",
+                "scenario_type": "feature_lifecycle",
+                "feature": {
+                    "id": str(feature_id),
+                    "name": str(feature_item.get("name") or f"Feature {feature_id}"),
+                    "description": str(feature_item.get("description") or ""),
+                    "status": feature_status,
+                },
+                "input_evidence": [],
+                "input_requirements": requirements,
+                "input_trace_links": trace_links,
+                "input_test_cases": test_cases,
+                "expected_inspection_findings": [],
+            })
+        return records
+
+    def analyze_tests_from_corpus(corpus: dict[str, Any]) -> dict[str, Any]:
+        trackers = corpus.get("trackers") or []
+        items = corpus.get("items") or []
+        if not isinstance(trackers, list) or not isinstance(items, list):
+            return {
+                "totals": {
+                    "tests": 0,
+                    "requirements": 0,
+                    "tests_with_links": 0,
+                    "tests_without_links": 0,
+                    "requirements_with_tests": 0,
+                    "requirements_without_tests": 0,
+                },
+                "test_trackers": [],
+                "orphan_tests": [],
+                "uncovered_requirements": [],
+            }
+
+        trackers_by_id: dict[int, dict[str, Any]] = {
+            t["id"]: t for t in trackers if isinstance(t, dict) and isinstance(t.get("id"), int)
+        }
+        item_by_id: dict[int, dict[str, Any]] = {}
+        role_by_item: dict[int, str] = {}
+        test_tracker_counts: dict[str, int] = {}
+
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), int):
+                continue
+            iid = item["id"]
+            item_by_id[iid] = item
+            tracker_ref = item.get("tracker") or {}
+            tracker_id = tracker_ref.get("id") if isinstance(tracker_ref, dict) else None
+            tracker = trackers_by_id.get(tracker_id, {})
+            role = normalize_tracker_role(str(tracker.get("name") or ""), str(tracker.get("keyName") or ""))
+            role_by_item[iid] = role
+            if role == "test_case":
+                key = str(tracker.get("name") or f"tracker-{tracker_id}")
+                test_tracker_counts[key] = test_tracker_counts.get(key, 0) + 1
+
+        req_roles = {"stakeholder_requirement", "system_requirement", "software_requirement"}
+        requirement_ids = {iid for iid, role in role_by_item.items() if role in req_roles}
+        test_ids = [iid for iid, role in role_by_item.items() if role == "test_case"]
+
+        req_to_tests: dict[int, list[int]] = {}
+        orphan_tests: list[dict[str, Any]] = []
+        tests_with_links = 0
+
+        for tid in test_ids:
+            test_item = item_by_id.get(tid, {})
+            upstream_ids = [
+                subj.get("id")
+                for subj in (test_item.get("subjects") or [])
+                if isinstance(subj, dict) and isinstance(subj.get("id"), int)
+            ]
+            verified_reqs = [rid for rid in upstream_ids if rid in requirement_ids]
+            if verified_reqs:
+                tests_with_links += 1
+                for rid in verified_reqs:
+                    req_to_tests.setdefault(rid, []).append(tid)
+            else:
+                orphan_tests.append({"id": str(tid), "name": str(test_item.get("name") or "")})
+
+        uncovered_requirements = []
+        for rid in sorted(requirement_ids):
+            if req_to_tests.get(rid):
+                continue
+            req_item = item_by_id.get(rid, {})
+            uncovered_requirements.append({
+                "id": str(rid),
+                "name": str(req_item.get("name") or ""),
+                "type": role_by_item.get(rid, ""),
+            })
+
+        return {
+            "totals": {
+                "tests": len(test_ids),
+                "requirements": len(requirement_ids),
+                "tests_with_links": tests_with_links,
+                "tests_without_links": len(test_ids) - tests_with_links,
+                "requirements_with_tests": len(requirement_ids) - len(uncovered_requirements),
+                "requirements_without_tests": len(uncovered_requirements),
+            },
+            "test_trackers": [
+                {"name": name, "count": count}
+                for name, count in sorted(test_tracker_counts.items(), key=lambda x: (-x[1], x[0]))
+            ],
+            "orphan_tests": orphan_tests[:30],
+            "uncovered_requirements": uncovered_requirements[:30],
+        }
+
+    action = ""
+    build_result = None
+    fetch_error = ""
+    test_analysis = None
+    test_analysis_error = ""
+
+    selected_project_id = request.GET.get("project_id", "").strip()
+    selected_project_name = ""
+    project_id_int = int(selected_project_id) if selected_project_id.isdigit() else None
+
+    corpus = load_corpus(project_id_int) if project_id_int is not None else None
+    if corpus and not selected_project_name:
+        selected_project_name = str(corpus.get("project_name") or "")
+
+    if request.method == "POST":
+        action = request.POST.get("action", "").strip()
+        selected_project_id = request.POST.get("project_id", "").strip()
+        project_id_int = int(selected_project_id) if selected_project_id.isdigit() else None
+        corpus = load_corpus(project_id_int) if project_id_int is not None else None
+        if corpus:
+            selected_project_name = str(corpus.get("project_name") or "")
+
+        if action == "build":
+            if project_id_int is None:
+                fetch_error = "Project ID is required"
+            elif corpus is None:
+                fetch_error = f"Corpus not found: {corpus_json_path(project_id_int)}"
+            else:
+                try:
+                    from .aspice_scenario_builder import build_scenario_records
+
+                    records = build_records_from_corpus(corpus)
+                    scenarios_built = build_scenario_records(records)
+                    out = scenarios_output_path(project_id_int)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    out.write_text(json.dumps(scenarios_built, ensure_ascii=False, indent=2), encoding="utf-8")
+                    build_result = {
+                        "ok": True,
+                        "project_id": project_id_int,
+                        "corpus_path": str(corpus_json_path(project_id_int)),
+                        "output_path": str(out),
+                        "records_count": len(records),
+                        "count": len(scenarios_built),
+                    }
+                except Exception as exc:
+                    fetch_error = f"Build failed: {exc}"
+
+    scenarios = []
+    if project_id_int is not None:
+        out = scenarios_output_path(project_id_int)
+        if out.exists():
+            try:
+                loaded = json.loads(out.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    scenarios = loaded
+                else:
+                    fetch_error = fetch_error or "Scenario file has invalid structure"
+            except Exception as exc:
+                fetch_error = fetch_error or f"Failed to read scenarios: {exc}"
+        elif not fetch_error:
+            fetch_error = "Scenario records are not available yet. Run build first."
+
+    if project_id_int is not None and corpus is not None:
+        try:
+            test_analysis = analyze_tests_from_corpus(corpus)
+        except Exception as exc:
+            test_analysis_error = str(exc)
+
+    scenario_type_filter = request.GET.get("scenario_type", "").strip()
+    feature_id_filter = request.GET.get("feature_id", "").strip()
+    severity_filter = request.GET.get("severity", "").strip().lower()
+    gap_rule_filter = request.GET.get("gap_rule", "").strip()
+    aspice_process_filter = request.GET.get("aspice_process", "").strip().upper()
+
+    available_scenario_types = sorted({str(s.get("scenario_type") or "") for s in scenarios if s.get("scenario_type")})
+
+    filtered_scenarios = scenarios
+    if scenario_type_filter:
+        filtered_scenarios = [
+            s for s in filtered_scenarios
+            if str(s.get("scenario_type") or "") == scenario_type_filter
+        ]
+
+    scenarios_after_type_filter = list(filtered_scenarios)
+
+    feature_summary_map: dict[str, dict[str, Any]] = {}
+    for scenario in filtered_scenarios:
+        feature_id = str(scenario.get("feature_id") or "").strip()
+        if not feature_id:
+            continue
+        feature_name = str(scenario.get("feature_name") or feature_id)
+        row = feature_summary_map.setdefault(feature_id, {
+            "feature_id": feature_id,
+            "feature_name": feature_name,
+            "scenario_count": 0,
+            "error_count": 0,
+            "warning_count": 0,
+        })
+        row["scenario_count"] += 1
+        for gap in scenario.get("gaps", []) or []:
+            sev = str(gap.get("severity") or "").lower()
+            if sev == "error":
+                row["error_count"] += 1
+            elif sev == "warning":
+                row["warning_count"] += 1
+
+    available_features = sorted(
+        feature_summary_map.values(),
+        key=lambda x: (str(x.get("feature_name") or "").lower(), str(x.get("feature_id") or "")),
+    )
+
+    if feature_id_filter:
+        filtered_scenarios = [
+            s for s in filtered_scenarios
+            if str(s.get("feature_id") or "") == feature_id_filter
+        ]
+
+    selected_scenario_id = request.GET.get("scenario_id", "").strip()
+    selected = None
+
+    if selected_scenario_id:
+        selected = next((s for s in filtered_scenarios if str(s.get("scenario_id")) == selected_scenario_id), None)
+    if selected is None and filtered_scenarios:
+        selected = filtered_scenarios[0]
+
+    lifecycle_pipeline = []
+    if selected:
+        reqs_by_type: dict[str, list[dict[str, Any]]] = {}
+        for req in selected.get("requirements", []) or []:
+            rtype = str(req.get("type") or "unknown")
+            reqs_by_type.setdefault(rtype, []).append(req)
+
+        lifecycle_pipeline = [
+            {
+                "stage_id": "feature",
+                "label": "Feature",
+                "process": "",
+                "filter_process": "",
+                "color": "purple",
+                "item_type": "feature",
+                "items": [{
+                    "id": selected.get("feature_id"),
+                    "name": selected.get("feature_name"),
+                    "description": "",
+                }],
+            },
+            {
+                "stage_id": "sys1",
+                "label": "SYS.1",
+                "process": "Stakeholder Requirements",
+                "filter_process": "SYS.1",
+                "color": "success",
+                "item_type": "requirement",
+                "items": reqs_by_type.get("stakeholder_requirement", []),
+            },
+            {
+                "stage_id": "sys2",
+                "label": "SYS.2",
+                "process": "System Requirements Analysis",
+                "filter_process": "SYS.2",
+                "color": "primary",
+                "item_type": "requirement",
+                "items": reqs_by_type.get("system_requirement", []),
+            },
+            {
+                "stage_id": "swe1",
+                "label": "SWE.1",
+                "process": "Software Requirements",
+                "filter_process": "SWE.1",
+                "color": "primary",
+                "item_type": "requirement",
+                "items": reqs_by_type.get("software_requirement", []),
+            },
+            {
+                "stage_id": "test",
+                "label": "SYS.5",
+                "process": "Test Cases",
+                "filter_process": "SYS.5",
+                "color": "warning",
+                "item_type": "test_case",
+                "items": selected.get("test_cases", []) or [],
+            },
+            {
+                "stage_id": "findings",
+                "label": "Findings",
+                "process": "Inspection Findings",
+                "filter_process": "",
+                "color": "danger",
+                "item_type": "finding",
+                "items": selected.get("gaps", []) or [],
+            },
+        ]
+
+    selected_feature_id = feature_id_filter or (str(selected.get("feature_id") or "") if selected else "")
+    selected_feature_summary = None
+    if selected_feature_id:
+        feature_scenarios = [
+            s for s in scenarios_after_type_filter
+            if str(s.get("feature_id") or "") == selected_feature_id
+        ]
+        if feature_scenarios:
+            req_ids: set[str] = set()
+            test_ids: set[str] = set()
+            trace_ids: set[str] = set()
+            errors = 0
+            warnings = 0
+            infos = 0
+            recommendations_set: set[str] = set()
+            gap_rule_counts: dict[str, int] = {}
+            feature_name = str(feature_scenarios[0].get("feature_name") or selected_feature_id)
+
+            for fs in feature_scenarios:
+                for req in fs.get("requirements", []) or []:
+                    rid = str(req.get("id") or "").strip()
+                    if rid:
+                        req_ids.add(rid)
+
+                for tc in fs.get("test_cases", []) or []:
+                    tid = str(tc.get("id") or "").strip()
+                    if tid:
+                        test_ids.add(tid)
+
+                for tr in fs.get("trace_links", []) or []:
+                    tid = str(tr.get("id") or "").strip()
+                    if tid:
+                        trace_ids.add(tid)
+
+                for gap in fs.get("gaps", []) or []:
+                    sev = str(gap.get("severity") or "").lower()
+                    if sev == "error":
+                        errors += 1
+                    elif sev == "warning":
+                        warnings += 1
+                    elif sev == "info":
+                        infos += 1
+
+                    rule_id = str(gap.get("rule_id") or "").strip()
+                    if rule_id:
+                        gap_rule_counts[rule_id] = gap_rule_counts.get(rule_id, 0) + 1
+
+                    rec = str(gap.get("recommendation") or "").strip()
+                    if rec:
+                        recommendations_set.add(rec)
+
+            selected_feature_summary = {
+                "feature_id": selected_feature_id,
+                "feature_name": feature_name,
+                "scenario_count": len(feature_scenarios),
+                "requirements_count": len(req_ids),
+                "tests_count": len(test_ids),
+                "trace_links_count": len(trace_ids),
+                "errors": errors,
+                "warnings": warnings,
+                "infos": infos,
+                "top_gap_rules": [
+                    {"rule_id": rid, "count": cnt}
+                    for rid, cnt in sorted(gap_rule_counts.items(), key=lambda x: (-x[1], x[0]))[:5]
+                ],
+                "recommendations": sorted(recommendations_set),
+            }
+
+    process_steps = selected.get("process_steps", []) if selected else []
+    if aspice_process_filter:
+        process_steps = [
+            step for step in process_steps
+            if str(step.get("aspice_process") or "").upper() == aspice_process_filter
+        ]
+
+    available_aspice_processes = sorted({
+        str(step.get("aspice_process") or "").upper()
+        for s in filtered_scenarios
+        for step in s.get("process_steps", [])
+        if step.get("aspice_process")
+    })
+
+    gaps = selected.get("gaps", []) if selected else []
+    if severity_filter in {"error", "warning", "info"}:
+        gaps = [g for g in gaps if str(g.get("severity") or "").lower() == severity_filter]
+    if gap_rule_filter:
+        gaps = [g for g in gaps if str(g.get("rule_id") or "") == gap_rule_filter]
+    if aspice_process_filter:
+        active_rules = {
+            str(rule)
+            for step in process_steps
+            for rule in (step.get("validation_rule") or [])
+            if str(rule).strip()
+        }
+        if active_rules:
+            gaps = [g for g in gaps if str(g.get("rule_id") or "") in active_rules]
+
+    recommendations = []
+    seen_recommendations = set()
+    for g in gaps:
+        rec = str(g.get("recommendation") or "").strip()
+        if not rec or rec in seen_recommendations:
+            continue
+        seen_recommendations.add(rec)
+        recommendations.append(rec)
+
+    if not recommendations and selected:
+        recommendations = selected.get("recommendations", []) or []
+
+    export_format = request.GET.get("export", "").strip().lower()
+    if export_format == "json" and selected:
+        from django.http import JsonResponse
+        return JsonResponse(selected, json_dumps_params={"ensure_ascii": False, "indent": 2})
+
+    return render(request, "app_main/aspice_process_grid.html", context={
+        "title": "AI-delix - ASPICE ProcessGrid",
+        "description": "Scenario-based ASPICE lifecycle process grid",
+        "action": action,
+        "build_result": build_result,
+        "fetch_error": fetch_error,
+        "selected_project_id": selected_project_id,
+        "selected_project_name": selected_project_name,
+        "test_analysis": test_analysis,
+        "test_analysis_error": test_analysis_error,
+        "scenario_count": len(filtered_scenarios),
+        "scenarios": filtered_scenarios,
+        "raw_scenario_count": len(scenarios),
+        "selected": selected,
+        "lifecycle_pipeline": lifecycle_pipeline,
+        "selected_feature_summary": selected_feature_summary,
+        "process_steps": process_steps,
+        "gaps": gaps,
+        "recommendations": recommendations,
+        "scenario_type_filter": scenario_type_filter,
+        "feature_id_filter": feature_id_filter,
+        "severity_filter": severity_filter,
+        "gap_rule_filter": gap_rule_filter,
+        "aspice_process_filter": aspice_process_filter,
+        "available_scenario_types": available_scenario_types,
+        "available_features": available_features,
+        "available_aspice_processes": available_aspice_processes,
     })
 
 
