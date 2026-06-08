@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 from django.conf import settings
 from django.shortcuts import render, redirect
@@ -170,6 +171,16 @@ def codebeamer_behavior_scenario_proxy(request):
         )
     except Exception as e:
         data = {"ok": False, "scenario": {}, "error": str(e)}
+    return JsonResponse(data)
+
+
+def codebeamer_classifier_status_proxy(request):
+    from django.http import JsonResponse
+    project_id = request.GET.get("project_id")
+    try:
+        data = backend_get("/codebeamer/assessment/classifier-status", params={"project_id": project_id})
+    except Exception as e:
+        data = {"status": "error", "error": str(e)}
     return JsonResponse(data)
 
 
@@ -774,6 +785,10 @@ def codebeamer_assessment(request):
             if g.get("gap_code") == "REQ_NO_TESTCASE"
         ][:10]
 
+        def _mid(s):
+            """Sanitize a string to a valid Mermaid node ID (alphanumeric + underscore only)."""
+            return re.sub(r'[^A-Za-z0-9_]', '_', s)
+
         # Build compact Mermaid graph for requirement -> testcase -> testrun links.
         graph = resp.get("graph") or {}
         nodes = {n.get("id"): n for n in (graph.get("nodes") or []) if n.get("id")}
@@ -784,11 +799,9 @@ def codebeamer_assessment(request):
             dst = e.get("to")
             if not src or not dst or src not in nodes or dst not in nodes:
                 continue
-            src_id = src.replace(":", "_")
-            dst_id = dst.replace(":", "_")
             src_label = nodes[src].get("label", src)
             dst_label = nodes[dst].get("label", dst)
-            edge_lines.append(f"{src_id}[{src_label}] --> {dst_id}[{dst_label}]")
+            edge_lines.append(f"{_mid(src)}[{src_label}] --> {_mid(dst)}[{dst_label}]")
 
         if edge_lines:
             context["mermaid_graph"] = "graph LR\n" + "\n".join(edge_lines)
@@ -803,11 +816,9 @@ def codebeamer_assessment(request):
             dst = e.get("to")
             if not src or not dst or src not in b_nodes or dst not in b_nodes:
                 continue
-            src_id = src.replace(":", "_")
-            dst_id = dst.replace(":", "_")
             src_label = str(b_nodes[src].get("label", src)).replace('"', "'")
             dst_label = str(b_nodes[dst].get("label", dst)).replace('"', "'")
-            b_edge_lines.append(f'{src_id}["{src_label}"] --> {dst_id}["{dst_label}"]')
+            b_edge_lines.append(f'{_mid(src)}["{src_label}"] --> {_mid(dst)}["{dst_label}"]')
 
         if b_edge_lines:
             context["behavior_mermaid_graph"] = "graph LR\n" + "\n".join(b_edge_lines)
@@ -829,14 +840,14 @@ def codebeamer_assessment(request):
         for nid, n in c_nodes.items():
             ntype = n.get("type", "unknown")
             prefix, cls = _TYPE_STYLE.get(ntype, ("N", "req"))
-            safe_id = nid.replace(":", "_")
+            safe_id = _mid(nid)
             label = str(n.get("label", nid)).replace('"', "'")
             c_lines.append(f'  {safe_id}["{prefix}: {label}"]')
             c_class_assignments.setdefault(cls, []).append(safe_id)
         for e in c_edges:
             s, d = e.get("from"), e.get("to")
             if s and d and s in c_nodes and d in c_nodes:
-                c_lines.append(f"  {s.replace(':', '_')} --> {d.replace(':', '_')}")
+                c_lines.append(f"  {_mid(s)} --> {_mid(d)}")
         if c_lines:
             header = "graph TD\n"
             class_defs = (

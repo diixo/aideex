@@ -10,9 +10,11 @@
   .metric-card { min-width: 140px; }
   .process-bar { height: .55rem; }
   .mono-id { font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .82rem; }
-  .graph-box { max-height: 540px; overflow: auto; border: 1px solid #e9ecef; border-radius: .5rem; background: #fff; }
-  .mode-pane { display: none; }
-  .mode-pane.active { display: block; }
+  .graph-box { height: 500px; overflow: auto; border: 1px solid #e9ecef; border-radius: .5rem; background: #fff; }
+  .graph-box .mermaid { display: block; }
+  .graph-box .mermaid svg { display: block; max-width: 100%; }
+  .mode-pane { display: none; overflow: hidden; }
+  .mode-pane.active { display: block; overflow: hidden; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spin { display: inline-block; animation: spin 1s linear infinite; }
 </style>
@@ -33,7 +35,7 @@
   </div>
 </div>
 
-<form method="get" class="card shadow-sm mb-3">
+<form method="get" class="card shadow-sm mb-3" id="recalc-form">
   <div class="card-body py-2 d-flex align-items-end gap-2 flex-wrap">
     <div>
       <label class="form-label small mb-1">Project ID</label>
@@ -43,12 +45,19 @@
       <input class="form-check-input" type="checkbox" name="include_security" value="1" id="include_security" {% if include_security %}checked{% endif %}>
       <label class="form-check-label small" for="include_security">Include security test lane</label>
     </div>
-    <button class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" type="submit">
+    <button class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" type="submit" id="btn-recalc">
       <span class="material-icons" style="font-size:1rem;">play_arrow</span>
       Recalculate
     </button>
   </div>
 </form>
+<script>
+  document.getElementById('recalc-form').addEventListener('submit', function () {
+    const btn = document.getElementById('btn-recalc');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Calculating…';
+  });
+</script>
 
 {% if fetch_error %}
 <div class="alert alert-danger py-2 d-flex align-items-center gap-2">
@@ -119,6 +128,11 @@
   </div>
 </div>
 
+<div id="classifier-banner" class="alert alert-info py-2 d-flex align-items-center gap-2 mb-3" style="display:none!important;">
+  <div class="spinner-border spinner-border-sm text-info"></div>
+  <span class="small" id="classifier-banner-text">Classifying trackers with Claude in background…</span>
+</div>
+
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="small text-muted">Graph mode</span>
@@ -130,16 +144,16 @@
   </div>
 </div>
 
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-4" id="graph-row" style="min-height: 620px;">
   <div class="col-lg-7">
-    <div class="card shadow-sm h-100">
+    <div class="card shadow-sm">
       <div class="card-header py-2 fw-semibold">Traceability Graph</div>
       <div class="card-body py-2">
         <div class="mode-pane active" id="pane-aspice">
           <div class="small text-muted mb-2">Requirement -> Test Case -> Test Run</div>
           {% if mermaid_graph %}
-          <div class="graph-box p-2">
-            <pre class="mermaid">{{ mermaid_graph }}</pre>
+          <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
+            <div class="mermaid">{{ mermaid_graph }}</div>
           </div>
           {% else %}
           <div class="alert alert-light border py-2 mb-0 small">No lifecycle graph edges available.</div>
@@ -149,8 +163,8 @@
         <div class="mode-pane" id="pane-behavior">
           <div class="small text-muted mb-2">Feature -> Behavior Type -> Requirement -> Test Case</div>
           {% if behavior_mermaid_graph %}
-          <div class="graph-box p-2">
-            <pre class="mermaid">{{ behavior_mermaid_graph }}</pre>
+          <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
+            <div class="mermaid">{{ behavior_mermaid_graph }}</div>
           </div>
           {% else %}
           <div class="alert alert-light border py-2 mb-0 small">No behavior graph edges available.</div>
@@ -160,8 +174,8 @@
         <div class="mode-pane" id="pane-chain">
           <div class="small text-muted mb-2">Stakeholder → System Req → Software Req → Test Case → Test Run</div>
           {% if full_chain_mermaid_graph %}
-          <div class="graph-box p-2">
-            <pre class="mermaid">{{ full_chain_mermaid_graph }}</pre>
+          <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
+            <div class="mermaid">{{ full_chain_mermaid_graph }}</div>
           </div>
           {% else %}
           <div class="alert alert-light border py-2 mb-0 small">No upstream chain data available.</div>
@@ -170,8 +184,8 @@
       </div>
     </div>
   </div>
-  <div class="col-lg-5">
-    <div class="card shadow-sm h-100">
+  <div class="col-lg-5" id="col-trackers">
+    <div class="card shadow-sm">
       <div class="card-header py-2 fw-semibold">Behavior Mix</div>
       <div class="card-body py-2 border-bottom">
         <div class="d-flex flex-wrap gap-2">
@@ -300,11 +314,13 @@
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
   mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', maxTextSize: 120000 });
   window._mermaid = mermaid;
-  // Only render the initially visible pane — hidden panes render on first show
   const initialPane = document.querySelector('.mode-pane.active');
   if (initialPane) {
-    const nodes = Array.from(initialPane.querySelectorAll('pre.mermaid'));
-    if (nodes.length) mermaid.run({ nodes });
+    const nodes = Array.from(initialPane.querySelectorAll('div.mermaid'));
+    if (nodes.length) {
+      mermaid.run({ nodes })
+        .catch(e => console.error('[mermaid] render error:', e?.str || e?.message || e));
+    }
   }
 </script>
 
@@ -324,14 +340,42 @@
       // Render any not-yet-rendered diagram in the newly visible pane
       const paneEl = {aspice: paneAspice, behavior: paneBehavior, chain: paneChain}[mode];
       if (paneEl && window._mermaid) {
-        const nodes = Array.from(paneEl.querySelectorAll('pre.mermaid'));
-        if (nodes.length) window._mermaid.run({ nodes });
+        const nodes = Array.from(paneEl.querySelectorAll('div.mermaid'));
+        if (nodes.length) {
+          window._mermaid.run({ nodes }).catch(e => console.error('[mermaid] pane render error:', e?.message || e?.str || e));
+        }
       }
     }
 
     if (btnAspice)   btnAspice.addEventListener('click',   () => showPane('aspice'));
     if (btnBehavior) btnBehavior.addEventListener('click', () => showPane('behavior'));
     if (btnChain)    btnChain.addEventListener('click',    () => showPane('chain'));
+  })();
+
+  // Classifier status polling
+  (function () {
+    const banner = document.getElementById('classifier-banner');
+    const bannerText = document.getElementById('classifier-banner-text');
+    if (!banner) return;
+    const statusUrl = '{% url "app_main:codebeamer_classifier_status" %}?project_id={{ project_id }}';
+
+    function checkStatus() {
+      fetch(statusUrl)
+        .then(r => r.json())
+        .then(function (data) {
+          if (data.status === 'running') {
+            banner.style.display = '';
+            bannerText.textContent = 'Classifying trackers with Claude in background…';
+            setTimeout(checkStatus, 4000);
+          } else if (data.status === 'done' && banner.style.display !== 'none') {
+            banner.classList.replace('alert-info', 'alert-success');
+            bannerText.innerHTML = 'Tracker classification complete. <a href="?project_id={{ project_id }}&include_security={% if include_security %}1{% else %}0{% endif %}" class="alert-link">Recalculate</a> to apply Claude results.';
+            banner.querySelector('.spinner-border')?.remove();
+          }
+        })
+        .catch(() => {});
+    }
+    checkStatus();
   })();
 
   const btnExtract = document.getElementById('btn-extract-behavior');

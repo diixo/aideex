@@ -32,6 +32,28 @@ _CB_ITEM_MAPS: dict[int, dict] = {}         # project_id → full item map (in-m
 _CB_CORPUS: dict[int, dict] = {}            # project_id → parsed codebeamer.json (in-memory cache)
 _CB_ITEMS_IDX: dict[int, dict[int, dict]] = {}  # project_id → {item_id → raw_item}
 _CB_TRACKER_PROCESS_MAP: dict[int, dict[int, str]] = {}  # project_id → {tracker_id → process_area}
+_CB_CLASSIFYING: set[int] = set()  # projects currently being classified in background
+
+
+def _tracker_map_cache_path(project_id: int) -> Path:
+    return CORPUS_ROOT / str(project_id) / "tracker_process_map.json"
+
+
+def _load_tracker_map_cache(project_id: int) -> dict[int, str] | None:
+    p = _tracker_map_cache_path(project_id)
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+        return {int(k): v for k, v in raw.items()}
+    except Exception:
+        return None
+
+
+def _save_tracker_map_cache(project_id: int, mapping: dict[int, str]) -> None:
+    p = _tracker_map_cache_path(project_id)
+    try:
+        p.write_text(json.dumps({str(k): v for k, v in mapping.items()}, indent=2), encoding="utf-8")
+    except Exception as exc:
+        _CB_LOG.warning("could not save tracker map cache: %s", exc)
 
 
 def _claude_argv(prompt: str) -> tuple[list[str], str]:
@@ -1130,8 +1152,28 @@ async def codebeamer_assessment_test_coverage(
     item_by_id: dict[int, dict] = {it["id"]: it for it in items if it.get("id")}
 
     if project_id not in _CB_TRACKER_PROCESS_MAP:
-        _CB_LOG.info("Classifying trackers via claude CLI for project %d", project_id)
-        _CB_TRACKER_PROCESS_MAP[project_id] = _classify_trackers_claude(data.get("trackers", []))
+        cached = _load_tracker_map_cache(project_id)
+        if cached is not None:
+            _CB_LOG.info("Loaded tracker map from disk cache for project %d (%d trackers)", project_id, len(cached))
+            _CB_TRACKER_PROCESS_MAP[project_id] = cached
+        else:
+            # Classify in background — page renders immediately with heuristic fallback.
+            # Result saved to disk; next load uses the cache.
+            _CB_TRACKER_PROCESS_MAP[project_id] = {}  # mark as "in progress" so we don't spawn twice
+            trackers_snapshot = data.get("trackers", [])
+
+            def _bg_classify(pid: int, trackers: list) -> None:
+                _CB_CLASSIFYING.add(pid)
+                try:
+                    _CB_LOG.info("Background: classifying trackers via claude CLI for project %d", pid)
+                    mapping = _classify_trackers_claude(trackers)
+                    _CB_TRACKER_PROCESS_MAP[pid] = mapping
+                    _save_tracker_map_cache(pid, mapping)
+                    _CB_LOG.info("Background: tracker classification done for project %d (%d entries)", pid, len(mapping))
+                finally:
+                    _CB_CLASSIFYING.discard(pid)
+
+            threading.Thread(target=_bg_classify, args=(project_id, trackers_snapshot), daemon=True).start()
     claude_map = _CB_TRACKER_PROCESS_MAP.get(project_id, {})
 
     tracker_meta: dict[int, dict] = {}
@@ -1219,13 +1261,37 @@ async def codebeamer_assessment_test_coverage(
         testcase_process[tcid] = area
         process_tests_total[area] += 1
 
+    # Build testcase → runs mapping via TestSet custom field "Test Cases".
+    # Codebeamer stores TC membership in TestSet via a TableFieldValue custom field:
+    #   customField.type == "TableFieldValue"
+    #   customField.values → [[cell, ...], [cell, ...]]  (rows)
+    #   cell.values → [{id: TC_ID, type: TrackerItemReference}]
+    # Chain: TestRun.subjects → TestSet.customField["Test Cases"] → TestCase
+    testcase_to_runs: dict[int, set[int]] = defaultdict(set)
+    for trid in testrun_ids:
+        tr_up = item_map.get(trid, {}).get("upstream") or []
+        for tsid in tr_up:
+            if tsid not in testset_ids:
+                continue
+            ts_raw = item_by_id.get(tsid) or {}
+            for cf in ts_raw.get("customFields") or []:
+                if cf.get("type") != "TableFieldValue":
+                    continue
+                for row in (cf.get("values") or []):
+                    for cell in (row if isinstance(row, list) else []):
+                        for ref in (cell.get("values") or [] if isinstance(cell, dict) else []):
+                            if isinstance(ref, dict) and ref.get("type") == "TrackerItemReference":
+                                tc_id = ref.get("id")
+                                if tc_id and tc_id in testcase_ids:
+                                    testcase_to_runs[tc_id].add(trid)
+
     # Testcase-level checks and run metrics.
     for tcid in testcase_ids:
         tc_entry = item_map.get(tcid, {})
         tc_up = set(tc_entry.get("upstream") or [])
         tc_down = set(tc_entry.get("downstream") or [])
         linked_requirements = (tc_up | tc_down) & requirement_ids
-        linked_runs = tc_down & testrun_ids
+        linked_runs = testcase_to_runs.get(tcid, set())
         area = testcase_process.get(tcid, "UNMAPPED")
 
         if not linked_requirements:
@@ -1287,7 +1353,7 @@ async def codebeamer_assessment_test_coverage(
         behavior_feature_summary[feature_key][behavior_type] += 1
 
         for tcid in linked_tests:
-            linked_runs |= (set(item_map.get(tcid, {}).get("downstream") or []) & testrun_ids)
+            linked_runs |= testcase_to_runs.get(tcid, set())
             areas.add(testcase_process.get(tcid, "UNMAPPED"))
 
         if not areas:
@@ -1366,17 +1432,16 @@ async def codebeamer_assessment_test_coverage(
     # Build a compact graph for UI visualization.
     graph_nodes: dict[str, dict] = {}
     graph_edges: list[dict] = []
-    max_root_reqs = 25
+    max_root_reqs = 8
     for req_id in sorted(req_with_tests)[:max_root_reqs]:
         req_key = f"REQ:{req_id}"
         graph_nodes[req_key] = {"id": req_key, "label": str(req_id), "type": "requirement"}
         req_down = set(item_map.get(req_id, {}).get("downstream") or [])
-        for tcid in sorted(req_down & testcase_ids)[:8]:
+        for tcid in sorted(req_down & testcase_ids)[:3]:
             tc_key = f"TC:{tcid}"
             graph_nodes[tc_key] = {"id": tc_key, "label": str(tcid), "type": "testcase"}
             graph_edges.append({"from": req_key, "to": tc_key, "type": "verified_by"})
-            tc_down = set(item_map.get(tcid, {}).get("downstream") or [])
-            for rid in sorted(tc_down & testrun_ids)[:6]:
+            for rid in sorted(testcase_to_runs.get(tcid, set()))[:2]:
                 run_key = f"TR:{rid}"
                 graph_nodes[run_key] = {"id": run_key, "label": str(rid), "type": "testrun"}
                 graph_edges.append({"from": tc_key, "to": run_key, "type": "executed_as"})
@@ -1452,13 +1517,16 @@ async def codebeamer_assessment_test_coverage(
         for pid in parents[:3]:
             _walk_up(pid, nk, depth + 1)
 
-    for rid in sorted(testrun_ids & set(item_map.keys()))[:12]:
+    # Invert testcase_to_runs for full chain traversal
+    run_to_testcases: dict[int, set[int]] = defaultdict(set)
+    for tcid, run_set in testcase_to_runs.items():
+        for rid in run_set:
+            run_to_testcases[rid].add(tcid)
+
+    for rid in sorted(run_to_testcases.keys())[:12]:
         if len(chain_nodes) >= 80:
             break
-        run_up = set(item_map.get(rid, {}).get("upstream") or [])
-        linked_tcs = run_up & testcase_ids
-        if not linked_tcs:
-            continue
+        linked_tcs = run_to_testcases[rid]
         rk = _nkey(rid)
         chain_nodes[rk] = {"id": rk, "label": _nlabel(rid), "type": "testrun"}
         for tcid in sorted(linked_tcs)[:2]:
@@ -1514,6 +1582,18 @@ async def codebeamer_assessment_test_coverage(
             "edges": chain_edges,
         },
     }
+
+
+@codebeamer_router.get("/codebeamer/assessment/classifier-status", tags=["codebeamer"])
+async def codebeamer_classifier_status(project_id: int) -> Dict[str, Any]:
+    """Return current tracker classification status for a project."""
+    if project_id in _CB_CLASSIFYING:
+        return {"status": "running"}
+    if _CB_TRACKER_PROCESS_MAP.get(project_id):
+        return {"status": "done"}
+    if _tracker_map_cache_path(project_id).exists():
+        return {"status": "done"}
+    return {"status": "pending"}
 
 
 @codebeamer_router.get("/codebeamer/assessment/behavior-scenario", tags=["codebeamer"])
