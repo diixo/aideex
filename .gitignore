@@ -5,3 +5,4 @@ secrets/
 corpus/
 
 logs/
+.vscode/

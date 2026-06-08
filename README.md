@@ -1,6 +1,6 @@
 # aideex
 
-ASPICE compliance checker for software development projects.
+ASPICE assessment/compliance checker for software development projects.
 
 
 ## Run django-server:

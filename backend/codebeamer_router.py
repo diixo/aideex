@@ -617,7 +617,7 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4, _stage: str = "
         tracker_id = tracker["id"]
         tracker_name = str(tracker.get("name") or tracker_id)
         refs: list[dict] = []
-        page, page_size = 1, 100
+        page, page_size = 1, 500
         while True:
             resp = tc._client.get(
                 f"trackers/{tracker_id}/items",
@@ -633,7 +633,7 @@ def _cb_evaluate(project_id: int, saved: dict, workers: int = 4, _stage: str = "
                 break
             page += 1
         plan_entry = {"id": tracker_id, "name": tracker_name, "item_count": len(refs)}
-        time.sleep(0.6)
+        #time.sleep(0.6)
         return plan_entry, refs
 
     workers = max(1, min(int(workers or 4), 16))
