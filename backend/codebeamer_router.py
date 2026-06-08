@@ -742,6 +742,7 @@ def codebeamer_evaluate(req: CodebeamerEvaluateRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=409, detail="Evaluate already running for this project")
 
     run_id = str(_uuid.uuid4())
+    _update_cb_status(req.project_id, "evaluate")
     t = threading.Thread(
         target=_run_cb_task,
         args=(req.project_id, _cb_evaluate, req.project_id, saved),
@@ -1049,6 +1050,7 @@ def codebeamer_pull(req: CodebeamerPullRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=409, detail="Pull already running for this project")
 
     run_id = str(_uuid.uuid4())
+    _update_cb_status(req.project_id, "pull")
     t = threading.Thread(
         target=_run_cb_task,
         args=(req.project_id, _cb_pull, req.project_id, saved),

@@ -163,6 +163,23 @@ document.getElementById('btn-hide-progress').addEventListener('click', function(
   if (_pollTimer) clearTimeout(_pollTimer);
 });
 
+// При загрузке страницы — подхватываем активную задачу если она уже запущена
+(function checkOnLoad() {
+  var projectId = _selectedId || parseInt(document.getElementById('local-project-select') && document.getElementById('local-project-select').value);
+  if (!projectId) return;
+  fetch('/api/codebeamer/status/' + projectId)
+    .then(r => r.json())
+    .then(function(data) {
+      var s = data.stage || 'idle';
+      if (s !== 'idle' && s !== 'error') {
+        _activePullId = projectId;
+        updateProgress(data);
+        pollStatus();
+      }
+    })
+    .catch(function() {});
+})();
+
 // ── Local projects refresh ────────────────────────────────────────────────────
 
 function renderLocalProjects(projects) {

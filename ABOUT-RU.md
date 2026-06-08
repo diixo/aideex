@@ -207,7 +207,7 @@ Scenario = конкретный путь по этой схеме
 Какие переходы между состояниями?
 ```
 
-Например для requirements engineering:
+Например для requirements engineering: !!!
 ```
 Capture stakeholder need
 
@@ -226,7 +226,7 @@ Capture stakeholder need
 #### 2. Сценарий
 Сценарии поддерживает сценарности, потому что он позволяет моделировать конкретные случаи прохождения артефактов через процесс.
 
-**Сценарий** — это конкретная “история прохождения” одного объекта через процесс.
+**Сценарий** — это конкретная **“история прохождения”** одного объекта через процесс.
 
 Например:
 ```
@@ -367,7 +367,7 @@ SWE.5  Software Integration and Integration Test
 SWE.6  Software Qualification Test
 ```
 
-Это **процессная модель**.
+Это **процессная модель**. !!!
 
 Она отвечает:
 ```
@@ -379,7 +379,7 @@ SWE.6  Software Qualification Test
 Как управляются изменения?
 ```
 
-### 2. Сценарий в ASPICE = конкретный проход через процессы
+### 2. Сценарий в ASPICE = конкретный проход через процессы !!!!
 Например сценарий:
 ```
 Customer wants low-battery warning
@@ -399,7 +399,7 @@ Customer wants low-battery warning
 ### 3. ALM-трассировка = поддержка процесса и сценариев
 #### Главное: ASPICE оценивает не сценарии, а процесс + evidence
 ASPICE assessor обычно смотрит не “красивый сценарий”, а доказательства, что процесс работает:
-
+!!!
 ```
 есть требования
 есть архитектура
@@ -411,7 +411,7 @@ ASPICE assessor обычно смотрит не “красивый сцена�
 есть verification evidence
 ```
 
-Например для одного требования должна быть видна цепочка:
+Например для одного требования должна быть видна цепочка:!!!
 ```
 Stakeholder Requirement
   → SYS.2 System Requirement
@@ -423,6 +423,7 @@ Stakeholder Requirement
             → SWE.5 Software Integration Test
             → SYS.5 System Qualification Test
 ```
+!!!
 И для каждого элемента этой цепочки должны быть доказательства, что он существует, что он связан с предыдущим элементом, что он прошёл review/approval, что он был протестирован и что тесты были успешными.
 
 ```
@@ -470,7 +471,7 @@ Requirement must be linked to Test Case
 Test Case must have Test Run result
 Defect must be linked to failed Test Run
 ```
-
+!!!
 Сценарии в Codebeamer будут конкретными примерами того, как один артефакт (например, SYS.2 requirement) проходит через эти статусы, получает связи, создаёт тесты, выполняет тесты, и как это всё документируется.
 
 А сценарий — это конкретный пример:
@@ -485,7 +486,7 @@ REQ-001 marked verified
 ```
 
 
-### 5. Для AI-пайплайна
+### 5. Для AI-пайплайна !!!
 
 Если ты строишь AI-систему генерации требований, то в ASPICE-смысле тебе нужна не просто генерация текста, а генерация **процессно-согласованных артефактов**.
 
@@ -583,6 +584,7 @@ Customer Need
 ```
 
 И система проверяет:
+!!!
 ```
 Есть ли traceability?
 Есть ли verification link?
@@ -756,6 +758,7 @@ Customer Need
 Такой конструктор сценариев будет полезен для AI-пайплайна, потому что он задаёт структуру и правила, по которым AI должен генерировать требования и связанные артефакты. AI не будет просто генерировать текст, а будет создавать **ALM/ASPICE-compatible work items**, которые уже будут соответствовать процессной модели и сценариям ASPICE.
 
 Например, если AI генерирует SYS.2 requirement, он будет знать, что ему нужно указать:
+!!!!!!!!!!!
 ```
 - derived_from stakeholder requirement
 - linked architecture element
@@ -765,7 +768,7 @@ Customer Need
 
 И если AI генерирует тестовый случай, он будет знать, что ему нужно связать его с SYS.2 requirement и указать, что это SYS.5 qualification test.
 
-**Твой AI тогда будет не просто генерировать requirement text, а работать по сценарию:**
+**Твой AI тогда будет не просто генерировать requirement text, а работать по сценарию:**!!!
 ```
 1. Найти evidence в Confluence/code
 2. Извлечь candidate stakeholder need
@@ -781,6 +784,7 @@ Customer Need
 То есть сценарий становится **управляющим шаблоном для AI-агента**.
 
 ### Пример типов сценариев
+
 Я бы заложил такие шаблоны:
 ```
 Requirement derivation scenario
@@ -829,7 +833,7 @@ This SYS.2 requirement is valid only if:
 
 ## Минимальная MVP-модель
 
-Для MVP я бы сделал такие сущности:
+Для MVP я бы сделал такие сущности:!!!
 ```
 Scenario
 Process Step
@@ -844,7 +848,7 @@ Gap
 Recommendation
 ```
 
-И такие основные артефакты:
+И такие основные артефакты:!!!
 ```
 Stakeholder Requirement
 System Requirement
@@ -1131,7 +1135,7 @@ Feature behavior extracted
 When battery is low, the system displays a warning within 1 second.
 ```
 
-AI может вывести несколько артефактов:
+**AI может вывести несколько артефактов:**
 ```
 Stakeholder Need:
 The rider shall be warned when the battery level is low.
@@ -1221,6 +1225,7 @@ Feature Behavior
 То есть если ты извлекаешь поведение фичи из Confluence/code, то это **ещё не ASPICE-сценарий**, но это отличный **upstream input** для него.
 
 Хорошая цепочка для AI-пайплайна:
+!!!
 ```
 Confluence + code
   → extracted feature behavior
@@ -1236,7 +1241,7 @@ Confluence + code
 
 ### Feature Behavior Scenario
 ```
-Feature Behavior Scenario лучше думать как граф поведения, а не как одну линейную цепочку.
+!!! Feature Behavior Scenario лучше думать как граф поведения, а не как одну линейную цепочку.
 
 Потому что у одной фичи почти всегда есть не одно поведение, а несколько:
 Feature: Low Battery Warning
@@ -1259,7 +1264,7 @@ User acknowledges warning → warning changes state / remains visible / logs eve
 
 
 ### Как лучше моделировать
-
+!!!
 Я бы сделал так:
 ```
 Feature
