@@ -27,6 +27,7 @@ codebeamer_router = APIRouter(tags=["codebeamer"])
 _CB_TASKS: dict[int, dict[str, Any]] = {}
 _CB_ITEM_MAPS: dict[int, dict] = {}         # project_id → full item map (in-memory cache)
 _CB_CORPUS: dict[int, dict] = {}            # project_id → parsed codebeamer.json (in-memory cache)
+_CB_ITEMS_IDX: dict[int, dict[int, dict]] = {}  # project_id → {item_id → raw_item}
 
 
 def _corpus_json_path(project_id: int) -> Path:
@@ -45,9 +46,18 @@ def _load_corpus(project_id: int) -> dict | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         _CB_CORPUS[project_id] = data
+        _CB_ITEMS_IDX[project_id] = {it["id"]: it for it in data.get("items", []) if it.get("id")}
         return data
     except Exception:
         return None
+
+
+def _get_items_by_ids(project_id: int, item_ids: set) -> list[dict]:
+    """Return full item objects for given ids using the pre-built index."""
+    idx = _CB_ITEMS_IDX.get(project_id)
+    if idx is None:
+        return []
+    return [idx[iid] for iid in item_ids if iid in idx]
 
 
 def _build_item_map(payload: dict) -> dict:
@@ -333,9 +343,8 @@ async def codebeamer_tracker_corpus(tracker_id: int, project_id: int) -> Dict[st
     if raw_tracker is None:
         return {"ok": False, "error": f"Tracker {tracker_id} not found in corpus"}
 
-    raw_items = raw_tracker.get("items", [])
-    item_ids = {ref["id"] for ref in raw_items if ref.get("id")}
-    items = [it for it in corpus.get("items", []) if it.get("id") in item_ids]
+    item_ids = {ref["id"] for ref in raw_tracker.get("items", []) if ref.get("id")}
+    items = _get_items_by_ids(project_id, item_ids)
 
     return {"ok": True, "tracker": raw_tracker, "items": items}
 
@@ -1043,6 +1052,7 @@ def _cb_pull(project_id: int, saved: dict, workers: int = 4) -> None:
     }
     _corpus_json_path(project_id).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     _CB_CORPUS[project_id] = data
+    _CB_ITEMS_IDX[project_id] = {it["id"]: it for it in data.get("items", []) if it.get("id")}
     _CB_ITEM_MAPS[project_id] = _build_item_map(data)
 
     _CB_LOG.info("pull done: project_id=%d items=%d failed=%d", project_id, total_items, progress.failures)

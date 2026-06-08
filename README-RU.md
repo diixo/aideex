@@ -150,10 +150,12 @@ C:\git\aideex\
 |------------|-----|-----------|
 | `_CB_CORPUS` | `dict[int, dict]` | `project_id → codebeamer.json` |
 | `_CB_ITEM_MAPS` | `dict[int, dict]` | `project_id → item_map` |
+| `_CB_ITEMS_IDX` | `dict[int, dict[int, dict]]` | `project_id → {item_id → raw_item}` |
 | `_CB_TASKS` | `dict[int, dict]` | `project_id → {"thread": Thread}` |
 
 `_CB_CORPUS` — загружается с диска при первом обращении, обновляется при Pull.
 `_CB_ITEM_MAPS` — строится из corpus вызовом `_build_item_map(data)`, используется для трейсабилити.
+`_CB_ITEMS_IDX` — индекс для быстрого поиска item по id (O(1) вместо O(n)). Строится одновременно с `_CB_CORPUS`. Используется в `_get_items_by_ids(project_id, item_ids)`.
 
 ---
 
@@ -204,6 +206,15 @@ Pull:
 
 Pull автоматически запускает Evaluate если `tree.json` отсутствует или устарел (другой `project_id`).
 
+После записи corpus:
+```python
+_CB_CORPUS[project_id] = data
+_CB_ITEMS_IDX[project_id] = {it["id"]: it for it in data["items"] if it.get("id")}
+_CB_ITEM_MAPS[project_id] = _build_item_map(data)
+```
+
+**Статус задачи** пишется в файл **до** старта потока (`_update_cb_status` в endpoint-е), чтобы первый JS-poll всегда видел активный статус.
+
 ---
 
 ## FastAPI endpoints (/codebeamer/*)
@@ -230,7 +241,8 @@ Pull автоматически запускает Evaluate если `tree.json`
 |-------|-----|---------|
 | GET | `/codebeamer/item-map?project_id=` | Полный item_map из памяти/corpus |
 | GET | `/codebeamer/tree/{item_id}?project_id=&levels=&enrich_ids=` | Upstream/downstream деревья |
-| GET | `/codebeamer/items-by-type?project_id=&type_name=` | Items по typeName из corpus |
+| GET | `/codebeamer/items-by-type?project_id=&type_name=` | Items по `typeName` из corpus |
+| GET | `/codebeamer/tracker/{id}/corpus?project_id=` | Трекер + его items из corpus (без CB API) |
 | POST | `/codebeamer/tracker/{id}/items` | Bulk-create items в трекере |
 
 ### Фоновые задачи
@@ -252,10 +264,10 @@ Pull автоматически запускает Evaluate если `tree.json`
 
 | URL | View | Назначение |
 |-----|------|-----------|
-| `/codebeamer` | `codebeamer` | Главная страница: Work/Config Items |
-| `/codebeamer/select-project` | `codebeamer_select_project` | Выбор проекта, Add Project, Pull/Evaluate |
-| `/codebeamer/tree` | `codebeamer_tree` | Tree View трекеров |
-| `/codebeamer/tracker/{id}` | `codebeamer_tracker` | Список items трекера + форма создания |
+| `/codebeamer` | `codebeamer` | Главная страница: Work/Config Items (из corpus) |
+| `/codebeamer/select-project` | `codebeamer_select_project` | Список локальных проектов, Add Project, Pull/Evaluate |
+| `/codebeamer/tree` | `codebeamer_tree` | Tree View трекеров (из corpus) |
+| `/codebeamer/tracker/{id}` | `codebeamer_tracker` | Трекер + items (из corpus, fallback CB API) |
 | `/codebeamer/item/{id}` | `codebeamer_item` | Карточка item с трейсабилити |
 | `/codebeamer/evaluate` | `codebeamer_evaluate` | POST → FastAPI /evaluate |
 | `/codebeamer/pull` | `codebeamer_pull_view` | POST → FastAPI /pull |
@@ -359,17 +371,28 @@ item.subjects → upstream item IDs → build_tree(upstream) → upstream tree r
 
 ### Цепочка загрузки трекера (/codebeamer/tracker/{id})
 ```
-CB API: GET /trackers/{id}         → tracker object
-FastAPI: GET /tracker-fields/{id}  → поля из corpus / CB API
-CB API: tracker.get_items()        → список items (live)
+FastAPI: GET /tracker/{id}/corpus  → tracker + items из corpus (без CB API)
+  ├─ corpus["trackers"] → метаданные трекера (name, type, color, keyName, ...)
+  └─ _CB_ITEMS_IDX[project_id]    → O(k) lookup items по tracker's item refs
+
+FastAPI: GET /tracker-fields/{id}  → поля из corpus / CB API (fallback)
 _CB_ITEM_MAPS[project_id]         → icon + color для каждого item
+
+Если corpus недоступен → fallback на CB API (get_tracker + get_items)
 ```
 
 ### Цепочка загрузки главной страницы (/codebeamer)
 ```
-FastAPI: GET /codebeamer/trackers  → raw trackers из corpus
+FastAPI: GET /codebeamer/trackers  → raw trackers из corpus (без CB API)
   → Work Items / Config Items (классификация по type_name)
+  → Если corpus нет → редирект на /select-project
 FastAPI: GET /codebeamer/item-map  → has_project_json флаг
+```
+
+### Страница /select-project
+```
+FastAPI: GET /codebeamer/local-projects → список проектов с corpus/ на диске
+JS checkOnLoad()                        → автоподхват активной задачи при загрузке
 ```
 
 ---
