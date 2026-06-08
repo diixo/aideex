@@ -322,6 +322,24 @@ async def codebeamer_trackers(project_id: int) -> Dict[str, Any]:
     return {"ok": True, "trackers": corpus.get("trackers", [])}
 
 
+@codebeamer_router.get("/codebeamer/tracker/{tracker_id}/corpus", tags=["codebeamer"])
+async def codebeamer_tracker_corpus(tracker_id: int, project_id: int) -> Dict[str, Any]:
+    """Return tracker metadata + its full items from corpus, keyed by tracker_id."""
+    corpus = _load_corpus(project_id)
+    if not corpus:
+        return {"ok": False, "error": "Corpus not found — run Pull first"}
+
+    raw_tracker = next((t for t in corpus.get("trackers", []) if t.get("id") == tracker_id), None)
+    if raw_tracker is None:
+        return {"ok": False, "error": f"Tracker {tracker_id} not found in corpus"}
+
+    raw_items = raw_tracker.get("items", [])
+    item_ids = {ref["id"] for ref in raw_items if ref.get("id")}
+    items = [it for it in corpus.get("items", []) if it.get("id") in item_ids]
+
+    return {"ok": True, "tracker": raw_tracker, "items": items}
+
+
 @codebeamer_router.get("/codebeamer/tree-view", tags=["codebeamer"])
 async def codebeamer_tree_view(project_id: int) -> Dict[str, Any]:
     """Return raw tree nodes (from tree.json) + tracker metadata lookup (from corpus).

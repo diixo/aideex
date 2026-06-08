@@ -268,11 +268,12 @@ def codebeamer(request):
     return render(request, "app_main/codebeamer.html", context)
 
 
-def _serialize_fields(tracker: Tracker, project_id: int = None):
-    pid = project_id or (tracker.project.id if tracker.project else None)
+def _serialize_fields(tracker: Tracker = None, project_id: int = None, tracker_id: int = None):
+    tid = tracker_id or (tracker.id if tracker else None)
+    pid = project_id or (tracker.project.id if tracker and tracker.project else None)
     raw_fields = None
-    if pid:
-        resp = backend_get(f"/codebeamer/tracker-fields/{tracker.id}", params={"project_id": pid})
+    if tid and pid:
+        resp = backend_get(f"/codebeamer/tracker-fields/{tid}", params={"project_id": pid})
         if resp.get("ok"):
             raw_fields = resp.get("fields", [])
 
@@ -692,27 +693,65 @@ def codebeamer_tracker(request, tracker_id):
         "cb_url": credentials.get("cb_url", ""),
     }
     try:
-        cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
-        tracker = cb.get_tracker(tracker_id)
-        context["tracker"] = {
-            "id":          tracker.id,
-            "name":        tracker.name,
-            "type_id":     tracker.type_id,
-            "type_name":   tracker.type_name,
-            "description": tracker.description,
-            "key_name":    tracker.key_name,
-            "version":     tracker.version,
-            "created_at":  tracker.created_at,
-            "created_by":  tracker.created_by.name if tracker.created_by else None,
-            "modified_at": tracker.modified_at,
-            "modified_by": tracker.modified_by.name if tracker.modified_by else None,
-            "project_id":  tracker.project.id if tracker.project else None,
-            "project_name":tracker.project.name if tracker.project else None,
-            "icon":        TRACKER_ICONS.get(tracker.type_id, "label"),
-        }
+        _proj_id = credentials.get("project_id")
+        corpus_resp = backend_get(f"/codebeamer/tracker/{tracker_id}/corpus",
+                                  params={"project_id": _proj_id}) if _proj_id else {}
+
+        if corpus_resp.get("ok"):
+            raw_t = corpus_resp["tracker"]
+            t_type = raw_t.get("type") or {}
+            type_id = t_type.get("id", -1)
+            proj = raw_t.get("project") or {}
+            context["tracker"] = {
+                "id":          raw_t.get("id"),
+                "name":        raw_t.get("name", ""),
+                "type_id":     type_id,
+                "type_name":   t_type.get("name"),
+                "description": raw_t.get("description"),
+                "key_name":    raw_t.get("keyName"),
+                "version":     raw_t.get("version"),
+                "created_at":  raw_t.get("createdAt"),
+                "created_by":  (raw_t.get("createdBy") or {}).get("name"),
+                "modified_at": raw_t.get("modifiedAt"),
+                "modified_by": (raw_t.get("modifiedBy") or {}).get("name"),
+                "project_id":  proj.get("id") or _proj_id,
+                "project_name":proj.get("name"),
+                "icon":        TRACKER_ICONS.get(type_id, "label"),
+                "color":       raw_t.get("color") or "#6c757d",
+            }
+            raw_items = corpus_resp.get("items", [])
+            _use_corpus_items = True
+        else:
+            cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
+            tracker = cb.get_tracker(tracker_id)
+            type_id = tracker.type_id
+            context["tracker"] = {
+                "id":          tracker.id,
+                "name":        tracker.name,
+                "type_id":     type_id,
+                "type_name":   tracker.type_name,
+                "description": tracker.description,
+                "key_name":    tracker.key_name,
+                "version":     tracker.version,
+                "created_at":  tracker.created_at,
+                "created_by":  tracker.created_by.name if tracker.created_by else None,
+                "modified_at": tracker.modified_at,
+                "modified_by": tracker.modified_by.name if tracker.modified_by else None,
+                "project_id":  tracker.project.id if tracker.project else None,
+                "project_name":tracker.project.name if tracker.project else None,
+                "icon":        TRACKER_ICONS.get(type_id, "label"),
+                "color":       tracker.color or "#6c757d",
+            }
+            _proj_id = tracker.project.id if tracker.project else _proj_id
+            raw_items = None
+            _use_corpus_items = False
+
         from pybeamer.tracker_item import TrackerItem as _TI
-        _proj_id = tracker.project.id if tracker.project else credentials.get("project_id")
-        all_fields = _serialize_fields(tracker, project_id=_proj_id)
+        all_fields = _serialize_fields(
+            None if corpus_resp.get("ok") else tracker,  # type: ignore
+            project_id=_proj_id,
+            tracker_id=tracker_id,
+        )
         # Category field drives the type_name — extract it separately
         category_field = next(
             (f for f in all_fields if f["tracker_field"] in ("categories", "category") or f["name"].lower() in ("category", "categories")),
@@ -732,7 +771,7 @@ def codebeamer_tracker(request, tracker_id):
         context["tracker_fields"] = [f for f in all_fields if f != category_field]
 
         # Load Release items from corpus JSON via FastAPI (no live CB calls)
-        project_id = tracker.project.id if tracker.project else credentials.get("project_id")
+        project_id = context["tracker"].get("project_id") or credentials.get("project_id")
         release_items = []
         if project_id:
             resp = backend_get("/codebeamer/items-by-type",
@@ -741,7 +780,8 @@ def codebeamer_tracker(request, tracker_id):
         context["release_items"] = release_items
 
         # Pick form template by tracker type_name, fallback to default
-        type_slug = (tracker.type_name or "").lower().replace(" ", "_").replace("/", "_")
+        type_name = context["tracker"].get("type_name") or ""
+        type_slug = type_name.lower().replace(" ", "_").replace("/", "_")
         from django.template.loader import get_template
         from django.template import TemplateDoesNotExist
         specific = f"app_main/cb_tracker_forms/{type_slug}.html"
@@ -750,45 +790,58 @@ def codebeamer_tracker(request, tracker_id):
             context["tracker_form_template"] = specific
         except TemplateDoesNotExist:
             context["tracker_form_template"] = "app_main/cb_tracker_forms/default.html"
-        items = tracker.get_items()
-        context["items_total"] = len(items)
-        is_issue = (tracker.type_name or "").lower() == "issue"
+
+        is_issue = type_name.lower() == "issue"
         context["is_issue_tracker"] = is_issue
 
-        # item_map for icon + status-color lookup (built during pull)
-        _proj_id = tracker.project.id if tracker.project else credentials.get("project_id")
+        # item_map for icon + status-color lookup
         _item_map_resp = backend_get("/codebeamer/item-map", params={"project_id": _proj_id}) if _proj_id else {}
         _item_map = _item_map_resp.get("item_map", {}) if _item_map_resp.get("ok") else {}
-        tracker_icon  = TRACKER_ICONS.get(tracker.type_id, "label")
-        tracker_color = tracker.color or "#6c757d"
+        tracker_icon  = context["tracker"].get("icon", "label")
+        tracker_color = context["tracker"].get("color", "#6c757d")
 
-        def _safe(fn):
-            try: return fn()
-            except: return None
-
-        def _serialize_item(i):
-            entry = _item_map.get(str(i.id)) or _item_map.get(i.id) or {}
-            status_name = _safe(lambda: i.status.value.name if i.status and i.status.value else None)
+        def _serialize_item_raw(it: dict) -> dict:
+            iid = it.get("id")
+            entry = _item_map.get(str(iid)) or _item_map.get(iid) or {}
+            status = (it.get("status") or {}).get("name")
             base = {
-                "id":          i.id,
-                "name":        i.name,
-                "type_name":   i.type_name,
+                "id":          iid,
+                "name":        it.get("name", ""),
+                "type_name":   it.get("typeName"),
                 "icon":        entry.get("icon", tracker_icon),
-                "color":       entry.get("color") or STATUS_COLORS.get(status_name, tracker_color),
-                "status":      status_name,
-                "status_color": STATUS_COLORS.get(status_name, tracker_color),
+                "color":       entry.get("color") or STATUS_COLORS.get(status, tracker_color),
+                "status":      status,
+                "status_color": STATUS_COLORS.get(status, tracker_color),
             }
             if is_issue:
-                priority_name = _safe(lambda: i.priority.name if i.priority else None)
-                base["priority"]       = priority_name
-                base["priority_color"] = PRIORITY_COLORS.get(priority_name, "#adb5bd")
-                base["severity"]   = _safe(lambda: i.severities[0].get("name") if i.severities else None)
-                base["resolution"] = _safe(lambda: i.resolutions[0].get("name") if i.resolutions else None)
-                base["start_date"] = _safe(lambda: str(i.start_date.date()) if i.start_date else None)
-                base["end_date"]   = _safe(lambda: str(i.end_date.date()) if i.end_date else None)
+                priority = ((it.get("priority") or {}).get("name"))
+                base["priority"]       = priority
+                base["priority_color"] = PRIORITY_COLORS.get(priority, "#adb5bd")
+                severities = it.get("severities") or []
+                base["severity"]   = severities[0].get("name") if severities else None
+                resolutions = it.get("resolutions") or []
+                base["resolution"] = resolutions[0].get("name") if resolutions else None
+                base["start_date"] = it.get("startDate", "")[:10] if it.get("startDate") else None
+                base["end_date"]   = it.get("endDate", "")[:10] if it.get("endDate") else None
             return base
 
-        context["items"] = [_serialize_item(i) for i in items]
+        if _use_corpus_items:
+            context["items"] = [_serialize_item_raw(it) for it in raw_items]
+        else:
+            def _safe(fn):
+                try: return fn()
+                except: return None
+            items = tracker.get_items()
+            context["items"] = [_serialize_item_raw({
+                "id": i.id, "name": i.name, "typeName": _safe(lambda: i.type_name),
+                "status": {"name": _safe(lambda: i.status.value.name if i.status and i.status.value else None)},
+                "priority": {"name": _safe(lambda: i.priority.name if i.priority else None)},
+                "severities": _safe(lambda: i.severities) or [],
+                "resolutions": _safe(lambda: i.resolutions) or [],
+                "startDate": str(_safe(lambda: i.start_date)) if _safe(lambda: i.start_date) else None,
+                "endDate": str(_safe(lambda: i.end_date)) if _safe(lambda: i.end_date) else None,
+            }) for i in tracker.get_items()]
+        context["items_total"] = len(context["items"])
     except Exception as e:
         context["fetch_error"] = str(e)
 
