@@ -744,6 +744,7 @@ def codebeamer_assessment(request):
         "summary": {},
         "process_breakdown": [],
         "gaps": [],
+        "gaps_total": 0,
         "test_trackers": [],
         "mermaid_graph": "",
         "behavior_mermaid_graph": "",
@@ -769,7 +770,9 @@ def codebeamer_assessment(request):
         context["project_name"] = resp.get("project_name", str(project_id))
         context["summary"] = resp.get("summary") or {}
         context["process_breakdown"] = resp.get("process_breakdown") or []
-        context["gaps"] = (resp.get("gaps") or [])[:300]
+        all_gaps = resp.get("gaps") or []
+        context["gaps"] = all_gaps[:300]
+        context["gaps_total"] = len(all_gaps)
         context["test_trackers"] = resp.get("test_trackers") or []
         context["behavior_summary"] = resp.get("behavior_summary") or {}
         feature_summary = resp.get("behavior_feature_summary") or {}

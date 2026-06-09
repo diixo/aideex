@@ -231,9 +231,10 @@
 </div>
 
 <div class="card shadow-sm mb-4">
-  <div class="card-header py-2 d-flex align-items-center justify-content-between">
+  <div class="card-header py-2 d-flex align-items-center">
     <span class="fw-semibold">Detected Gaps</span>
-    <span class="badge text-bg-danger">{{ gaps|length }}</span>
+    <span class="ms-2 badge text-bg-danger">{{ gaps_total }}</span>
+    {% if gaps|length < gaps_total %}<span class="ms-auto small text-muted">showing {{ gaps|length }}</span>{% endif %}
   </div>
   <div class="card-body py-0">
     <table class="table table-sm align-middle mb-0" style="font-size:13px;">
