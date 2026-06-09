@@ -187,7 +187,12 @@
 <div class="d-flex gap-3 flex-wrap mb-4" id="graph-row">
   <div style="flex: 5 1 300px; min-width: 0;" id="col-trackers">
     <div class="card shadow-sm">
-      <div class="card-header py-2 fw-semibold">Test Trackers</div>
+      <div class="card-header py-2 d-flex align-items-center">
+        <span class="fw-semibold">Test Trackers</span><span class="ms-2 badge text-bg-danger">{{ test_items_total }}</span>
+        <span class="ms-2 material-icons text-muted"
+              style="font-size:1rem;cursor:default;"
+              title="Trackers classified as test-related (Testcase, Testrun, Testset, Testconf). Process - ASPICE process area (SYS.4, SWE.4, SWE.5 etc.), assigned by Claude or heuristic if Claude is unavailable. UNMAPPED means the process area could not be determined.">help</span>
+      </div>
       <div class="card-body py-0">
         <table class="table table-sm align-middle mb-0" style="font-size:13px;">
           <thead>
@@ -202,8 +207,8 @@
           <tbody>
             {% for t in test_trackers %}
             <tr>
-              <td class="mono-id">{{ t.tracker_id }}</td>
-              <td>{{ t.tracker_name }}</td>
+              <td class="mono-id"><a href="{{ cb_host }}/tracker/{{ t.tracker_id }}" target="_blank" class="text-decoration-none">{{ t.tracker_id }}</a></td>
+              <td><a href="{% url 'app_main:codebeamer_tracker' t.tracker_id %}" class="text-decoration-none">{{ t.tracker_name }}</a></td>
               <td><span class="text-muted">{{ t.type_name }}</span></td>
               <td><span class="badge text-bg-light border">{{ t.process_area }}</span></td>
               <td>{{ t.item_refs }}</td>
@@ -216,15 +221,56 @@
   </div>
   <div style="flex: 7 1 420px; min-width: 0;">
     <div class="card shadow-sm">
-      <div class="card-header py-2 fw-semibold">Behavior Mix</div>
+      <div class="card-header py-2 d-flex align-items-center">
+        <span class="fw-semibold">Behavior Mix</span><span class="ms-2 badge text-bg-danger">{{ behavior_total }}</span>
+        <span class="ms-2 material-icons text-muted"
+              style="font-size:1rem;cursor:default;"
+              title="Distribution of requirements by behavior type. Classification is heuristic — performed automatically by keyword matching in the requirement name (not by Claude). Normal — default for all requirements that do not match other categories.">help</span>
+      </div>
       <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-2">
-          {% for key, val in behavior_summary.items %}
-          <span class="badge text-bg-light border">{{ key }}: {{ val }}</span>
-          {% empty %}
-          <span class="small text-muted">No behavior distribution data.</span>
-          {% endfor %}
-        </div>
+        {% if behavior_summary %}
+        <table class="table table-sm mb-0" style="font-size:12px;">
+          <thead class="table-light">
+            <tr>
+              <th>Type</th>
+              <th>Count</th>
+              <th>Meaning</th>
+              <th>Keywords</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for key, val in behavior_summary.items %}
+            <tr>
+              <td><span class="badge text-bg-light border" style="font-size:12px;">{{ key }}</span></td>
+              <td class="fw-semibold">{{ val }}</td>
+              <td>
+                {% if key == "normal" %}Normal system behaviour
+                {% elif key == "error" %}Error and fault handling
+                {% elif key == "timing" %}Timing and performance requirements
+                {% elif key == "interaction" %}User interaction
+                {% elif key == "recovery" %}Recovery after failure
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if key == "error" %}
+                  <span class="badge text-bg-light border me-1" style="font-size:12px;">error</span><span class="badge text-bg-light border me-1" style="font-size:12px;">fault</span><span class="badge text-bg-light border me-1" style="font-size:12px;">invalid</span><span class="badge text-bg-light border me-1" style="font-size:12px;">fail</span><span class="badge text-bg-light border me-1" style="font-size:12px;">diagnostic</span><span class="badge text-bg-light border me-1" style="font-size:12px;">nrc</span>
+                {% elif key == "timing" %}
+                  <span class="badge text-bg-light border me-1" style="font-size:12px;">within</span><span class="badge text-bg-light border me-1" style="font-size:12px;">timeout</span><span class="badge text-bg-light border me-1" style="font-size:12px;">latency</span><span class="badge text-bg-light border me-1" style="font-size:12px;">time</span><span class="badge text-bg-light border me-1" style="font-size:12px;">kpi</span><span class="badge text-bg-light border me-1" style="font-size:12px;">performance</span>
+                {% elif key == "interaction" %}
+                  <span class="badge text-bg-light border me-1" style="font-size:12px;">user</span><span class="badge text-bg-light border me-1" style="font-size:12px;">ack</span><span class="badge text-bg-light border me-1" style="font-size:12px;">button</span><span class="badge text-bg-light border me-1" style="font-size:12px;">select</span><span class="badge text-bg-light border me-1" style="font-size:12px;">tap</span><span class="badge text-bg-light border me-1" style="font-size:12px;">widget</span>
+                {% elif key == "recovery" %}
+                  <span class="badge text-bg-light border me-1" style="font-size:12px;">recover</span><span class="badge text-bg-light border me-1" style="font-size:12px;">restore</span><span class="badge text-bg-light border me-1" style="font-size:12px;">reconnect</span><span class="badge text-bg-light border me-1" style="font-size:12px;">again</span><span class="badge text-bg-light border me-1" style="font-size:12px;">after</span>
+                {% elif key == "normal" %}
+                  <span class="text-muted fst-italic">all others</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <span class="small text-muted">No behavior distribution data.</span>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -479,5 +525,7 @@
         });
     });
   }
+
+
 </script>
 {% endblock %}

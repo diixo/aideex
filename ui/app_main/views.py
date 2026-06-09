@@ -746,10 +746,12 @@ def codebeamer_assessment(request):
         "gaps": [],
         "gaps_total": 0,
         "test_trackers": [],
+        "test_items_total": 0,
         "mermaid_graph": "",
         "behavior_mermaid_graph": "",
         "full_chain_mermaid_graph": "",
         "behavior_summary": {},
+        "behavior_total": 0,
         "behavior_feature_summary": [],
         "sample_req_items": [],
         "cb_host": "",
@@ -774,7 +776,9 @@ def codebeamer_assessment(request):
         context["gaps"] = all_gaps[:300]
         context["gaps_total"] = len(all_gaps)
         context["test_trackers"] = resp.get("test_trackers") or []
+        context["test_items_total"] = sum(t.get("item_refs", 0) for t in context["test_trackers"])
         context["behavior_summary"] = resp.get("behavior_summary") or {}
+        context["behavior_total"] = sum((resp.get("behavior_summary") or {}).values())
         feature_summary = resp.get("behavior_feature_summary") or {}
         context["behavior_feature_summary"] = [
             {"feature": k, "counts": v}
