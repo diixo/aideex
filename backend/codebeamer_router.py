@@ -1232,6 +1232,14 @@ async def codebeamer_assessment_test_coverage(
         if (raw.get("typeName") or "").lower() == "folder"
     }
 
+    # Recompute item_refs in tracker_meta excluding folders
+    if folder_ids:
+        tracker_to_items: dict[int, set] = {}
+        for iid, tid in item_tracker.items():
+            tracker_to_items.setdefault(tid, set()).add(iid)
+        for tid, meta in tracker_meta.items():
+            meta["item_refs"] = len(tracker_to_items.get(tid, set()) - folder_ids)
+
     requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids
     testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids
     testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids} - folder_ids
