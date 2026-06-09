@@ -224,3 +224,52 @@ class Codebeamer:
 
 	def get_item_typemap(self):
 		return TrackerItem.TYPE_MAP
+
+	def get_item_relations(self, item_id: int, page: int = 1, page_size: int = 100) -> dict[str, list[TrackerItem]]:
+		"""Fetches the related items of a given item id.
+
+		Params:
+		item_id — The ID of the item to fetch relations for. — int
+
+		Returns:
+		dict[str, list[`TrackerItem`]] — A dictionary mapping relation types to lists of related items."""
+		try:
+			fetch_all = page == 0
+			if fetch_all:
+				page = 1
+			page_size = clamp(page_size, 1, 500) # Clamp page_size between 1 and 500
+			params = {'page': page, 'pageSize': page_size}
+
+			def _to_tracker_items(references: list[dict[str, Any]]) -> list[TrackerItem]:
+				items: list[TrackerItem] = []
+				for ref in references:
+					# Relations often wrap item data under itemRevision; fall back to raw ref.
+					item_payload = ref.get('itemRevision', ref)
+					if isinstance(item_payload, dict) and 'id' in item_payload:
+						item_payload = self._client.get(f'items/{item_payload["id"]}')	#TODO: client=None
+						items.append(TrackerItem(**item_payload, client=self._client))
+				return items
+
+			item_data = self._client.get(f'items/{item_id}/relations', params=params)
+
+			upstream_items: list[TrackerItem] = _to_tracker_items(item_data.get('upstreamReferences', []))
+			downstream_items: list[TrackerItem] = _to_tracker_items(item_data.get('downstreamReferences', []))
+
+			if fetch_all:
+				# Keep loading pages while page payload size is exactly page_size.
+				page_item_count = len(item_data.get('upstreamReferences', [])) + len(item_data.get('downstreamReferences', []))
+				while page_item_count == page_size:
+					params['page'] += 1
+					item_data = self._client.get(f'items/{item_id}/relations', params=params)
+					next_upstream = item_data.get('upstreamReferences', [])
+					next_downstream = item_data.get('downstreamReferences', [])
+					page_item_count = len(next_upstream) + len(next_downstream)
+					if page_item_count == 0:
+						break
+					upstream_items.extend(_to_tracker_items(next_upstream))
+					downstream_items.extend(_to_tracker_items(next_downstream))
+
+			return {'upstream': upstream_items, 'downstream': downstream_items}
+		except Exception as e:
+			logger.exception(e)
+			return {}
