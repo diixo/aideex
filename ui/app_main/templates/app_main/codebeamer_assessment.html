@@ -239,16 +239,36 @@
     <table class="table table-sm align-middle mb-0" style="font-size:13px;">
       <thead>
         <tr>
+          <th style="width:32px;"></th>
+          <th>Target</th>
           <th>Severity</th>
           <th>Code</th>
           <th>Process</th>
-          <th>Target</th>
           <th>Message</th>
         </tr>
       </thead>
       <tbody>
         {% for g in gaps %}
         <tr>
+          <td style="width:32px;vertical-align:middle;text-align:center;">
+            {% if cb_host %}
+            <div class="dropdown d-inline-flex align-items-center justify-content-center">
+              <button class="btn btn-sm p-0 border-0 fw-bold d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:1.1rem;line-height:1;">⋮</button>
+              <ul class="dropdown-menu shadow-sm" style="min-width:130px;font-size:13px;">
+                <li><a class="dropdown-item" href="{% url 'app_main:codebeamer_item' g.target_id %}">Details</a></li>
+              </ul>
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            {% if cb_host %}
+            <a href="{% url 'app_main:codebeamer_item' g.target_id %}" class="text-decoration-none fw-semibold" title="#{{ g.target_id }}">
+              {{ g.target_name|default:g.target_id }}
+            </a>
+            {% else %}
+            <span title="#{{ g.target_id }}">{{ g.target_name|default:g.target_id }}</span>
+            {% endif %}
+          </td>
           <td>
             {% if g.severity == 'error' %}
             <span class="badge bg-danger">error</span>
@@ -260,12 +280,11 @@
           </td>
           <td><code>{{ g.gap_code }}</code></td>
           <td>{{ g.process_area }}</td>
-          <td><code>{{ g.target_id }}</code></td>
           <td>{{ g.message }}</td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="5" class="text-muted py-3">No gaps detected for selected filters.</td>
+          <td colspan="6" class="text-muted py-3">No gaps detected for selected filters.</td>
         </tr>
         {% endfor %}
       </tbody>

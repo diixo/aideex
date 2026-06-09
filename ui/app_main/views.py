@@ -750,6 +750,7 @@ def codebeamer_assessment(request):
         "behavior_summary": {},
         "behavior_feature_summary": [],
         "sample_req_items": [],
+        "cb_host": "",
     }
 
     try:
@@ -791,6 +792,7 @@ def codebeamer_assessment(request):
 
         # Build compact Mermaid graph for requirement -> testcase -> testrun links.
         cb_host = (resp.get("cb_host") or "").rstrip("/")
+        context["cb_host"] = cb_host
         graph = resp.get("graph") or {}
         nodes = {n.get("id"): n for n in (graph.get("nodes") or []) if n.get("id")}
         edges = graph.get("edges") or []
@@ -810,7 +812,7 @@ def codebeamer_assessment(request):
                     seen_node_ids.add(nid)
                     item_id = nodes[nid].get("item_id")
                     if cb_host and item_id:
-                        url = f"{cb_host}/cb/item/{item_id}"
+                        url = f"{cb_host}/item/{item_id}"
                         click_lines.append(f'click {_mid(nid)} "{url}" "_blank"')
 
         if edge_lines:

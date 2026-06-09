@@ -1287,6 +1287,9 @@ async def codebeamer_assessment_test_coverage(
                                 if tc_id and tc_id in testcase_ids:
                                     testcase_to_runs[tc_id].add(trid)
 
+    def _iname(iid: int) -> str:
+        return str(item_by_id.get(iid, {}).get("name") or iid)
+
     # Testcase-level checks and run metrics.
     for tcid in testcase_ids:
         tc_entry = item_map.get(tcid, {})
@@ -1302,6 +1305,7 @@ async def codebeamer_assessment_test_coverage(
                 "severity": "warning",
                 "process_area": area,
                 "target_id": str(tcid),
+                "target_name": _iname(tcid),
                 "message": "Test case has no linked requirement.",
             })
 
@@ -1313,6 +1317,7 @@ async def codebeamer_assessment_test_coverage(
                 "severity": "warning",
                 "process_area": area,
                 "target_id": str(tcid),
+                "target_name": _iname(tcid),
                 "message": "Test case has no execution evidence.",
             })
 
@@ -1334,6 +1339,7 @@ async def codebeamer_assessment_test_coverage(
                         "severity": "warning",
                         "process_area": area,
                         "target_id": str(rid),
+                        "target_name": _iname(rid),
                         "message": "Failed test run has no linked defect/change item.",
                     })
 
@@ -1373,6 +1379,7 @@ async def codebeamer_assessment_test_coverage(
                 "severity": "error",
                 "process_area": next(iter(areas)),
                 "target_id": str(req_id),
+                "target_name": req_name,
                 "message": "Requirement has no linked test case.",
             })
 
@@ -1386,6 +1393,7 @@ async def codebeamer_assessment_test_coverage(
                 "severity": "warning",
                 "process_area": next(iter(areas)),
                 "target_id": str(req_id),
+                "target_name": req_name,
                 "message": "Requirement has tests, but no test run evidence.",
             })
 
