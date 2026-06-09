@@ -1,0 +1,67 @@
+<div class="card shadow-sm mb-3">
+  <div class="card-header py-2 d-flex align-items-center gap-2">
+    <span class="material-icons" style="font-size:18px; color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
+    <span class="fw-bold">{{ item.type_name|default:"Test Case" }}:</span>
+    <span class="fw-semibold">{{ item.name }}</span>
+    <code class="ms-1">#{{ item.id }}</code>
+    <span class="ms-auto">
+      <a href="{{ cb_url }}/item/{{ item.id }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+        <span class="material-icons" style="font-size:.9rem; vertical-align:middle;">open_in_new</span>
+      </a>
+    </span>
+  </div>
+  <div class="card-body py-2 px-3">
+
+    <div class="mb-3 mt-2 fw-bold">Tracker: <a href="{% url 'app_main:codebeamer_tracker' item.tracker_id %}" class="fw-semibold text-decoration-none">{{ item.tracker_name }}</a></div>
+
+    <div style="display:flex;gap:1.5rem;padding:.4rem 0;border-bottom:1px solid #f3f3f3;">
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Status:</span>
+        <span style="font-size:.85rem;">
+          <span class="fw-semibold px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">{{ item.status|default:"—" }}</span>
+        </span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Priority:</span>
+        <span style="font-size:.85rem;" class="d-flex align-items-center gap-1">
+          {% if item.priority and item.priority != "Unset" %}
+          <i class="material-icons" style="font-size:15px;color:{{ item.priority_color }};">table_rows</i>{{ item.priority }}
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Parent:</span>
+        <span style="font-size:.85rem;">
+          {% if item.parent_id %}
+          <a href="{% url 'app_main:codebeamer_item' item.parent_id %}" class="text-decoration-none">{{ item.parent_name }}</a>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:1.5rem;padding:.4rem 0;border-bottom:1px solid #f3f3f3;">
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Assigned:</span>
+        <span style="font-size:.85rem;">{{ item.assigned_to|default:"—" }}</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Owner:</span>
+        <span style="font-size:.85rem;">{{ item.owners|default:"—" }}</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;"></div>
+    </div>
+
+    <div style="display:flex;gap:1.5rem;padding:.4rem 0;">
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Submitted:</span>
+        <span style="font-size:.85rem;">{{ item.created_by|default:"—" }} <span class="text-muted">{{ item.created_at }}</span></span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Modified:</span>
+        <span style="font-size:.85rem;">{{ item.modified_by|default:"—" }} <span class="text-muted">{{ item.modified_at }}</span></span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;"></div>
+    </div>
+
+  </div>
+</div>
