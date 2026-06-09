@@ -16,7 +16,10 @@
 {% endif %}
 
 {% if item %}
-{% if item_view_template %}{% include item_view_template %}{% endif %}
+{% if item_view_template %}
+{% include item_view_template %}
+{% else %}
 {% include "app_main/cb_item_views/default.html" %}
+{% endif %}
 {% endif %}
 {% endblock %}

@@ -255,7 +255,7 @@
             <div class="dropdown d-inline-flex align-items-center justify-content-center">
               <button class="btn btn-sm p-0 border-0 fw-bold d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:1.1rem;line-height:1;">⋮</button>
               <ul class="dropdown-menu shadow-sm" style="min-width:130px;font-size:13px;">
-                <li><a class="dropdown-item" href="{% url 'app_main:codebeamer_item' g.target_id %}">Details</a></li>
+                <li><a class="dropdown-item" href="{% url 'app_main:codebeamer_item' g.target_id %}?gap={{ g.gap_code }}">Details</a></li>
               </ul>
             </div>
             {% endif %}

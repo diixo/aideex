@@ -1,3 +1,19 @@
+{% if gap_code %}
+<div class="alert alert-warning py-2 mb-3 d-flex align-items-start gap-2" role="alert">
+  <span class="material-icons" style="font-size:1.1rem;margin-top:2px;flex-shrink:0;">warning</span>
+  <div>
+    <span class="fw-semibold">Gap: <code>{{ gap_code }}</code></span><br>
+    {% if gap_code == 'TESTCASE_NO_RUN' %}
+    <span class="small">This test case has no linked test runs — no execution evidence found. See <strong>Downstreams</strong> section below.</span>
+    {% elif gap_code == 'TESTCASE_NO_REQUIREMENT' %}
+    <span class="small">This test case has no linked requirement — traceability is broken. See <strong>Upstreams</strong> section below.</span>
+    {% else %}
+    <span class="small">This item was flagged during ASPICE assessment.</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <div class="card shadow-sm mb-3">
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="material-icons" style="font-size:18px; color:{{ item.status_color }};">{{ item.tracker_icon }}</span>
@@ -16,9 +32,33 @@
 
     <div style="display:flex;gap:1.5rem;padding:.4rem 0;border-bottom:1px solid #f3f3f3;">
       <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">ID:</span>
+        <span style="font-size:.85rem;"><code>{{ item.id }}</code></span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Type:</span>
+        <span style="font-size:.85rem;">{{ item.type_name|default:"—" }}</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
+        <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Verifies:</span>
+        <span style="font-size:.85rem;">
+          {% if item.subjects %}
+            {% for s in item.subjects %}
+            <a href="{% url 'app_main:codebeamer_item' s.id %}" class="text-decoration-none d-inline-flex align-items-center gap-1 me-1">
+              <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ s.color|default:'#6c757d' }};border-radius:3px;padding:2px;line-height:1;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;">{{ s.icon|default:'article' }}</span>{{ s.name }}</a>{% if not forloop.last %},{% endif %}
+            {% endfor %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:1.5rem;padding:.4rem 0;border-bottom:1px solid #f3f3f3;">
+      <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
         <span style="font-size:.875rem;font-weight:600;color:#333;white-space:nowrap;">Status:</span>
         <span style="font-size:.85rem;">
-          <span class="fw-semibold px-2 py-1 rounded" style="background:{{ item.status_color }};color:#fff;">{{ item.status|default:"—" }}</span>
+          <span class="fw-semibold px-5 py-1 rounded" style="background:{{ item.status_color }}; color:#fff; font-size: 0.75rem;">{{ item.status|default:"—" }}</span>
         </span>
       </div>
       <div style="display:flex;align-items:baseline;gap:.5rem;flex:1;min-width:0;">
@@ -65,3 +105,123 @@
 
   </div>
 </div>
+
+{% if item.description %}
+<div class="border rounded-2 p-2 mb-2 shadow-sm">
+  <div class="d-flex align-items-center gap-3 mb-2 bg-secondary-subtle">
+    <div data-bs-toggle="collapse" data-bs-target="#tc-desc"
+        style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
+      <span class="material-icons" id="tc-desc-ch" style="font-size:.875rem;transition:transform .15s;">expand_more</span>
+      <span class="fw-bold">Description</span>
+    </div>
+    {% if item.description_format %}
+    <div class="d-flex align-items-center gap-2 ms-4">
+      format:<span class="badge bg-secondary fw-normal">{{ item.description_format }}</span>
+    </div>
+    {% endif %}
+  </div>
+  <div class="collapse show" id="tc-desc">
+    <p class="text-body-secondary mt-1 mb-0">{{ item.description }}</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Traceability -->
+<div class="border rounded-2 p-2 mb-2 shadow-sm">
+  <div class="d-flex align-items-center gap-3 mb-2 bg-secondary-subtle">
+    <div data-bs-toggle="collapse" data-bs-target="#tc-trace-all"
+         style="cursor:pointer;user-select:none;" class="d-flex align-items-center gap-1 py-1">
+      <span class="material-icons" id="tc-trace-ch" style="font-size:.875rem;transition:transform .15s;">expand_more</span>
+      <span class="fw-bold">Traceability</span>
+    </div>
+    <div class="d-flex align-items-center gap-2 ms-4">
+      <span class="text-muted" style="font-size:.85rem;white-space:nowrap;">Number of Levels</span>
+      <select class="form-select form-select-sm border-2 border-primary" style="width:56px;"
+              onchange="window.location.href='?levels='+this.value+'{% if gap_code %}&gap={{ gap_code }}{% endif %}'">
+        {% for l in levels_range %}
+        <option value="{{ l }}" {% if l == max_levels %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="collapse show" id="tc-trace-all">
+    <!-- Upstream -->
+    <div class="border rounded-2 p-2 mb-2{% if gap_code == 'TESTCASE_NO_REQUIREMENT' %} border-warning border-2{% endif %}">
+      <div class="fw-bold py-1">Upstreams <span class="text-muted fw-normal">({{ upstream_rows|length }})</span></div>
+      <table class="table table-sm mb-0 mt-1" style="table-layout:fixed;width:100%;">
+        <thead class="table-light">
+          <tr>
+            <th style="width:32px;min-width:32px;max-width:32px;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_downward</span></th>
+            {% for l in levels_range %}{% if l <= upstream_cols %}
+            <th><span class="d-inline-flex align-items-center gap-1 text-muted"><span class="material-icons" style="font-size:.875rem;">arrow_back_ios</span>Level {{ l }}</span></th>
+            {% endif %}{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if upstream_rows %}
+            {% for row in upstream_rows %}
+            <tr>
+              <td class="text-muted text-center" style="width:32px;min-width:32px;max-width:32px;">{% if row.0 %}↓{% endif %}</td>
+              {% for cell in row %}{% if cell %}
+              <td rowspan="{{ cell.rowspan }}" style="word-break:break-word;white-space:normal;">
+                <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
+                <a href="{% url 'app_main:codebeamer_item' cell.item.id %}" class="text-decoration-none ms-1">{{ cell.item.name }}</a>
+              </td>
+              {% endif %}{% endfor %}
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="{{ upstream_cols|add:1 }}" class="text-muted">—</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Downstream -->
+    <div class="border rounded-2 p-2 mb-1{% if gap_code == 'TESTCASE_NO_RUN' %} border-warning border-2{% endif %}">
+      <div class="fw-bold py-1">Downstreams <span class="text-muted fw-normal">({{ downstream_rows|length }})</span></div>
+      {% if no_project_json %}
+      <p class="text-muted mb-0"><span class="material-icons align-middle" style="font-size:.9rem;">info</span> Save JSON to enable downstream links.</p>
+      {% else %}
+      <table class="table table-sm mb-0 mt-1" style="table-layout:fixed;width:100%;">
+        <thead class="table-light">
+          <tr>
+            <th style="width:32px;min-width:32px;max-width:32px;text-align:center;vertical-align:middle;"><span class="material-icons text-muted" style="display:block;line-height:1;">arrow_upward</span></th>
+            {% for l in levels_range %}{% if l <= downstream_cols %}
+            <th><span class="d-inline-flex align-items-center gap-1 text-muted"><span class="material-icons" style="font-size:.875rem;">arrow_forward_ios</span>Level {{ l }}</span></th>
+            {% endif %}{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if downstream_rows %}
+            {% for row in downstream_rows %}
+            <tr>
+              <td class="text-muted text-center" style="width:32px;min-width:32px;max-width:32px;">{% if row.0 %}↑{% endif %}</td>
+              {% for cell in row %}{% if cell %}
+              <td rowspan="{{ cell.rowspan }}" style="word-break:break-word;white-space:normal;">
+                <span class="material-icons" style="font-size:1rem;color:#fff;background:{{ cell.item.color }};border-radius:3px;padding:2px;vertical-align:middle;">{{ cell.item.icon }}</span>
+                <a href="{% url 'app_main:codebeamer_item' cell.item.id %}" class="text-decoration-none ms-1">{{ cell.item.name }}</a>
+              </td>
+              {% endif %}{% endfor %}
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="{{ downstream_cols|add:1 }}" class="text-muted">—</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+[['tc-desc','tc-desc-ch'],['tc-trace-all','tc-trace-ch']].forEach(function(p) {
+  var el = document.getElementById(p[0]);
+  var ch = document.getElementById(p[1]);
+  if (!el || !ch) return;
+  el.addEventListener('hide.bs.collapse', function() { ch.style.transform='rotate(-90deg)'; });
+  el.addEventListener('show.bs.collapse', function() { ch.style.transform='rotate(0deg)'; });
+});
+</script>

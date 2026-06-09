@@ -598,6 +598,7 @@ def codebeamer_item(request, item_id):
         "title": f"AI-delix - Item {item_id}",
         "item_id": item_id,
         "cb_url": credentials.get("cb_url", ""),
+        "gap_code": request.GET.get("gap", ""),
     }
     try:
         cb = Codebeamer(credentials["cb_url"], credentials["username"], credentials["password"], api_root="api/v3")
