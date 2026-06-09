@@ -1106,7 +1106,7 @@ def _item_timestamp(raw_item: dict) -> Optional[datetime]:
 
 def _run_outcome(raw_item: dict) -> str:
     status = _item_status_name(raw_item).lower()
-    if any(tok in status for tok in ("pass", "passed", "success", "ok")):
+    if any(tok in status for tok in ("pass", "passed", "success", "ok", "finished")):
         return "passed"
     if any(tok in status for tok in ("fail", "failed", "error", "blocked")):
         return "failed"
@@ -1149,11 +1149,8 @@ async def codebeamer_assessment_test_coverage(
     if data is None:
         return {"ok": False, "error": "Corpus not found — run Pull first"}
 
-    if project_id in _CB_ITEM_MAPS:
-        item_map = _CB_ITEM_MAPS[project_id]
-    else:
-        item_map = _build_item_map(data)
-        _CB_ITEM_MAPS[project_id] = item_map
+    item_map = _build_item_map(data)
+    _CB_ITEM_MAPS[project_id] = item_map
 
     items = data.get("items", [])
     item_by_id: dict[int, dict] = {it["id"]: it for it in items if it.get("id")}

@@ -287,3 +287,41 @@ if __name__ == "__main__":
     suite.test_downstream_is_inverse_of_upstream(item_map)
     suite.test_known_item_302494_has_upstream_288168(item_map)
     print(f"All tests passed. item_map size: {len(item_map)}")
+
+    # ── Diagnostics: testrun → testcase linking ───────────────────────────────
+    print("\n=== Testrun linking diagnostics ===")
+    trackers = data.get("trackers", [])
+    items_by_id = {it["id"]: it for it in data.get("items", []) if it.get("id")}
+
+    testrun_tracker_ids = {t["id"] for t in trackers if (t.get("type") or {}).get("name", "").lower() == "testrun"}
+    testset_tracker_ids = {t["id"] for t in trackers if (t.get("type") or {}).get("name", "").lower() == "testset"}
+    testcase_tracker_ids = {t["id"] for t in trackers if (t.get("type") or {}).get("name", "").lower() == "testcase"}
+    item_tracker = {}
+    for t in trackers:
+        for ref in t.get("items") or []:
+            if ref.get("id"):
+                item_tracker[ref["id"]] = t["id"]
+
+    testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids}
+    testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids}
+    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids}
+
+    print(f"testrun_ids: {len(testrun_ids)}, testset_ids: {len(testset_ids)}, testcase_ids: {len(testcase_ids)}")
+
+    # Sample 5 testruns: show their upstream and status
+    sample_trids = list(testrun_ids)[:5]
+    for trid in sample_trids:
+        raw = items_by_id.get(trid, {})
+        upstream = item_map.get(trid, {}).get("upstream", [])
+        status = (raw.get("status") or {})
+        print(f"\nTestRun {trid}: status={status}, upstream={upstream[:5]}")
+        for tsid in upstream:
+            if tsid in testset_ids:
+                ts_raw = items_by_id.get(tsid, {})
+                cfs = ts_raw.get("customFields") or []
+                cf_types = [(cf.get("type"), cf.get("name")) for cf in cfs]
+                print(f"  -> TestSet {tsid}: customField types={cf_types}")
+            else:
+                up_raw = items_by_id.get(tsid, {})
+                type_name = up_raw.get("typeName", "?")
+                print(f"  -> upstream {tsid} typeName={type_name}")
