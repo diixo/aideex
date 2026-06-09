@@ -144,59 +144,50 @@
   </div>
 </div>
 
-<div class="row g-3 mb-4" id="graph-row" style="min-height: 620px;">
-  <div class="col-lg-7">
-    <div class="card shadow-sm">
-      <div class="card-header py-2 fw-semibold">Traceability Graph</div>
-      <div class="card-body py-2">
-        <div class="mode-pane active" id="pane-aspice">
-          <div class="small text-muted mb-2">Requirement -> Test Case -> Test Run</div>
-          {% if mermaid_graph %}
-          <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
-            <div class="mermaid">{{ mermaid_graph }}</div>
-          </div>
-          {% else %}
-          <div class="alert alert-light border py-2 mb-0 small">No lifecycle graph edges available.</div>
-          {% endif %}
+<div class="mb-3">
+  <div class="card shadow-sm">
+    <div class="card-header py-2 fw-semibold">Traceability Graph</div>
+    <div class="card-body py-2">
+      <div class="mode-pane active" id="pane-aspice">
+        <div class="small text-muted mb-2">Requirement -> Test Case -> Test Run</div>
+        {% if mermaid_graph %}
+        <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
+          <div class="mermaid">{{ mermaid_graph }}</div>
         </div>
+        {% else %}
+        <div class="alert alert-light border py-2 mb-0 small">No lifecycle graph edges available.</div>
+        {% endif %}
+      </div>
 
-        <div class="mode-pane" id="pane-behavior">
-          <div class="small text-muted mb-2">Feature -> Behavior Type -> Requirement -> Test Case</div>
-          {% if behavior_mermaid_graph %}
-          <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
-            <div class="mermaid">{{ behavior_mermaid_graph }}</div>
-          </div>
-          {% else %}
-          <div class="alert alert-light border py-2 mb-0 small">No behavior graph edges available.</div>
-          {% endif %}
+      <div class="mode-pane" id="pane-behavior">
+        <div class="small text-muted mb-2">Feature -> Behavior Type -> Requirement -> Test Case</div>
+        {% if behavior_mermaid_graph %}
+        <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
+          <div class="mermaid">{{ behavior_mermaid_graph }}</div>
         </div>
+        {% else %}
+        <div class="alert alert-light border py-2 mb-0 small">No behavior graph edges available.</div>
+        {% endif %}
+      </div>
 
-        <div class="mode-pane" id="pane-chain">
-          <div class="small text-muted mb-2">Stakeholder → System Req → Software Req → Test Case → Test Run</div>
-          {% if full_chain_mermaid_graph %}
-          <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
-            <div class="mermaid">{{ full_chain_mermaid_graph }}</div>
-          </div>
-          {% else %}
-          <div class="alert alert-light border py-2 mb-0 small">No upstream chain data available.</div>
-          {% endif %}
+      <div class="mode-pane" id="pane-chain">
+        <div class="small text-muted mb-2">Stakeholder → System Req → Software Req → Test Case → Test Run</div>
+        {% if full_chain_mermaid_graph %}
+        <div class="graph-box p-2" style="height:500px;overflow:auto;position:relative;">
+          <div class="mermaid">{{ full_chain_mermaid_graph }}</div>
         </div>
+        {% else %}
+        <div class="alert alert-light border py-2 mb-0 small">No upstream chain data available.</div>
+        {% endif %}
       </div>
     </div>
   </div>
-  <div class="col-lg-5" id="col-trackers">
+</div>
+
+<div class="d-flex gap-3 flex-wrap mb-4" id="graph-row">
+  <div style="flex: 5 1 300px; min-width: 0;" id="col-trackers">
     <div class="card shadow-sm">
-      <div class="card-header py-2 fw-semibold">Behavior Mix</div>
-      <div class="card-body py-2 border-bottom">
-        <div class="d-flex flex-wrap gap-2">
-          {% for key, val in behavior_summary.items %}
-          <span class="badge text-bg-light border">{{ key }}: {{ val }}</span>
-          {% empty %}
-          <span class="small text-muted">No behavior distribution data.</span>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="card-header py-2 fw-semibold border-top">Test Trackers</div>
+      <div class="card-header py-2 fw-semibold">Test Trackers</div>
       <div class="card-body py-0">
         <table class="table table-sm align-middle mb-0" style="font-size:13px;">
           <thead>
@@ -220,6 +211,20 @@
             {% endfor %}
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+  <div style="flex: 7 1 420px; min-width: 0;">
+    <div class="card shadow-sm">
+      <div class="card-header py-2 fw-semibold">Behavior Mix</div>
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2">
+          {% for key, val in behavior_summary.items %}
+          <span class="badge text-bg-light border">{{ key }}: {{ val }}</span>
+          {% empty %}
+          <span class="small text-muted">No behavior distribution data.</span>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
