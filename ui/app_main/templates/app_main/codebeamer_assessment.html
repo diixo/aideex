@@ -37,11 +37,7 @@
 
 <form method="get" class="card shadow-sm mb-3" id="recalc-form">
   <div class="card-body py-2 d-flex align-items-end gap-2 flex-wrap">
-    <div>
-      <label class="form-label small mb-1">Project ID</label>
-      <input class="form-control form-control-sm" type="number" name="project_id" value="{{ project_id }}" min="1" required>
-    </div>
-    <div class="form-check mb-1 ms-2">
+    <div class="form-check mb-1">
       <input class="form-check-input" type="checkbox" name="include_security" value="1" id="include_security" {% if include_security %}checked{% endif %}>
       <label class="form-check-label small" for="include_security">Include security test lane</label>
     </div>
@@ -69,7 +65,11 @@
 {% if summary %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div class="text-muted small">Project: <span class="text-dark fw-semibold">{{ project_name }}</span></div>
-  <div class="badge text-bg-light border">score {{ summary.assessment_score }}</div>
+  <div class="d-flex align-items-center gap-1">
+    <div class="badge text-bg-light border" style="font-size: 0.75rem">score {{ summary.assessment_score }}</div>
+    <span class="material-icons text-muted" style="font-size: 1rem; cursor: default;"
+          title="Assessment score = 0.45 × (requirements with test cases / total requirements) + 0.30 × (requirements with test runs / total requirements) + 0.25 × (passed runs / total runs). Range: 0.0 (no coverage) to 1.0 (full coverage, all runs passed).">help</span>
+  </div>
 </div>
 
 <div class="d-flex flex-wrap gap-2 mb-3">
@@ -104,7 +104,11 @@
 </div>
 
 <div class="card shadow-sm mb-3">
-  <div class="card-header py-2 fw-semibold">Process Coverage Graph</div>
+  <div class="card-header py-2 d-flex align-items-center gap-2">
+    <span class="fw-semibold">Process Coverage Graph</span>
+    <span class="material-icons text-muted" style="font-size:1rem;cursor:default;"
+          title="Coverage per ASPICE process area. A requirement is any item in a tracker with type = Requirement. Progress bar shows what share of requirements have at least one linked test case. Pass rate = passed test runs / total test runs for that area. Process area assignment: Claude AI if classification has been run, otherwise heuristic by tracker name.">help</span>
+  </div>
   <div class="card-body py-2">
     {% for p in process_breakdown %}
     <div class="mb-3">
@@ -440,7 +444,7 @@
             setTimeout(checkStatus, 4000);
           } else if (data.status === 'done' && banner.style.display !== 'none') {
             banner.classList.replace('alert-info', 'alert-success');
-            bannerText.innerHTML = 'Tracker classification complete. <a href="?project_id={{ project_id }}&include_security={% if include_security %}1{% else %}0{% endif %}" class="alert-link">Recalculate</a> to apply Claude results.';
+            bannerText.innerHTML = 'Tracker classification complete. <a href="?include_security={% if include_security %}1{% else %}0{% endif %}" class="alert-link">Recalculate</a> to apply Claude results.';
             banner.querySelector('.spinner-border')?.remove();
           }
         })
