@@ -154,3 +154,136 @@ class TestBuildItemMap:
         m = _build_item_map(payload)
         assert 200 in m[100]["downstream"]
         assert m[200]["upstream"] == [100]
+
+    def test_upstream_from_custom_field_tracker_item_reference(self):
+        """TrackerItemReference custom field values are treated as upstream."""
+        t = make_tracker(1)
+        item_with_cf = {
+            "id": 101,
+            "name": "Item-101",
+            "status": None,
+            "subjects": [],
+            "typeName": "Requirement",
+            "customFields": [
+                {
+                    "type": "TrackerItemReference",
+                    "name": "Derived From",
+                    "values": [
+                        {"id": 200, "name": "Item-200", "type": "TrackerItemReference"},
+                        {"id": 201, "name": "Item-201", "type": "TrackerItemReference"},
+                    ],
+                }
+            ],
+        }
+        items = [item_with_cf, make_item(200), make_item(201)]
+        payload = make_payload([(t, [101, 200, 201])], items)
+        m = _build_item_map(payload)
+        assert set(m[101]["upstream"]) == {200, 201}
+        assert 101 in m[200]["downstream"]
+        assert 101 in m[201]["downstream"]
+
+    def test_upstream_subjects_and_custom_field_combined(self):
+        """Both subjects and TrackerItemReference custom fields contribute to upstream."""
+        t = make_tracker(1)
+        item = {
+            "id": 101,
+            "name": "Item-101",
+            "status": None,
+            "subjects": [{"id": 200, "name": "Item-200", "type": "TrackerItemReference"}],
+            "typeName": "Requirement",
+            "customFields": [
+                {
+                    "type": "TrackerItemReference",
+                    "name": "Derived From",
+                    "values": [{"id": 201, "name": "Item-201", "type": "TrackerItemReference"}],
+                }
+            ],
+        }
+        items = [item, make_item(200), make_item(201)]
+        payload = make_payload([(t, [101, 200, 201])], items)
+        m = _build_item_map(payload)
+        assert set(m[101]["upstream"]) == {200, 201}
+
+    def test_non_tracker_item_reference_custom_field_ignored(self):
+        """Custom fields of other types do not affect upstream."""
+        t = make_tracker(1)
+        item = {
+            "id": 101,
+            "name": "Item-101",
+            "status": None,
+            "subjects": [],
+            "typeName": "Requirement",
+            "customFields": [
+                {"type": "TextFieldValue", "name": "Notes", "values": ["some text"]},
+                {"type": "ChoiceFieldValue", "name": "Priority", "values": [{"id": 999}]},
+            ],
+        }
+        items = [item, make_item(999)]
+        payload = make_payload([(t, [101, 999])], items)
+        m = _build_item_map(payload)
+        assert m[101]["upstream"] == []
+
+
+# ── integration: live corpus project_id=10 ───────────────────────────────────
+
+import json
+import os
+import pytest
+
+CORPUS_PATH = os.path.join(os.path.dirname(__file__), "..", "corpus", "10", "codebeamer.json")
+
+@pytest.mark.skipif(not os.path.exists(CORPUS_PATH), reason="corpus/10 not available")
+class TestBuildItemMapLiveCorpus:
+
+    @pytest.fixture(scope="class")
+    def item_map(self):
+        with open(CORPUS_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        from backend.codebeamer_router import _build_item_map
+        return _build_item_map(data)
+
+    def test_map_non_empty(self, item_map):
+        assert len(item_map) > 0
+
+    def test_all_entries_have_required_keys(self, item_map):
+        for iid, entry in item_map.items():
+            assert "id" in entry
+            assert "name" in entry
+            assert "upstream" in entry
+            assert "downstream" in entry
+
+    def test_subjects_become_upstream(self, item_map):
+        """Items with subjects must have non-empty upstream and those upstreams
+        must appear in the map (or at least some of them for cross-tracker refs)."""
+        items_with_upstream = [e for e in item_map.values() if e["upstream"]]
+        assert len(items_with_upstream) > 0
+
+    def test_downstream_is_inverse_of_upstream(self, item_map):
+        """For every upstream link A→B, B must list A in its downstream."""
+        errors = []
+        for iid, entry in item_map.items():
+            for uid in entry["upstream"]:
+                if uid in item_map and iid not in item_map[uid]["downstream"]:
+                    errors.append((iid, uid))
+        assert errors == [], f"downstream/upstream mismatch: {errors[:5]}"
+
+    def test_known_item_302494_has_upstream_288168(self, item_map):
+        """Item 302494 has subject 288168 in corpus — must appear as upstream."""
+        if 302494 not in item_map:
+            pytest.skip("item 302494 not in map")
+        assert 288168 in item_map[302494]["upstream"]
+
+
+if __name__ == "__main__":
+    with open(CORPUS_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    from backend.codebeamer_router import _build_item_map
+    item_map = _build_item_map(data)
+
+    suite = TestBuildItemMapLiveCorpus()
+    suite.test_map_non_empty(item_map)
+    suite.test_all_entries_have_required_keys(item_map)
+    suite.test_subjects_become_upstream(item_map)
+    suite.test_downstream_is_inverse_of_upstream(item_map)
+    suite.test_known_item_302494_has_upstream_288168(item_map)
+    print(f"All tests passed. item_map size: {len(item_map)}")

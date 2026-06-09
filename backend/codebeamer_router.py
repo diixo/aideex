@@ -348,11 +348,16 @@ def _build_item_map(payload: dict) -> dict:
         # offline: item.status is ChoiceValue (not Field wrapper)
         status_val = item.status
         status = status_val.name if status_val else None
-        color = STATUS_COLORS.get(status, t_color) if status else t_color
+        color = STATUS_COLORS.get(status, t_color) if status else STATUS_COLORS.get("New")
         upstream = [
             s["id"] for s in (item.subjects or [])
             if isinstance(s, dict) and s.get("id")
         ]
+        for cf in (raw_item.get("customFields") or []):
+            if cf.get("type") == "ChoiceFieldValue":
+                for ref in (cf.get("values") or []):
+                    if isinstance(ref, dict) and ref.get("id") and ref.get("type") == "TrackerItemReference" and ref.get("id") == ref.get("commonItemId"):
+                        upstream.append(ref["id"])
         item_map[iid] = {
             "id": iid, "name": name,
             "icon": icon, "color": color,
@@ -1222,12 +1227,17 @@ async def codebeamer_assessment_test_coverage(
         if (meta.get("type_name") or "").lower() in {"bug", "issue"}
     }
 
-    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids}
-    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids}
-    testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids}
-    testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids}
-    testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids}
-    defect_ids = {iid for iid, tid in item_tracker.items() if tid in defect_tracker_ids}
+    folder_ids = {
+        iid for iid, raw in item_by_id.items()
+        if (raw.get("typeName") or "").lower() == "folder"
+    }
+
+    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids
+    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids
+    testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids} - folder_ids
+    testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids} - folder_ids
+    testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids} - folder_ids
+    defect_ids = {iid for iid, tid in item_tracker.items() if tid in defect_tracker_ids} - folder_ids
 
     if not include_security:
         sec_tracker_ids = {
