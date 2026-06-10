@@ -1449,10 +1449,16 @@ async def codebeamer_assessment_test_coverage(
     pass_rate = (runs_passed / runs_total) if runs_total else 0.0
     assessment_score = 0.45 * coverage_ratio + 0.30 * execution_ratio + 0.25 * pass_rate
 
+    all_tracker_areas = {
+        meta["process_area"]
+        for meta in tracker_meta.values()
+        if meta.get("process_area") and meta["process_area"] != "UNMAPPED"
+    }
     process_areas = sorted(set(
         list(process_req_total.keys()) +
         list(process_tests_total.keys()) +
-        list(process_runs_total.keys())
+        list(process_runs_total.keys()) +
+        list(all_tracker_areas)
     ))
     process_breakdown = []
     for area in process_areas:
