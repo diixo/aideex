@@ -298,7 +298,12 @@
   <div class="card-header py-2 d-flex align-items-center">
     <span class="fw-semibold">Detected Gaps</span>
     <span class="ms-2 badge text-bg-danger">{{ gaps_total }}</span>
-    {% if gaps|length < gaps_total %}<span class="ms-auto small text-muted">showing {{ gaps|length }}</span>{% endif %}
+    {% if gaps|length < gaps_total %}<span class="ms-2 small text-muted">showing {{ gaps|length }}</span>{% endif %}
+    <a href="{% url 'app_main:codebeamer_assessment_gaps_download' %}?include_security={% if include_security %}1{% else %}0{% endif %}"
+       class="ms-auto btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+      <span class="material-icons" style="font-size:1rem;">download</span>
+      Download as HTML
+    </a>
   </div>
   <div class="card-body py-0">
     <table class="table table-sm align-middle mb-0" style="font-size:13px;">

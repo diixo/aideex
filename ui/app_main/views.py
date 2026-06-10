@@ -773,7 +773,7 @@ def codebeamer_assessment(request):
         context["summary"] = resp.get("summary") or {}
         context["process_breakdown"] = resp.get("process_breakdown") or []
         all_gaps = resp.get("gaps") or []
-        context["gaps"] = all_gaps[:300]
+        context["gaps"] = all_gaps[:100]
         context["gaps_total"] = len(all_gaps)
         context["test_trackers"] = resp.get("test_trackers") or []
         context["test_items_total"] = sum(t.get("item_refs", 0) for t in context["test_trackers"])
@@ -892,6 +892,74 @@ def codebeamer_assessment(request):
         context["fetch_error"] = str(e)
 
     return render(request, "app_main/codebeamer_assessment.html", context)
+
+
+def codebeamer_assessment_gaps_download(request):
+    from django.http import HttpResponse
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
+        return HttpResponse("No project selected", status=400)
+    project_id = int(credentials["project_id"])
+    include_security = request.GET.get("include_security", "1") == "1"
+    try:
+        resp = backend_get(
+            "/codebeamer/assessment/test-coverage",
+            params={
+                "project_id": project_id,
+                "include_security": "true" if include_security else "false",
+            },
+        )
+    except Exception as e:
+        return HttpResponse(f"Error: {e}", status=500)
+
+    gaps = resp.get("gaps") or []
+    project_name = resp.get("project_name", str(project_id))
+    cb_host = (resp.get("cb_host") or "").rstrip("/")
+
+    rows = ""
+    for g in gaps:
+        target_id = g.get("target_id", "")
+        target_name = g.get("target_name", target_id)
+        link = f'{cb_host}/item/{target_id}' if cb_host and target_id else "#"
+        severity = g.get("severity", "")
+        gap_code = g.get("gap_code", "")
+        process = g.get("process_area", "")
+        message = g.get("message", "")
+        badge_color = "danger" if severity == "error" else "warning"
+        rows += (
+            f'<tr>'
+            f'<td><a href="{link}" target="_blank"><b>{target_name}</b></a></td>'
+            f'<td><span class="badge bg-{badge_color}">{severity}</span></td>'
+            f'<td><code>{gap_code}</code></td>'
+            f'<td>{process}</td>'
+            f'<td>{message}</td>'
+            f'</tr>\n'
+        )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Detected Gaps — {project_name}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="p-4">
+<h4>Detected Gaps — {project_name}</h4>
+<p class="text-muted">Total: {len(gaps)}</p>
+<table class="table table-sm table-bordered table-striped">
+<thead class="table-light">
+<tr><th>Target</th><th>Severity</th><th>Gap Code</th><th>Process</th><th>Message</th></tr>
+</thead>
+<tbody>
+{rows}
+</tbody>
+</table>
+</body>
+</html>"""
+
+    response = HttpResponse(html, content_type="text/html; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="gaps_{project_id}.html"'
+    return response
 
 
 def codebeamer_tracker(request, tracker_id):
