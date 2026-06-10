@@ -1224,10 +1224,23 @@ async def codebeamer_assessment_test_coverage(
         if (meta.get("type_name") or "").lower() in {"bug", "issue"}
     }
 
-    folder_ids = {
-        iid for iid, raw in item_by_id.items()
-        if (raw.get("typeName") or "").lower() == "folder"
-    }
+    def _is_folder_item(raw: dict) -> bool:
+        type_name = (raw.get("typeName") or "").lower()
+        if type_name in ("requirement", "testcase"):
+            for cat in (raw.get("categories") or []):
+                if (isinstance(cat, dict)
+                        #and cat.get("id") == 1
+                        and cat.get("name") == "Folder"
+                        and cat.get("type") == "ChoiceOptionReference"):
+                    return True
+                if (isinstance(cat, dict)
+                        #and cat.get("id") == 1
+                        and cat.get("name") == "Heading"
+                        and cat.get("type") == "ChoiceOptionReference"):
+                    return True
+        return False
+
+    folder_ids = {iid for iid, raw in item_by_id.items() if _is_folder_item(raw)}
 
     # Recompute item_refs in tracker_meta excluding folders
     if folder_ids:
