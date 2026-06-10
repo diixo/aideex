@@ -1451,6 +1451,7 @@ async def codebeamer_assessment_test_coverage(
             "requirements_with_runs": process_req_with_runs[area],
             "tests_total": process_tests_total[area],
             "runs_total": p_runs_total,
+            "runs_passed": process_runs_passed[area],
             "pass_rate": (process_runs_passed[area] / p_runs_total) if p_runs_total else 0.0,
         })
 

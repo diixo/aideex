@@ -74,31 +74,45 @@
 
 <div class="d-flex flex-wrap gap-2 mb-3">
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Requirements</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Requirements
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Total number of Items in Trackers of type=Requirement (Items of Folder-type excluded).">help</span>
+    </div>
     <div class="fw-bold">{{ summary.requirements_total }}</div>
   </div>
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Req With Tests</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Req With Tests
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Requirements that have at least one linked test case (via downstream traceability).">help</span>
+    </div>
     <div class="fw-bold text-primary">{{ summary.requirements_with_tests }}</div>
   </div>
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Req With Runs</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Req With Runs
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Requirements whose linked test cases have at least one test run execution record.">help</span>
+    </div>
     <div class="fw-bold text-info">{{ summary.requirements_with_runs }}</div>
   </div>
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Tests</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Tests
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Total number of items in trackers of type Testcase (folders excluded).">help</span>
+    </div>
     <div class="fw-bold">{{ summary.tests_total }}</div>
   </div>
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Runs</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Runs
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Total number of items in trackers of type Testrun (folders excluded).">help</span>
+    </div>
     <div class="fw-bold">{{ summary.runs_total }}</div>
   </div>
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Passed</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Passed
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Test runs whose status name contains: pass, passed, success, ok, finished.">help</span>
+    </div>
     <div class="fw-bold text-success">{{ summary.runs_passed }}</div>
   </div>
   <div class="metric-card bg-light rounded p-2 text-center">
-    <div class="small text-muted">Failed</div>
+    <div class="small text-muted d-flex align-items-center justify-content-center gap-1">Failed
+      <span class="material-icons text-muted" style="font-size:.85rem;cursor:default;" title="Test runs whose status name contains: fail, failed, error, blocked.">help</span>
+    </div>
     <div class="fw-bold text-danger">{{ summary.runs_failed }}</div>
   </div>
 </div>
@@ -114,7 +128,7 @@
     <div class="mb-3">
       <div class="d-flex justify-content-between small mb-1">
         <span class="fw-semibold">{{ p.process_area }}</span>
-        <span class="text-muted">req {{ p.requirements_with_tests }}/{{ p.requirements_total }} | tests {{ p.tests_total }} | runs {{ p.runs_total }}</span>
+        <span class="text-muted">reqs: {{ p.requirements_with_tests }}/{{ p.requirements_total }} | tests: {{ p.tests_total }} | runs: {{ p.runs_total }} | passed: {{ p.runs_passed }}</span>
       </div>
       {% if p.requirements_total %}
       <div class="progress process-bar mb-1">
