@@ -962,6 +962,75 @@ def codebeamer_assessment_gaps_download(request):
     return response
 
 
+def codebeamer_assessment_coverage_download(request):
+    from django.http import HttpResponse
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
+        return HttpResponse("No project selected", status=400)
+    project_id = int(credentials["project_id"])
+    include_security = request.GET.get("include_security", "1") == "1"
+    try:
+        resp = backend_get(
+            "/codebeamer/assessment/test-coverage",
+            params={
+                "project_id": project_id,
+                "include_security": "true" if include_security else "false",
+            },
+        )
+    except Exception as e:
+        return HttpResponse(f"Error: {e}", status=500)
+
+    breakdown = resp.get("process_breakdown") or []
+    project_name = resp.get("project_name", str(project_id))
+
+    rows = ""
+    for p in breakdown:
+        area = p.get("process_area", "")
+        reqs_total = p.get("requirements_total", 0)
+        reqs_with_tests = p.get("requirements_with_tests", 0)
+        tests_total = p.get("tests_total", 0)
+        runs_total = p.get("runs_total", 0)
+        runs_passed = p.get("runs_passed", 0)
+        pass_rate = p.get("pass_rate", 0)
+        coverage_pct = round(reqs_with_tests / reqs_total * 100, 1) if reqs_total else 0
+        rows += (
+            f'<tr>'
+            f'<td><b>{area}</b></td>'
+            f'<td>{reqs_with_tests}/{reqs_total}</td>'
+            f'<td>{coverage_pct}%</td>'
+            f'<td>{tests_total}</td>'
+            f'<td>{runs_total}</td>'
+            f'<td>{runs_passed}</td>'
+            f'<td>{pass_rate:.4f}</td>'
+            f'</tr>\n'
+        )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Process Coverage — {project_name}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="p-4">
+<h4>Process Coverage — {project_name}</h4>
+<p class="text-muted">Total areas: {len(breakdown)}</p>
+<table class="table table-sm table-bordered table-striped">
+<thead class="table-light">
+<tr><th>Process Area</th><th>Reqs (with tests / total)</th><th>Coverage</th><th>Tests</th><th>Runs</th><th>Passed</th><th>Pass Rate</th></tr>
+</thead>
+<tbody>
+{rows}
+</tbody>
+</table>
+</body>
+</html>"""
+
+    response = HttpResponse(html, content_type="text/html; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="coverage_{project_id}.html"'
+    return response
+
+
 def codebeamer_tracker(request, tracker_id):
     credentials = _cb_load_credentials()
     if not credentials:

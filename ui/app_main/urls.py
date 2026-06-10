@@ -22,6 +22,7 @@ urlpatterns = [
     path("codebeamer/tree", views.codebeamer_tree, name="codebeamer_tree"),
     path("codebeamer/assessment", views.codebeamer_assessment, name="codebeamer_assessment"),
     path("codebeamer/assessment/gaps-download", views.codebeamer_assessment_gaps_download, name="codebeamer_assessment_gaps_download"),
+    path("codebeamer/assessment/coverage-download", views.codebeamer_assessment_coverage_download, name="codebeamer_assessment_coverage_download"),
     path("api/codebeamer/assessment/classifier-status", views.codebeamer_classifier_status_proxy, name="codebeamer_classifier_status"),
     path("api/codebeamer/assessment/ai-analysis", views.codebeamer_assessment_ai_analysis_proxy, name="codebeamer_assessment_ai_analysis"),
     path("api/codebeamer/assessment/behavior-scenario", views.codebeamer_behavior_scenario_proxy, name="codebeamer_behavior_scenario"),
