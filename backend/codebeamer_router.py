@@ -1501,6 +1501,17 @@ async def codebeamer_assessment_test_coverage(
     tests_total = len(testcase_ids)
     runs_total = len(testrun_ids)
 
+    # Diagnostic: log requirement coverage per tracker to help diagnose UNMAPPED
+    for tid, meta in tracker_meta.items():
+        if tid not in requirement_tracker_ids:
+            continue
+        t_total = sum(1 for iid, t2 in item_tracker.items() if t2 == tid and iid in requirement_ids)
+        t_with_tests = sum(1 for iid, t2 in item_tracker.items() if t2 == tid and iid in req_with_tests)
+        _CB_LOG.info(
+            "req-tracker %d %-50s  total=%-6d covered=%-6d unmapped=%d",
+            tid, meta["name"][:50], t_total, t_with_tests, t_total - t_with_tests,
+        )
+
     coverage_ratio = (len(req_with_tests) / requirements_total) if requirements_total else 0.0
     execution_ratio = (len(req_with_runs) / requirements_total) if requirements_total else 0.0
     pass_rate = (runs_passed / runs_total) if runs_total else 0.0
@@ -1670,6 +1681,19 @@ async def codebeamer_assessment_test_coverage(
         },
         "process_breakdown": process_breakdown,
         "test_trackers": test_trackers,
+        "req_tracker_breakdown": [
+            {
+                "tracker_id": tid,
+                "tracker_name": meta["name"],
+                "total": meta["item_refs"],
+                "with_tests": sum(
+                    1 for iid, t2 in item_tracker.items()
+                    if t2 == tid and iid in req_with_tests
+                ),
+            }
+            for tid, meta in tracker_meta.items()
+            if tid in requirement_tracker_ids
+        ],
         "entities": entities,
         "gaps": gaps,
         "behavior_summary": dict(behavior_summary),
