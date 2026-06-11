@@ -1284,8 +1284,18 @@ async def codebeamer_assessment_test_coverage(
         for tid, meta in tracker_meta.items():
             meta["item_refs"] = len(tracker_to_items.get(tid, set()) - folder_ids)
 
-    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids
-    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids
+    draft_requirement_ids = {
+        iid for iid, tid in item_tracker.items()
+        if tid in requirement_tracker_ids
+        and _item_status_name(item_by_id.get(iid, {})).lower() == "draft"
+    }
+    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids - draft_requirement_ids
+    draft_testcase_ids = {
+        iid for iid, tid in item_tracker.items()
+        if tid in testcase_tracker_ids
+        and _item_status_name(item_by_id.get(iid, {})).lower() == "draft"
+    }
+    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids - draft_testcase_ids
     testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids} - folder_ids
     testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids} - folder_ids
     testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids} - folder_ids
@@ -1310,11 +1320,12 @@ async def codebeamer_assessment_test_coverage(
     process_req_with_tests: defaultdict[str, int] = defaultdict(int)
     process_req_with_runs: defaultdict[str, int] = defaultdict(int)
     process_tests_total: defaultdict[str, int] = defaultdict(int)
-    process_runs_total: defaultdict[str, int] = defaultdict(int)
-    process_runs_passed: defaultdict[str, int] = defaultdict(int)
+    process_runs_sets: defaultdict[str, set] = defaultdict(set)
+    process_runs_passed_sets: defaultdict[str, set] = defaultdict(set)
 
-    runs_passed = 0
-    runs_failed = 0
+    runs_passed_set: set[int] = set()
+    runs_failed_set: set[int] = set()
+    failed_runs_reported: set[int] = set()
 
     # Precompute testcase process area by tracker.
     testcase_process: dict[int, str] = {}
@@ -1384,26 +1395,28 @@ async def codebeamer_assessment_test_coverage(
             })
 
         for rid in linked_runs:
-            process_runs_total[area] += 1
+            process_runs_sets[area].add(rid)
             raw_run = item_by_id.get(rid, {})
             outcome = _run_outcome(raw_run)
             if outcome == "passed":
-                runs_passed += 1
-                process_runs_passed[area] += 1
+                runs_passed_set.add(rid)
+                process_runs_passed_sets[area].add(rid)
             elif outcome == "failed":
-                runs_failed += 1
-                run_up = set(item_map.get(rid, {}).get("upstream") or [])
-                run_down = set(item_map.get(rid, {}).get("downstream") or [])
-                linked_defect = bool((run_up | run_down) & defect_ids)
-                if not linked_defect:
-                    gaps.append({
-                        "gap_code": "FAILED_NO_DEFECT",
-                        "severity": "warning",
-                        "process_area": area,
-                        "target_id": str(rid),
-                        "target_name": _iname(rid),
-                        "message": "Failed test run has no linked defect/change item.",
-                    })
+                runs_failed_set.add(rid)
+                if rid not in failed_runs_reported:
+                    failed_runs_reported.add(rid)
+                    run_up = set(item_map.get(rid, {}).get("upstream") or [])
+                    run_down = set(item_map.get(rid, {}).get("downstream") or [])
+                    linked_defect = bool((run_up | run_down) & defect_ids)
+                    if not linked_defect:
+                        gaps.append({
+                            "gap_code": "FAILED_NO_DEFECT",
+                            "severity": "warning",
+                            "process_area": area,
+                            "target_id": str(rid),
+                            "target_name": _iname(rid),
+                            "message": "Failed test run has no linked defect/change item.",
+                        })
 
     # Requirement-level checks.
     entities: list[dict] = []
@@ -1474,6 +1487,11 @@ async def codebeamer_assessment_test_coverage(
                 "gaps": req_gaps,
             })
 
+    runs_passed = len(runs_passed_set)
+    runs_failed = len(runs_failed_set)
+    process_runs_total: dict[str, int] = {area: len(s) for area, s in process_runs_sets.items()}
+    process_runs_passed: dict[str, int] = {area: len(s) for area, s in process_runs_passed_sets.items()}
+
     requirements_total = len(requirement_ids)
     tests_total = len(testcase_ids)
     runs_total = len(testrun_ids)
@@ -1496,7 +1514,8 @@ async def codebeamer_assessment_test_coverage(
     ))
     process_breakdown = []
     for area in process_areas:
-        p_runs_total = process_runs_total[area]
+        p_runs_total = process_runs_total.get(area, 0)
+        p_runs_passed = process_runs_passed.get(area, 0)
         process_breakdown.append({
             "process_area": area,
             "requirements_total": process_req_total[area],
@@ -1504,8 +1523,8 @@ async def codebeamer_assessment_test_coverage(
             "requirements_with_runs": process_req_with_runs[area],
             "tests_total": process_tests_total[area],
             "runs_total": p_runs_total,
-            "runs_passed": process_runs_passed[area],
-            "pass_rate": (process_runs_passed[area] / p_runs_total) if p_runs_total else 0.0,
+            "runs_passed": p_runs_passed,
+            "pass_rate": (p_runs_passed / p_runs_total) if p_runs_total else 0.0,
         })
 
     # Build a compact graph for UI visualization.
