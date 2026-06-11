@@ -320,6 +320,7 @@ def _load_corpus(project_id: int) -> dict | None:
             items = [it for it in data.get("items", []) if it.get("id")]
             _CB_LOAD_STATE[project_id] = {"stage": "indexing", "file_size_mb": file_size_mb, "items": len(items)}
             _CB_ITEMS_IDX[project_id] = {it["id"]: it for it in items}
+            _CB_ITEM_MAPS[project_id] = _build_item_map(data)
             _CB_CORPUS[project_id] = data
 
             _CB_LOAD_STATE[project_id] = {"stage": "ready", "file_size_mb": file_size_mb, "items": len(items)}
@@ -1180,11 +1181,13 @@ async def codebeamer_assessment_test_coverage(
     if data is None:
         return {"ok": False, "error": "Corpus not found — run Pull first"}
 
-    item_map = _build_item_map(data)
-    _CB_ITEM_MAPS[project_id] = item_map
+    item_map = _CB_ITEM_MAPS.get(project_id)
+    if not item_map:
+        item_map = _build_item_map(data)
+        _CB_ITEM_MAPS[project_id] = item_map
 
     items = data.get("items", [])
-    item_by_id: dict[int, dict] = {it["id"]: it for it in items if it.get("id")}
+    item_by_id: dict[int, dict] = _CB_ITEMS_IDX.get(project_id) or {it["id"]: it for it in items if it.get("id")}
 
     if project_id not in _CB_TRACKER_PROCESS_MAP:
         cached = _load_tracker_map_cache(project_id)
