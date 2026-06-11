@@ -33,6 +33,8 @@ _CB_CORPUS: dict[int, dict] = {}            # project_id → parsed codebeamer.j
 _CB_ITEMS_IDX: dict[int, dict[int, dict]] = {}  # project_id → {item_id → raw_item}
 _CB_TRACKER_PROCESS_MAP: dict[int, dict[int, str]] = {}  # project_id → {tracker_id → process_area}
 _CB_CLASSIFYING: set[int] = set()  # projects currently being classified in background
+_CB_LOAD_LOCKS: dict[int, threading.Lock] = {}   # one lock per project to prevent duplicate corpus loads
+_CB_LOAD_STATE: dict[int, dict] = {}             # project_id → {stage, file_size_mb, items}
 
 
 def _tracker_map_cache_path(project_id: int) -> Path:
@@ -287,19 +289,44 @@ def _corpus_json_path(project_id: int) -> Path:
 
 
 def _load_corpus(project_id: int) -> dict | None:
-    """Return corpus for project_id from memory; load from disk on first access."""
+    """Return corpus for project_id from memory; load from disk on first access.
+
+    Thread-safe: uses a per-project lock so concurrent requests don't trigger
+    duplicate disk reads. Loading state is tracked in _CB_LOAD_STATE.
+    """
     if project_id in _CB_CORPUS:
         return _CB_CORPUS[project_id]
-    path = _corpus_json_path(project_id)
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        _CB_CORPUS[project_id] = data
-        _CB_ITEMS_IDX[project_id] = {it["id"]: it for it in data.get("items", []) if it.get("id")}
-        return data
-    except Exception:
-        return None
+
+    if project_id not in _CB_LOAD_LOCKS:
+        _CB_LOAD_LOCKS[project_id] = threading.Lock()
+
+    with _CB_LOAD_LOCKS[project_id]:
+        # Double-check: another thread may have loaded it while we waited
+        if project_id in _CB_CORPUS:
+            return _CB_CORPUS[project_id]
+
+        path = _corpus_json_path(project_id)
+        if not path.exists():
+            return None
+
+        try:
+            file_size_mb = round(path.stat().st_size / 1024 / 1024, 1)
+            _CB_LOAD_STATE[project_id] = {"stage": "reading", "file_size_mb": file_size_mb, "items": 0}
+            text = path.read_text(encoding="utf-8")
+
+            _CB_LOAD_STATE[project_id] = {"stage": "parsing", "file_size_mb": file_size_mb, "items": 0}
+            data = json.loads(text)
+
+            items = [it for it in data.get("items", []) if it.get("id")]
+            _CB_LOAD_STATE[project_id] = {"stage": "indexing", "file_size_mb": file_size_mb, "items": len(items)}
+            _CB_ITEMS_IDX[project_id] = {it["id"]: it for it in items}
+            _CB_CORPUS[project_id] = data
+
+            _CB_LOAD_STATE[project_id] = {"stage": "ready", "file_size_mb": file_size_mb, "items": len(items)}
+            return data
+        except Exception as exc:
+            _CB_LOAD_STATE[project_id] = {"stage": "error", "file_size_mb": 0, "items": 0, "error": str(exc)}
+            return None
 
 
 def _get_items_by_ids(project_id: int, item_ids: set) -> list[dict]:
@@ -1632,6 +1659,37 @@ async def codebeamer_assessment_test_coverage(
             "edges": chain_edges,
         },
     }
+
+
+@codebeamer_router.get("/codebeamer/corpus/preload", tags=["codebeamer"])
+async def codebeamer_corpus_preload(project_id: int) -> Dict[str, Any]:
+    """Start loading corpus into memory in a background thread if not already loaded or loading."""
+    if project_id in _CB_CORPUS:
+        return {"status": "already_loaded"}
+    stage = (_CB_LOAD_STATE.get(project_id) or {}).get("stage")
+    if stage in ("reading", "parsing", "indexing"):
+        return {"status": "loading"}
+    def _bg():
+        _load_corpus(project_id)
+    threading.Thread(target=_bg, daemon=True, name=f"corpus-load-{project_id}").start()
+    return {"status": "started"}
+
+
+@codebeamer_router.get("/codebeamer/corpus/load-status", tags=["codebeamer"])
+async def codebeamer_corpus_load_status(project_id: int) -> Dict[str, Any]:
+    """Return current corpus loading state for a project."""
+    if project_id in _CB_CORPUS:
+        items = len(_CB_ITEMS_IDX.get(project_id) or {})
+        path = _corpus_json_path(project_id)
+        file_size_mb = round(path.stat().st_size / 1024 / 1024, 1) if path.exists() else 0
+        return {"stage": "ready", "file_size_mb": file_size_mb, "items": items}
+    state = _CB_LOAD_STATE.get(project_id)
+    if state:
+        return state
+    path = _corpus_json_path(project_id)
+    if path.exists():
+        return {"stage": "idle", "file_size_mb": round(path.stat().st_size / 1024 / 1024, 1), "items": 0}
+    return {"stage": "missing", "file_size_mb": 0, "items": 0}
 
 
 @codebeamer_router.get("/codebeamer/assessment/classifier-status", tags=["codebeamer"])

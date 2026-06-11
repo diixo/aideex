@@ -26,7 +26,7 @@
 {% endif %}
 
 <!-- ── Step 0: Credentials ──────────────────────────────────── -->
-{% if not projects %}
+{% if not projects and not corpus_loading %}
 <div class="card shadow-sm mb-4">
   <div class="card-header py-2 d-flex align-items-center gap-2">
     <span class="d-inline-flex px-2 py-1 fw-semibold text-success-emphasis bg-success-subtle border border-success-subtle rounded-2">Step 1</span>
@@ -192,6 +192,70 @@
   </div>
 
 </div>
+{% endif %}
+
+{% if corpus_loading %}
+<div id="corpus-status-bar" class="card shadow-sm mb-3" style="display:none;">
+  <div class="card-body py-2 d-flex align-items-center gap-3">
+    <span class="material-icons text-muted" style="font-size:1.1rem;">storage</span>
+    <div class="flex-grow-1">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="small fw-semibold" id="corpus-status-label">Corpus</span>
+        <span class="small text-muted" id="corpus-status-meta"></span>
+      </div>
+      <div class="progress" style="height:.45rem;">
+        <div id="corpus-progress-bar" class="progress-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var STAGES = {
+    missing:  { label: 'Corpus not found — run Pull first', pct: 0,   cls: 'bg-secondary', anim: false },
+    idle:     { label: 'Corpus on disk, not loaded',        pct: 15,  cls: 'bg-info',      anim: false },
+    reading:  { label: 'Reading file from disk…',           pct: 30,  cls: 'bg-primary',   anim: true  },
+    parsing:  { label: 'Parsing JSON…',                     pct: 60,  cls: 'bg-primary',   anim: true  },
+    indexing: { label: 'Building item index…',              pct: 85,  cls: 'bg-primary',   anim: true  },
+    ready:    { label: 'Corpus ready',                      pct: 100, cls: 'bg-success',   anim: false },
+    error:    { label: 'Load error',                        pct: 100, cls: 'bg-danger',    anim: false },
+  };
+  var bar  = document.getElementById('corpus-status-bar');
+  var lbl  = document.getElementById('corpus-status-label');
+  var meta = document.getElementById('corpus-status-meta');
+  var pb   = document.getElementById('corpus-progress-bar');
+  var timer = null;
+
+  function update(d) {
+    var s = STAGES[d.stage] || STAGES.idle;
+    bar.style.display = '';
+    lbl.textContent = s.label;
+    var parts = [];
+    if (d.file_size_mb) parts.push(d.file_size_mb + ' MB');
+    if (d.items)        parts.push(d.items.toLocaleString() + ' items');
+    meta.textContent = parts.join(' · ');
+    pb.style.width = s.pct + '%';
+    pb.className = 'progress-bar' + (s.anim ? ' progress-bar-striped progress-bar-animated' : '') + ' ' + s.cls;
+  }
+
+  function poll() {
+    fetch('{% url "app_main:codebeamer_corpus_load_status" %}')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        update(d);
+        if (d.stage === 'ready' && {% if corpus_loading %}true{% else %}false{% endif %}) {
+          // Corpus just became ready — reload with full data
+          window.location.href = window.location.pathname + '?_loaded=1';
+        } else if (d.stage !== 'ready' && d.stage !== 'error' && d.stage !== 'missing') {
+          timer = setTimeout(poll, 1000);
+        }
+      })
+      .catch(function() { if (timer) clearTimeout(timer); });
+  }
+
+  poll();
+})();
+</script>
 {% endif %}
 
 {% endblock %}

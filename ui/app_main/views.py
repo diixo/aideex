@@ -174,6 +174,19 @@ def codebeamer_behavior_scenario_proxy(request):
     return JsonResponse(data)
 
 
+def codebeamer_corpus_load_status_proxy(request):
+    from django.http import JsonResponse
+    credentials = _cb_load_credentials()
+    project_id = (credentials or {}).get("project_id")
+    if not project_id:
+        return JsonResponse({"stage": "missing", "file_size_mb": 0, "items": 0})
+    try:
+        data = backend_get("/codebeamer/corpus/load-status", params={"project_id": project_id})
+    except Exception as e:
+        data = {"stage": "error", "error": str(e)}
+    return JsonResponse(data)
+
+
 def codebeamer_classifier_status_proxy(request):
     from django.http import JsonResponse
     project_id = request.GET.get("project_id")
@@ -263,16 +276,41 @@ def codebeamer(request):
     credentials = _cb_load_credentials()
 
     if request.method == "GET" and credentials:
-        try:
-            context["projects"] = _cb_load_projects()
-            if credentials.get("project_id"):
-                tracker_ctx = _cb_load_tracker_context(credentials["project_id"], context["projects"])
-                if tracker_ctx is None:
-                    from django.shortcuts import redirect as _redirect
-                    return _redirect("app_main:codebeamer_select_project")
-                context.update(tracker_ctx)
-        except Exception as e:
-            context["fetch_error"] = str(e)
+        project_id = credentials.get("project_id")
+
+        if project_id:
+            # Always fire corpus preload immediately (non-blocking)
+            import threading as _threading
+            _threading.Thread(
+                target=backend_get,
+                args=("/codebeamer/corpus/preload",),
+                kwargs={"params": {"project_id": project_id}},
+                daemon=True,
+            ).start()
+
+            if request.GET.get("_loaded") == "1":
+                # Corpus is in memory — load full tracker context (fast)
+                try:
+                    context["projects"] = _cb_load_projects()
+                    tracker_ctx = _cb_load_tracker_context(project_id, context["projects"])
+                    if tracker_ctx is None:
+                        from django.shortcuts import redirect as _redirect
+                        return _redirect("app_main:codebeamer_select_project")
+                    context.update(tracker_ctx)
+                except Exception as e:
+                    context["fetch_error"] = str(e)
+            else:
+                # Render skeleton immediately — corpus loads in background
+                context["selected_project_id"] = project_id
+                context["selected_project_name"] = str(project_id)
+                context["corpus_loading"] = True
+                context["projects"] = []  # suppress Step 1/2 forms
+        else:
+            try:
+                context["projects"] = _cb_load_projects()
+            except Exception as e:
+                context["fetch_error"] = str(e)
+
         context.update({"cb_url": credentials.get("cb_url", ""), "username": credentials.get("username", ""), "password": credentials.get("password", "")})
         return render(request, "app_main/codebeamer.html", context)
 
