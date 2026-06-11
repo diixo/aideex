@@ -152,7 +152,7 @@
                 </li>
                 <li class="nav-item">
                   <a class="nav-link d-flex align-items-center gap-2 {% if request.resolver_match.url_name == 'codebeamer_assessment' %}active{% endif %}"
-                    href="{% url 'app_main:codebeamer_assessment' %}">
+                    href="{% url 'app_main:codebeamer_assessment' %}" onclick="showPageLoading()">
                     <span class="material-icons">checklist</span>
                     Assessment
                   </a>
@@ -207,6 +207,17 @@
 
     {% load static %}
     <script src="{% static 'app_main/assets/js/bootstrap.bundle.min.js' %}" class="astro-vvvwv3sm"></script>
+
+    <div id="page-loading-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:.75rem;">
+      <div class="spinner-border text-light" style="width:3rem; height:3rem;" role="status"></div>
+      <span class="text-white fw-semibold" style="font-size:.95rem;">Calculating…</span>
+    </div>
+    <script>
+    function showPageLoading() {
+      var el = document.getElementById('page-loading-overlay');
+      if (el) el.style.display = 'flex';
+    }
+    </script>
 
   </body>
 </html>

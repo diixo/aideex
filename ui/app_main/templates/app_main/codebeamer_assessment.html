@@ -49,6 +49,7 @@
 </form>
 <script>
   document.getElementById('recalc-form').addEventListener('submit', function () {
+    showPageLoading();
     const btn = document.getElementById('btn-recalc');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Calculating…';
