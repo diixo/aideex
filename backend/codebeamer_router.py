@@ -1092,6 +1092,9 @@ _TEST_PROCESS_BY_TRACKER_ID = {
     88020: "SWE.4",  # Software Component Verification Test Cases
     87934: "SWE.5",  # Software Integration Verification Test Cases
     146738: "SEC",   # CySec Validation Test Cases
+    88425: "SYS.5",  # Test Runs Execution
+    88370: "SYS.5",  # Test Sets
+    88612: "SUP.9",  # Defects
 }
 
 
@@ -1222,6 +1225,8 @@ async def codebeamer_assessment_test_coverage(
             continue
         t_type = (t.get("type") or {}).get("name", "")
         process_area = claude_map.get(tid) or _tracker_process_area(tid, t.get("name", ""))
+        if t_type.lower() in ("testrun", "testset", "testconf"):
+            process_area = "SYS.5"
         tracker_meta[tid] = {
             "name": t.get("name", ""),
             "type_name": t_type,
