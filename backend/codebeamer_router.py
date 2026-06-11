@@ -498,7 +498,8 @@ async def codebeamer_pswd_get() -> Dict[str, Any]:
             "username": username,
             "has_pswd": has_pswd,
             "pswd": saved.get("pswd", ""),
-            "project_id": saved.get("project_id")
+            "project_id": saved.get("project_id"),
+            "project_name": saved.get("project_name"),
             }
     return {"ok": False, "error": "No saved credentials found"}
 
@@ -572,6 +573,9 @@ async def codebeamer_set_project(payload: Dict[str, Any]) -> Dict[str, Any]:
     cur = json.loads(_secrets_path().read_text(encoding="utf-8")) if _secrets_path().exists() else {}
     if project_id:
         cur["project_id"] = project_id
+        project_name = payload.get("project_name")
+        if project_name:
+            cur["project_name"] = project_name
         _secrets_path().write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding="utf-8")
         corpus = _load_corpus(project_id)
         if corpus:

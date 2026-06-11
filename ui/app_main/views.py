@@ -77,8 +77,11 @@ def _cb_save_credentials(cb_url, username, password):
     })
 
 
-def _cb_set_project(project_id):
-    backend_post("/codebeamer/project", {"project_id": project_id})
+def _cb_set_project(project_id, project_name=None):
+    payload = {"project_id": project_id}
+    if project_name:
+        payload["project_name"] = project_name
+    backend_post("/codebeamer/project", payload)
 
 
 def _cb_load_credentials():
@@ -86,10 +89,11 @@ def _cb_load_credentials():
         resp = backend_get("/codebeamer/pswd")
         if resp.get("ok"):
             return {
-                "cb_url":     resp.get("codebeamer_host", ""),
-                "username":   resp.get("username", ""),
-                "password":   resp.get("pswd", ""),
-                "project_id": resp.get("project_id"),
+                "cb_url":        resp.get("codebeamer_host", ""),
+                "username":      resp.get("username", ""),
+                "password":      resp.get("pswd", ""),
+                "project_id":    resp.get("project_id"),
+                "project_name":  resp.get("project_name"),
             }
     except Exception:
         pass
@@ -257,7 +261,13 @@ def codebeamer_select_project(request):
     if request.method == "POST":
         project_id = int(request.POST.get("project_id", 0))
         if project_id:
-            _cb_set_project(project_id)
+            project_name = None
+            try:
+                lp = backend_get("/codebeamer/local-projects")
+                project_name = next((p["name"] for p in lp.get("projects", []) if p["id"] == project_id), None)
+            except Exception:
+                pass
+            _cb_set_project(project_id, project_name)
             from django.shortcuts import redirect as _redirect
             return _redirect("app_main:codebeamer")
 
@@ -302,7 +312,7 @@ def codebeamer(request):
             else:
                 # Render skeleton immediately — corpus loads in background
                 context["selected_project_id"] = project_id
-                context["selected_project_name"] = str(project_id)
+                context["selected_project_name"] = credentials.get("project_name") or str(project_id)
                 context["corpus_loading"] = True
                 context["projects"] = []  # suppress Step 1/2 forms
         else:
@@ -335,7 +345,8 @@ def codebeamer(request):
                 elif action == "load_trackers":
                     project_id = int(request.POST.get("project_id", 0))
                     context["projects"] = _cb_load_projects()
-                    _cb_set_project(project_id)
+                    project_name = next((p["name"] for p in context["projects"] if p["id"] == project_id), None)
+                    _cb_set_project(project_id, project_name)
                     tracker_ctx = _cb_load_tracker_context(project_id, context["projects"])
                     if tracker_ctx:
                         context.update(tracker_ctx)
