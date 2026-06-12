@@ -1084,18 +1084,36 @@ async def codebeamer_item_map(project_id: int) -> Dict[str, Any]:
 
 # Override map for specific tracker IDs from a known project.
 # For other projects the name-based fallback in _tracker_process_area() is used.
-_TEST_PROCESS_BY_TRACKER_ID = {
-    87637: "SYS.5",  # System Verification Test Cases
-    88271: "SYS.5",  # Acceptance Testing Test Cases
-    87749: "SYS.4",  # System Integration Test Cases
-    87848: "SWE.4",  # Software Verification Test Cases
-    88020: "SWE.4",  # Software Component Verification Test Cases
-    87934: "SWE.5",  # Software Integration Verification Test Cases
-    146738: "SEC",   # CySec Validation Test Cases
-    88425: "SYS.5",  # Test Runs Execution
-    88370: "SYS.5",  # Test Sets
-    88612: "SUP.9",  # Defects
+_REQUIREMENT_TRACKER_PROCESS: dict[int, str] = {
+    94375:  "SYS.1",  # Feature
+    94530:  "SYS.1",  # Capability
+    49721:  "SYS.1",  # Epics
+    48918:  "SYS.1",  # Safety Goals
+    20705:  "SYS.2",  # System Requirements Specification
+    50105:  "SYS.2",  # Functional Safety Concept
+    30078:  "SWE.1",  # Software Requirements Specification
+    50206:  "SWE.1",  # Technical Safety Concept
+    49501:  "SWE.1",  # Stories
+    101697: "SEC",    # Cybersecurity Requirements
 }
+
+_TEST_TRACKER_PROCESS: dict[int, str] = {
+    31566:  "SYS.3",  # System Architecture Design
+    31657:  "SWE.2",  # Software Architecture Design
+    87637:  "SYS.5",  # System Verification Test Cases
+    88271:  "SYS.5",  # Acceptance Testing Test Cases
+    87749:  "SYS.4",  # System Integration Test Cases
+    87848:  "SWE.4",  # Software Verification Test Cases
+    88020:  "SWE.4",  # Software Component Verification Test Cases
+    87934:  "SWE.5",  # Software Integration Verification Test Cases
+    146738: "SEC",    # CySec Validation Test Cases
+    88425:  "SYS.5",  # Test Runs
+    88370:  "SYS.5",  # Test Sets
+    19102:  "SYS.5",  # Test Configurations
+    88612:  "SUP.9",  # Defects
+}
+
+_TEST_PROCESS_BY_TRACKER_ID = {**_REQUIREMENT_TRACKER_PROCESS, **_TEST_TRACKER_PROCESS}
 
 
 def _tracker_process_area(tracker_id: int, tracker_name: str) -> str:
@@ -1115,6 +1133,14 @@ def _tracker_process_area(tracker_id: int, tracker_name: str) -> str:
         return "SWE.5"
     if "component verification" in name or "software verification" in name:
         return "SWE.4"
+    if "stakeholder" in name:
+        return "SYS.1"
+    if "system" in name and "requirement" in name:
+        return "SYS.2"
+    if ("software" in name or "swe" in name) and "requirement" in name:
+        return "SWE.1"
+    if "hardware" in name and "requirement" in name:
+        return "SYS.2"
     return "UNMAPPED"
 
 
@@ -1125,18 +1151,6 @@ def _item_status_name(raw_item: dict) -> str:
     if isinstance(st, str):
         return st
     return ""
-
-
-def _item_timestamp(raw_item: dict) -> Optional[datetime]:
-    for key in ("modifiedAt", "closedAt", "createdAt", "submittedAt"):
-        val = raw_item.get(key)
-        if not isinstance(val, str) or not val.strip():
-            continue
-        try:
-            return datetime.fromisoformat(val.replace("Z", "+00:00"))
-        except ValueError:
-            continue
-    return None
 
 
 def _run_outcome(raw_item: dict) -> str:
@@ -1224,7 +1238,9 @@ async def codebeamer_assessment_test_coverage(
         if not tid:
             continue
         t_type = (t.get("type") or {}).get("name", "")
-        process_area = claude_map.get(tid) or _tracker_process_area(tid, t.get("name", ""))
+        process_area = _tracker_process_area(tid, t.get("name", ""))
+        if process_area == "UNMAPPED":
+            process_area = claude_map.get(tid) or "UNMAPPED"
         if t_type.lower() in ("testrun", "testset", "testconf"):
             process_area = "SYS.5"
         tracker_meta[tid] = {
@@ -1238,10 +1254,7 @@ async def codebeamer_assessment_test_coverage(
             if rid:
                 item_tracker[int(rid)] = tid
 
-    requirement_tracker_ids = {
-        tid for tid, meta in tracker_meta.items()
-        if (meta.get("type_name") or "").lower() == "requirement"
-    }
+    requirement_tracker_ids = frozenset(_REQUIREMENT_TRACKER_PROCESS) & set(tracker_meta.keys())
     testcase_tracker_ids = {
         tid for tid, meta in tracker_meta.items()
         if (meta.get("type_name") or "").lower() == "testcase"
@@ -1442,22 +1455,18 @@ async def codebeamer_assessment_test_coverage(
 
         for tcid in linked_tests:
             linked_runs |= testcase_to_runs.get(tcid, set())
-            areas.add(testcase_process.get(tcid, "UNMAPPED"))
 
-        if not areas:
-            areas = {"UNMAPPED"}
+        req_tracker_area = tracker_meta.get(int(req_tracker_id or 0), {}).get("process_area", "UNMAPPED")
 
-        for area in areas:
-            process_req_total[area] += 1
+        process_req_total[req_tracker_area] += 1
         if linked_tests:
             req_with_tests.add(req_id)
-            for area in areas:
-                process_req_with_tests[area] += 1
+            process_req_with_tests[req_tracker_area] += 1
         else:
             gaps.append({
                 "gap_code": "REQ_NO_TESTCASE",
                 "severity": "error",
-                "process_area": next(iter(areas)),
+                "process_area": req_tracker_area,
                 "target_id": str(req_id),
                 "target_name": req_name,
                 "message": "Requirement has no linked test case.",
@@ -1465,13 +1474,12 @@ async def codebeamer_assessment_test_coverage(
 
         if linked_runs:
             req_with_runs.add(req_id)
-            for area in areas:
-                process_req_with_runs[area] += 1
+            process_req_with_runs[req_tracker_area] += 1
         elif linked_tests:
             gaps.append({
                 "gap_code": "REQ_NO_RUN_EVIDENCE",
                 "severity": "warning",
-                "process_area": next(iter(areas)),
+                "process_area": req_tracker_area,
                 "target_id": str(req_id),
                 "target_name": req_name,
                 "message": "Requirement has tests, but no test run evidence.",
@@ -1501,33 +1509,22 @@ async def codebeamer_assessment_test_coverage(
     tests_total = len(testcase_ids)
     runs_total = len(testrun_ids)
 
-    # Diagnostic: log requirement coverage per tracker to help diagnose UNMAPPED
-    for tid, meta in tracker_meta.items():
-        if tid not in requirement_tracker_ids:
-            continue
-        t_total = sum(1 for iid, t2 in item_tracker.items() if t2 == tid and iid in requirement_ids)
-        t_with_tests = sum(1 for iid, t2 in item_tracker.items() if t2 == tid and iid in req_with_tests)
-        _CB_LOG.info(
-            "req-tracker %d %-50s  total=%-6d covered=%-6d unmapped=%d",
-            tid, meta["name"][:50], t_total, t_with_tests, t_total - t_with_tests,
-        )
+    # Precompute tracker → requirement IDs for breakdown
+    tracker_to_req_ids: dict[int, set] = defaultdict(set)
+    for iid in requirement_ids:
+        tid = item_tracker.get(iid)
+        if tid:
+            tracker_to_req_ids[int(tid)].add(iid)
 
     coverage_ratio = (len(req_with_tests) / requirements_total) if requirements_total else 0.0
     execution_ratio = (len(req_with_runs) / requirements_total) if requirements_total else 0.0
     pass_rate = (runs_passed / runs_total) if runs_total else 0.0
     assessment_score = 0.45 * coverage_ratio + 0.30 * execution_ratio + 0.25 * pass_rate
 
-    all_tracker_areas = {
-        meta["process_area"]
-        for meta in tracker_meta.values()
-        if meta.get("process_area") and meta["process_area"] != "UNMAPPED"
-    }
-    process_areas = sorted(set(
-        list(process_req_total.keys()) +
-        list(process_tests_total.keys()) +
-        list(process_runs_total.keys()) +
-        list(all_tracker_areas)
-    ))
+    process_areas = sorted(
+        area for area in process_req_total
+        if area != "UNMAPPED" and process_req_total[area] > 0
+    )
     process_breakdown = []
     for area in process_areas:
         p_runs_total = process_runs_total.get(area, 0)
@@ -1681,19 +1678,17 @@ async def codebeamer_assessment_test_coverage(
         },
         "process_breakdown": process_breakdown,
         "test_trackers": test_trackers,
-        "req_tracker_breakdown": [
+        "req_tracker_breakdown": sorted([
             {
                 "tracker_id": tid,
-                "tracker_name": meta["name"],
-                "total": meta["item_refs"],
-                "with_tests": sum(
-                    1 for iid, t2 in item_tracker.items()
-                    if t2 == tid and iid in req_with_tests
-                ),
+                "tracker_name": tracker_meta[tid]["name"],
+                "process_area": tracker_meta[tid]["process_area"],
+                "total": len(rids),
+                "with_tests": len(rids & req_with_tests),
             }
-            for tid, meta in tracker_meta.items()
+            for tid, rids in tracker_to_req_ids.items()
             if tid in requirement_tracker_ids
-        ],
+        ], key=lambda x: x["tracker_name"]),
         "entities": entities,
         "gaps": gaps,
         "behavior_summary": dict(behavior_summary),

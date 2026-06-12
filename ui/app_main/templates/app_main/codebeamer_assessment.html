@@ -119,10 +119,14 @@
 </div>
 
 <div class="card shadow-sm mb-3">
-  <div class="card-header py-2 d-flex align-items-center gap-2">
+  <div class="card-header py-2 d-flex align-items-center gap-2 flex-wrap">
     <span class="fw-semibold">Process Coverage Graph</span>
     <span class="material-icons text-muted" style="font-size:1rem;cursor:default;"
           title="Coverage per ASPICE process area. A requirement is any non-folder item with type = Requirement from a tracker mapped to a process area. Progress bar shows what share of requirements have at least one linked test case. Pass rate = passed test runs / total test runs for that area. Process area assignment: Claude AI if classification has been run, otherwise heuristic by tracker name.">help</span>
+    <div class="btn-group btn-group-sm ms-2" role="group">
+      <button type="button" class="btn btn-outline-secondary active" id="btn-cov-by-process">By Process</button>
+      <button type="button" class="btn btn-outline-secondary" id="btn-cov-by-tracker">By Tracker</button>
+    </div>
     <a href="{% url 'app_main:codebeamer_assessment_coverage_download' %}?include_security={% if include_security %}1{% else %}0{% endif %}"
        class="ms-auto btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
       <span class="material-icons" style="font-size:1rem;">download</span>
@@ -130,27 +134,74 @@
     </a>
   </div>
   <div class="card-body py-2">
-    {% for p in process_breakdown %}
-    <div class="mb-3">
-      <div class="d-flex justify-content-between small mb-1">
-        <span class="fw-semibold">{{ p.process_area }}</span>
-        <span class="text-muted">reqs: {{ p.requirements_with_tests }}/{{ p.requirements_total }} | tests: {{ p.tests_total }} | runs: {{ p.runs_total }} | passed: {{ p.runs_passed }}</span>
-      </div>
-      {% if p.requirements_total %}
-      <div class="progress process-bar mb-1">
-        <div class="progress-bar" role="progressbar" style="width: {% widthratio p.requirements_with_tests p.requirements_total 100 %}%">
+    <div id="cov-pane-process">
+      {% for p in process_breakdown %}
+      <div class="mb-3">
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="fw-semibold">{{ p.process_area }}</span>
+          <span class="text-muted">reqs: {{ p.requirements_with_tests }}/{{ p.requirements_total }} | tests: {{ p.tests_total }} | runs: {{ p.runs_total }} | passed: {{ p.runs_passed }}</span>
         </div>
+        {% if p.requirements_total %}
+        <div class="progress process-bar mb-1">
+          <div class="progress-bar" role="progressbar" style="width: {% widthratio p.requirements_with_tests p.requirements_total 100 %}%"></div>
+        </div>
+        {% else %}
+        <div class="progress process-bar mb-1">
+          <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+        </div>
+        {% endif %}
+        <div class="small text-muted">Pass rate: {{ p.pass_rate }}</div>
       </div>
-      {% else %}
-      <div class="progress process-bar mb-1">
-        <div class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
-      </div>
-      {% endif %}
-      <div class="small text-muted">Pass rate: {{ p.pass_rate }}</div>
+      {% endfor %}
     </div>
-    {% endfor %}
+    <div id="cov-pane-tracker" style="display:none;">
+      <table class="table table-sm align-middle mb-0" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th>Tracker</th>
+            <th>Process</th>
+            <th style="width:6rem;">Reqs</th>
+            <th style="width:12rem;">Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in req_tracker_breakdown %}
+          <tr>
+            <td>{{ t.tracker_name }}</td>
+            <td><span class="badge text-bg-light border">{{ t.process_area }}</span></td>
+            <td>{{ t.with_tests }}/{{ t.total }}</td>
+            <td>
+              {% if t.total %}
+              <div class="progress" style="height:.4rem;">
+                <div class="progress-bar" style="width:{% widthratio t.with_tests t.total 100 %}%"></div>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">No data.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
+<script>
+(function () {
+  var btnProc = document.getElementById('btn-cov-by-process');
+  var btnTrk  = document.getElementById('btn-cov-by-tracker');
+  var paneProc = document.getElementById('cov-pane-process');
+  var paneTrk  = document.getElementById('cov-pane-tracker');
+  btnProc.addEventListener('click', function () {
+    paneProc.style.display = ''; paneTrk.style.display = 'none';
+    btnProc.classList.add('active'); btnTrk.classList.remove('active');
+  });
+  btnTrk.addEventListener('click', function () {
+    paneTrk.style.display = ''; paneProc.style.display = 'none';
+    btnTrk.classList.add('active'); btnProc.classList.remove('active');
+  });
+})();
+</script>
 
 <div id="classifier-banner" class="alert alert-info py-2 d-flex align-items-center gap-2 mb-3" style="display:none!important;">
   <div class="spinner-border spinner-border-sm text-info"></div>

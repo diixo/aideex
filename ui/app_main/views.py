@@ -826,6 +826,7 @@ def codebeamer_assessment(request):
         context["gaps_total"] = len(all_gaps)
         context["test_trackers"] = resp.get("test_trackers") or []
         context["test_items_total"] = sum(t.get("item_refs", 0) for t in context["test_trackers"])
+        context["req_tracker_breakdown"] = resp.get("req_tracker_breakdown") or []
         context["behavior_summary"] = resp.get("behavior_summary") or {}
         context["behavior_total"] = sum((resp.get("behavior_summary") or {}).values())
         feature_summary = resp.get("behavior_feature_summary") or {}
