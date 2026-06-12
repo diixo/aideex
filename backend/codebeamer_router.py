@@ -1337,6 +1337,7 @@ async def codebeamer_assessment_test_coverage(
     process_req_total: defaultdict[str, int] = defaultdict(int)
     process_req_with_tests: defaultdict[str, int] = defaultdict(int)
     process_req_with_runs: defaultdict[str, int] = defaultdict(int)
+
     process_tests_sets: defaultdict[str, set] = defaultdict(set)
     process_runs_sets: defaultdict[str, set] = defaultdict(set)
     process_runs_passed_sets: defaultdict[str, set] = defaultdict(set)
@@ -1743,6 +1744,92 @@ async def codebeamer_corpus_load_status(project_id: int) -> Dict[str, Any]:
     if path.exists():
         return {"stage": "idle", "file_size_mb": round(path.stat().st_size / 1024 / 1024, 1), "items": 0}
     return {"stage": "missing", "file_size_mb": 0, "items": 0}
+
+
+@codebeamer_router.get("/codebeamer/requirements/uncovered", tags=["codebeamer"])
+async def codebeamer_requirements_uncovered(
+    project_id: int,
+    process_area: str,
+    include_security: bool = True,
+    offset: int = 0,
+    limit: int = 1000,
+) -> Dict[str, Any]:
+    """Return uncovered requirements (no linked test case) for a given process area."""
+    data = _load_corpus(project_id)
+    if data is None:
+        return {"ok": False, "error": "Corpus not found"}
+
+    item_map: dict[int, dict] = _CB_ITEM_MAPS.get(project_id) or {}
+    item_by_id: dict[int, dict] = _CB_ITEMS_IDX.get(project_id) or {}
+
+    tracker_meta: dict[int, dict] = {}
+    item_tracker: dict[int, int] = {}
+    for t in data.get("trackers", []):
+        tid = int(t.get("id") or 0)
+        if not tid:
+            continue
+        t_type = (t.get("type") or {}).get("name", "")
+        pa = _tracker_process_area(tid, t.get("name", ""))
+        if t_type.lower() in ("testrun", "testset", "testconf"):
+            pa = "SYS.5"
+        tracker_meta[tid] = {"process_area": pa, "type_name": t_type}
+        for ref in t.get("items") or []:
+            rid = ref.get("id")
+            if rid:
+                item_tracker[int(rid)] = tid
+
+    requirement_tracker_ids = frozenset(_REQUIREMENT_TRACKER_PROCESS) & set(tracker_meta.keys())
+    testcase_tracker_ids = {
+        tid for tid, meta in tracker_meta.items()
+        if (meta.get("type_name") or "").lower() == "testcase"
+    }
+
+    folder_ids: set[int] = set()
+    for iid, raw in item_by_id.items():
+        for cat in (raw.get("categories") or []):
+            if (isinstance(cat, dict)
+                    and cat.get("name") in ("Folder", "Heading")
+                    and cat.get("type") == "ChoiceOptionReference"):
+                folder_ids.add(iid)
+                break
+
+    requirement_ids = {
+        iid for iid, tid in item_tracker.items()
+        if tid in requirement_tracker_ids
+        and _item_status_name(item_by_id.get(iid, {})).lower() != "draft"
+    } - folder_ids
+    testcase_ids = {
+        iid for iid, tid in item_tracker.items()
+        if tid in testcase_tracker_ids
+        and _item_status_name(item_by_id.get(iid, {})).lower() != "draft"
+    } - folder_ids
+
+    if not include_security:
+        sec_tracker_ids = {tid for tid, meta in tracker_meta.items() if meta.get("process_area") == "SEC"}
+        sec_item_ids = {iid for iid, tid in item_tracker.items() if tid in sec_tracker_ids}
+        requirement_ids -= sec_item_ids
+
+    uncovered: list[dict] = []
+    for req_id in requirement_ids:
+        tid = item_tracker.get(req_id)
+        req_area = tracker_meta.get(int(tid or 0), {}).get("process_area", "UNMAPPED")
+        if req_area != process_area:
+            continue
+        req_entry = item_map.get(req_id, {})
+        req_down = set(req_entry.get("downstream") or [])
+        if req_down & testcase_ids:
+            continue
+        raw = item_by_id.get(req_id, {})
+        uncovered.append({
+            "id": req_id,
+            "name": str(raw.get("name") or req_id),
+            "status": _item_status_name(raw),
+        })
+
+    uncovered.sort(key=lambda x: x["id"])
+    total = len(uncovered)
+    page = uncovered[offset: offset + limit]
+    return {"ok": True, "process_area": process_area, "total": total, "offset": offset, "limit": limit, "items": page}
 
 
 @codebeamer_router.get("/codebeamer/assessment/classifier-status", tags=["codebeamer"])

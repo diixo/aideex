@@ -191,6 +191,119 @@ def codebeamer_corpus_load_status_proxy(request):
     return JsonResponse(data)
 
 
+def codebeamer_requirements_uncovered(request, process_area: str):
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
+        return redirect("app_main:codebeamer")
+    project_id = int(credentials["project_id"])
+    include_security = request.GET.get("include_security", "1") == "1"
+    offset = int(request.GET.get("offset", 0))
+    limit = 500
+    try:
+        resp = backend_get(
+            "/codebeamer/requirements/uncovered",
+            params={
+                "project_id": project_id,
+                "process_area": process_area,
+                "include_security": "true" if include_security else "false",
+                "offset": offset,
+                "limit": limit,
+            },
+        )
+    except Exception as e:
+        resp = {"ok": False, "error": str(e)}
+
+    context = {
+        "title": f"Uncovered Requirements — {process_area}",
+        "process_area": process_area,
+        "items": resp.get("items") or [],
+        "total": resp.get("total", 0),
+        "offset": offset,
+        "limit": limit,
+        "project_id": project_id,
+        "include_security": include_security,
+        "fetch_error": None if resp.get("ok") else resp.get("error", "Failed to load"),
+        "cb_host": credentials.get("cb_url", ""),
+    }
+    return render(request, "app_main/codebeamer_requirements_uncovered.html", context)
+
+
+def codebeamer_requirements_uncovered_download(request, process_area: str):
+    from django.http import HttpResponse
+    credentials = _cb_load_credentials()
+    if not credentials or not credentials.get("project_id"):
+        return HttpResponse("No project selected", status=400)
+    project_id = int(credentials["project_id"])
+    include_security = request.GET.get("include_security", "1") == "1"
+    cb_host = credentials.get("cb_url", "")
+
+    all_items = []
+    offset = 0
+    limit = 1000
+    while True:
+        try:
+            resp = backend_get(
+                "/codebeamer/requirements/uncovered",
+                params={
+                    "project_id": project_id,
+                    "process_area": process_area,
+                    "include_security": "true" if include_security else "false",
+                    "offset": offset,
+                    "limit": limit,
+                },
+            )
+        except Exception as e:
+            return HttpResponse(f"Error: {e}", status=500)
+        if not resp.get("ok"):
+            return HttpResponse(resp.get("error", "Failed"), status=500)
+        page = resp.get("items") or []
+        all_items.extend(page)
+        total = resp.get("total", 0)
+        offset += limit
+        if offset >= total:
+            break
+
+    rows = ""
+    for r in all_items:
+        iid = r["id"]
+        name = r.get("name", "")
+        status = r.get("status", "")
+        item_link = f"{cb_host}/item/{iid}" if cb_host else f"/codebeamer/item/{iid}"
+        rows += (
+            f"<tr>"
+            f'<td><a href="{item_link}" target="_blank"><code>{iid}</code></a></td>'
+            f"<td>{name}</td>"
+            f"<td>{status}</td>"
+            f"</tr>\n"
+        )
+
+    safe_area = process_area.replace(".", "_")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Uncovered Requirements — {process_area}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="p-4">
+<h4>Uncovered Requirements — {process_area}</h4>
+<p class="text-muted">Total: {len(all_items)}</p>
+<table class="table table-sm table-bordered table-striped">
+<thead class="table-light">
+<tr><th style="width:6rem;">ID</th><th>Name</th><th style="width:8rem;">Status</th></tr>
+</thead>
+<tbody>
+{rows}
+</tbody>
+</table>
+</body>
+</html>"""
+
+    response = HttpResponse(html, content_type="text/html; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="uncovered_{safe_area}_{project_id}.html"'
+    return response
+
+
 def codebeamer_classifier_status_proxy(request):
     from django.http import JsonResponse
     project_id = request.GET.get("project_id")

@@ -1,0 +1,79 @@
+{% extends "app_main/base.html" %}
+
+{% block meta %}
+<title>{{ title }}</title>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-3 mt-3">
+  <a href="{% url 'app_main:codebeamer_assessment' %}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+    <span class="material-icons" style="font-size:1rem;">arrow_back</span>
+    Assessment
+  </a>
+  <h6 class="fw-bold mb-0">Uncovered Requirements</h6>
+  <span class="badge text-bg-secondary">{{ process_area }}</span>
+  <span class="text-muted small">{{ total }} item{{ total|pluralize }}</span>
+  <a href="{% url 'app_main:codebeamer_requirements_uncovered_download' process_area %}?include_security={% if include_security %}1{% else %}0{% endif %}"
+     class="ms-auto btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+    <span class="material-icons" style="font-size:1rem;">download</span>
+    Download as HTML
+  </a>
+</div>
+
+{% if fetch_error %}
+<div class="alert alert-danger py-2">{{ fetch_error }}</div>
+{% else %}
+
+<div class="card shadow-sm">
+  <div class="card-body py-0 px-0">
+    <table class="table table-sm align-middle mb-0" style="font-size:13px;">
+      <thead class="table-light">
+        <tr>
+          <th style="width:5.5rem;">ID</th>
+          <th>Name</th>
+          <th style="width:7rem;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in items %}
+        <tr>
+          <td>
+            {% if cb_host %}
+            <a href="{{ cb_host }}/item/{{ r.id }}" target="_blank" rel="noopener" class="text-decoration-none fw-semibold">
+              <code style="font-size:12px;">{{ r.id }}</code>
+            </a>
+            {% else %}
+            <code style="font-size:12px;">{{ r.id }}</code>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'app_main:codebeamer_item' r.id %}" class="text-decoration-none" target="_blank">{{ r.name }}</a>
+          </td>
+          <td class="text-muted">{{ r.status }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-muted py-3 text-center">No uncovered requirements found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if total > limit %}
+<div class="d-flex justify-content-between align-items-center mt-3 small text-muted">
+  <span>Showing {{ offset|add:"1" }}–{% if offset|add:limit > total %}{{ total }}{% else %}{{ offset|add:limit }}{% endif %} of {{ total }}</span>
+  <div class="d-flex gap-2">
+    {% if offset > 0 %}
+    <a href="?offset={{ offset|add:"-500" }}&include_security={% if include_security %}1{% else %}0{% endif %}"
+       class="btn btn-sm btn-outline-secondary">← Prev</a>
+    {% endif %}
+    {% if offset|add:limit < total %}
+    <a href="?offset={{ offset|add:"500" }}&include_security={% if include_security %}1{% else %}0{% endif %}"
+       class="btn btn-sm btn-outline-secondary">Next →</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

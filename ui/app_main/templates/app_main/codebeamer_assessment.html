@@ -137,8 +137,23 @@
     <div id="cov-pane-process">
       {% for p in process_breakdown %}
       <div class="mb-3">
-        <div class="d-flex justify-content-between small mb-1">
-          <span class="fw-semibold">{{ p.process_area }}</span>
+        <div class="d-flex justify-content-between align-items-center small mb-1">
+          <div class="d-flex align-items-center gap-1">
+            <div class="dropdown">
+              <button class="btn btn-sm p-0 text-muted border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="line-height:1;">
+                <span class="material-icons" style="font-size:1.1rem;">more_vert</span>
+              </button>
+              <ul class="dropdown-menu shadow" style="font-size:13px;">
+                <li>
+                  <a class="dropdown-item" href="{% url 'app_main:codebeamer_requirements_uncovered' p.process_area %}?include_security={% if include_security %}1{% else %}0{% endif %}" target="_blank">
+                    <span class="material-icons align-middle me-1" style="font-size:1rem;">list</span>
+                    Uncovered requirements
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <span class="fw-semibold">{{ p.process_area }}</span>
+          </div>
           <span class="text-muted">reqs: {{ p.requirements_with_tests }}/{{ p.requirements_total }} | tests: {{ p.tests_total }} | runs: {{ p.runs_total }} | passed: {{ p.runs_passed }}</span>
         </div>
         {% if p.requirements_total %}

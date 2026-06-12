@@ -27,6 +27,8 @@ urlpatterns = [
     path("api/codebeamer/assessment/classifier-status", views.codebeamer_classifier_status_proxy, name="codebeamer_classifier_status"),
     path("api/codebeamer/assessment/ai-analysis", views.codebeamer_assessment_ai_analysis_proxy, name="codebeamer_assessment_ai_analysis"),
     path("api/codebeamer/assessment/behavior-scenario", views.codebeamer_behavior_scenario_proxy, name="codebeamer_behavior_scenario"),
+    path("codebeamer/requirements/uncovered/<str:process_area>", views.codebeamer_requirements_uncovered, name="codebeamer_requirements_uncovered"),
+    path("codebeamer/requirements/uncovered/<str:process_area>/download", views.codebeamer_requirements_uncovered_download, name="codebeamer_requirements_uncovered_download"),
     path("codebeamer/item/<int:item_id>", views.codebeamer_item, name="codebeamer_item"),
     path("codebeamer/save", views.codebeamer_save, name="codebeamer_save"),
 ]
