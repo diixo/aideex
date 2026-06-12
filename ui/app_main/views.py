@@ -314,22 +314,6 @@ def codebeamer_classifier_status_proxy(request):
     return JsonResponse(data)
 
 
-def codebeamer_assessment_ai_analysis_proxy(request):
-    from django.http import JsonResponse
-    project_id = request.GET.get("project_id")
-    include_security = request.GET.get("include_security", "1")
-    try:
-        data = backend_get(
-            "/codebeamer/assessment/ai-analysis",
-            params={
-                "project_id": project_id,
-                "include_security": "true" if include_security == "1" else "false",
-            },
-        )
-    except Exception as e:
-        data = {"ok": False, "analysis": "", "error": str(e)}
-    return JsonResponse(data)
-
 
 def codebeamer_pull_view(request):
     if request.method == "POST":

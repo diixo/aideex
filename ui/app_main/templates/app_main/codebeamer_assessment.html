@@ -461,19 +461,6 @@
 </div>
 {% endif %}
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header py-2 d-flex align-items-center gap-2">
-    <span class="material-icons text-primary" style="font-size:1rem;">psychology</span>
-    <span class="fw-semibold">AI Gap Analysis</span>
-    <button class="btn btn-sm btn-outline-primary ms-auto d-inline-flex align-items-center gap-1" id="btn-ai-analyze">
-      <span class="material-icons" style="font-size:1rem;">auto_awesome</span>
-      Analyze with AI
-    </button>
-  </div>
-  <div class="card-body py-2" id="ai-analysis-body">
-    <span class="text-muted small">Click "Analyze with AI" to get a Claude assessment of the detected gaps.</span>
-  </div>
-</div>
 {% endif %}
 
 <script type="module">
@@ -586,37 +573,6 @@
           btnExtract.disabled = false;
           btnExtract.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Extract Behavior';
           body.innerHTML = '<span class="text-danger">Request failed: ' + e + '</span>';
-        });
-    });
-  }
-
-  const btnAI = document.getElementById('btn-ai-analyze');
-  if (btnAI) {
-    btnAI.addEventListener('click', function () {
-      const body = document.getElementById('ai-analysis-body');
-      btnAI.disabled = true;
-      btnAI.innerHTML = '<span class="material-icons spin" style="font-size:1rem;">sync</span> Analyzing…';
-      body.innerHTML = '<div class="d-flex align-items-center gap-2 text-muted small"><div class="spinner-border spinner-border-sm"></div> Running Claude analysis, this may take 30–60 seconds…</div>';
-
-      const params = new URLSearchParams({
-        project_id: '{{ project_id }}',
-        include_security: '{{ include_security|yesno:"1,0" }}',
-      });
-      fetch('{% url "app_main:codebeamer_assessment_ai_analysis" %}?' + params)
-        .then(r => r.json())
-        .then(function (data) {
-          btnAI.disabled = false;
-          btnAI.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Analyze with AI';
-          if (data.ok && data.analysis) {
-            body.innerHTML = '<pre style="white-space:pre-wrap;font-size:13px;margin:0;">' + data.analysis.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
-          } else {
-            body.innerHTML = '<span class="text-danger small">' + (data.error || 'Analysis failed') + '</span>';
-          }
-        })
-        .catch(function (e) {
-          btnAI.disabled = false;
-          btnAI.innerHTML = '<span class="material-icons" style="font-size:1rem;">auto_awesome</span> Analyze with AI';
-          body.innerHTML = '<span class="text-danger small">Request failed: ' + e + '</span>';
         });
     });
   }

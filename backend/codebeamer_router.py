@@ -131,74 +131,6 @@ def _classify_trackers_claude(trackers: list[dict]) -> dict[int, str]:
         return {}
 
 
-def _analyze_gaps_claude(
-    summary: dict,
-    process_breakdown: list,
-    gaps: list,
-    sample_items: Optional[list] = None,
-) -> str:
-    """Use claude CLI to produce a text analysis of ASPICE traceability gaps.
-
-    sample_items: list of {id, name, description} for requirements lacking test cases.
-    When provided, Claude also checks for missing behavioral elements (triggers,
-    timing constraints, acceptance criteria, exceptions) in the requirement texts.
-    """
-    from collections import Counter
-    gap_counts = dict(Counter(g["gap_code"] for g in gaps))
-    gap_by_process: dict[str, list] = {}
-    for g in gaps:
-        gap_by_process.setdefault(g.get("process_area", "UNMAPPED"), []).append(g["gap_code"])
-
-    prompt = (
-        "You are an ASPICE test coverage expert. Analyze the following test coverage data "
-        "for a Codebeamer project and produce a concise actionable assessment.\n\n"
-        "## Summary metrics\n"
-        + json.dumps(summary, indent=2)
-        + "\n\n## Process breakdown\n"
-        + json.dumps(process_breakdown, indent=2)
-        + "\n\n## Gap counts by type\n"
-        + json.dumps(gap_counts, indent=2)
-        + "\n\n## Gap counts by process area\n"
-        + json.dumps({k: dict(Counter(v)) for k, v in gap_by_process.items()}, indent=2)
-        + "\n\n## Sample gaps (first 25)\n"
-        + json.dumps(gaps[:25], indent=2)
-    )
-
-    if sample_items:
-        prompt += (
-            "\n\n## Sample requirements lacking test cases (for behavioral analysis)\n"
-            + json.dumps(sample_items, indent=2, ensure_ascii=False)
-            + "\n\nFor each sample requirement above, identify which behavioral elements are missing:\n"
-            "trigger, preconditions, system actions, timing constraints, exceptions, acceptance criteria.\n"
-            "A requirement that lacks these elements cannot be reliably tested."
-        )
-
-    prompt += (
-        "\n\nProvide your analysis in plain text (no markdown headers, no bullet symbols):\n"
-        "1. Overall ASPICE test coverage assessment — 2-3 sentences.\n"
-        "2. Top 3 critical traceability gap chains to fix, with process area context.\n"
-        "3. Behavioral completeness issues found in sample requirements (if provided).\n"
-        "4. Prioritized recommendations — what to do first to improve the score.\n"
-        "Be concise, specific, and focused on ASPICE compliance."
-    )
-
-    try:
-        argv, stdin_data = _claude_argv(prompt)
-        result = subprocess.run(
-            argv,
-            input=stdin_data,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if result.returncode != 0:
-            _CB_LOG.warning("claude gap analysis exited %d: %s", result.returncode, result.stderr[:200])
-            return ""
-        return result.stdout.strip()
-    except Exception as exc:
-        _CB_LOG.warning("claude gap analysis failed: %s", exc)
-        return ""
-
 
 def _extract_behavior_scenario_claude(item: dict) -> dict:
     """Use claude CLI to extract a structured behavior scenario from a requirement.
@@ -1858,45 +1790,6 @@ async def codebeamer_behavior_scenario(project_id: int, item_id: int) -> Dict[st
     scenario = _extract_behavior_scenario_claude(item)
     return {"ok": True, "item_id": item_id, "scenario": scenario}
 
-
-@codebeamer_router.get("/codebeamer/assessment/ai-analysis", tags=["codebeamer"])
-async def codebeamer_assessment_ai_analysis(
-    project_id: int,
-    include_security: bool = True,
-) -> Dict[str, Any]:
-    """Run Claude gap analysis on assessment data and return plain-text result."""
-    result = await codebeamer_assessment_test_coverage(
-        project_id=project_id,
-        include_security=include_security,
-    )
-    if not result.get("ok"):
-        return {"ok": False, "error": result.get("error", "Assessment unavailable")}
-
-    # Collect sample requirements that lack test cases for behavioral analysis
-    sample_items: list[dict] = []
-    corpus = _CB_CORPUS.get(project_id)
-    if corpus:
-        idx = _CB_ITEMS_IDX.get(project_id) or {}
-        gap_req_ids = [
-            int(g["target_id"]) for g in result["gaps"]
-            if g["gap_code"] == "REQ_NO_TESTCASE"
-        ][:10]
-        for rid in gap_req_ids:
-            raw = idx.get(rid, {})
-            if raw:
-                sample_items.append({
-                    "id": rid,
-                    "name": raw.get("name", ""),
-                    "description": (raw.get("description") or "")[:500],
-                })
-
-    analysis = _analyze_gaps_claude(
-        summary=result["summary"],
-        process_breakdown=result["process_breakdown"],
-        gaps=result["gaps"],
-        sample_items=sample_items or None,
-    )
-    return {"ok": True, "analysis": analysis}
 
 
 @codebeamer_router.get("/codebeamer/items-by-type", tags=["codebeamer"])
