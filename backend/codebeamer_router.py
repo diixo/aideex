@@ -1337,7 +1337,7 @@ async def codebeamer_assessment_test_coverage(
     process_req_total: defaultdict[str, int] = defaultdict(int)
     process_req_with_tests: defaultdict[str, int] = defaultdict(int)
     process_req_with_runs: defaultdict[str, int] = defaultdict(int)
-    process_tests_total: defaultdict[str, int] = defaultdict(int)
+    process_tests_sets: defaultdict[str, set] = defaultdict(set)
     process_runs_sets: defaultdict[str, set] = defaultdict(set)
     process_runs_passed_sets: defaultdict[str, set] = defaultdict(set)
 
@@ -1345,14 +1345,12 @@ async def codebeamer_assessment_test_coverage(
     runs_failed_set: set[int] = set()
     failed_runs_reported: set[int] = set()
 
-    # Precompute testcase process area by tracker.
+    # Precompute testcase process area by tracker (used for runs classification).
     testcase_process: dict[int, str] = {}
     for tcid in testcase_ids:
         tid = item_tracker.get(tcid)
         meta = tracker_meta.get(int(tid or 0), {})
-        area = meta.get("process_area", "UNMAPPED")
-        testcase_process[tcid] = area
-        process_tests_total[area] += 1
+        testcase_process[tcid] = meta.get("process_area", "UNMAPPED")
 
     # Build testcase → runs mapping via TestSet custom field "Test Cases".
     # Codebeamer stores TC membership in TestSet via a TableFieldValue custom field:
@@ -1462,6 +1460,7 @@ async def codebeamer_assessment_test_coverage(
         if linked_tests:
             req_with_tests.add(req_id)
             process_req_with_tests[req_tracker_area] += 1
+            process_tests_sets[req_tracker_area] |= linked_tests
         else:
             gaps.append({
                 "gap_code": "REQ_NO_TESTCASE",
@@ -1504,6 +1503,7 @@ async def codebeamer_assessment_test_coverage(
     runs_failed = len(runs_failed_set)
     process_runs_total: dict[str, int] = {area: len(s) for area, s in process_runs_sets.items()}
     process_runs_passed: dict[str, int] = {area: len(s) for area, s in process_runs_passed_sets.items()}
+    process_tests_total: dict[str, int] = {area: len(s) for area, s in process_tests_sets.items()}
 
     requirements_total = len(requirement_ids)
     tests_total = len(testcase_ids)
@@ -1534,7 +1534,7 @@ async def codebeamer_assessment_test_coverage(
             "requirements_total": process_req_total[area],
             "requirements_with_tests": process_req_with_tests[area],
             "requirements_with_runs": process_req_with_runs[area],
-            "tests_total": process_tests_total[area],
+            "tests_total": process_tests_total.get(area, 0),
             "runs_total": p_runs_total,
             "runs_passed": p_runs_passed,
             "pass_rate": (p_runs_passed / p_runs_total) if p_runs_total else 0.0,
