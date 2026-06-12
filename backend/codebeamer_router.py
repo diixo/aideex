@@ -1411,12 +1411,10 @@ async def codebeamer_assessment_test_coverage(
             })
 
         for rid in linked_runs:
-            process_runs_sets[area].add(rid)
             raw_run = item_by_id.get(rid, {})
             outcome = _run_outcome(raw_run)
             if outcome == "passed":
                 runs_passed_set.add(rid)
-                process_runs_passed_sets[area].add(rid)
             elif outcome == "failed":
                 runs_failed_set.add(rid)
                 if rid not in failed_runs_reported:
@@ -1474,6 +1472,11 @@ async def codebeamer_assessment_test_coverage(
         if linked_runs:
             req_with_runs.add(req_id)
             process_req_with_runs[req_tracker_area] += 1
+            for rid in linked_runs:
+                process_runs_sets[req_tracker_area].add(rid)
+                outcome = _run_outcome(item_by_id.get(rid, {}))
+                if outcome == "passed":
+                    process_runs_passed_sets[req_tracker_area].add(rid)
         elif linked_tests:
             gaps.append({
                 "gap_code": "REQ_NO_RUN_EVIDENCE",
