@@ -1222,6 +1222,11 @@ async def codebeamer_assessment_test_coverage(
                         and cat.get("name") == "Heading"
                         and cat.get("type") == "ChoiceOptionReference"):
                     return True
+                if (isinstance(cat, dict)
+                        #and cat.get("id") == 1
+                        and cat.get("name") == "Information"
+                        and cat.get("type") == "ChoiceOptionReference"):
+                    return True
         return False
 
     folder_ids = {iid for iid, raw in item_by_id.items() if _is_folder_item(raw)}
@@ -1251,12 +1256,12 @@ async def codebeamer_assessment_test_coverage(
         and (item_by_id.get(iid, {}).get("typeName") or "").lower() == "issue"
     }
     requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids - draft_requirement_ids - rejected_requirement_ids - issue_type_ids
-    draft_testcase_ids = {
+    excluded_testcase_ids = {
         iid for iid, tid in item_tracker.items()
         if tid in testcase_tracker_ids
-        and _item_status_name(item_by_id.get(iid, {})).lower() == "draft"
+        and _item_status_name(item_by_id.get(iid, {})).lower() in ("draft", "obsolete", "unset")
     }
-    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids - draft_testcase_ids
+    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids - excluded_testcase_ids
     testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids} - folder_ids
     testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids} - folder_ids
     testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids} - folder_ids
@@ -1740,7 +1745,7 @@ async def codebeamer_requirements_uncovered(
     for iid, raw in item_by_id.items():
         for cat in (raw.get("categories") or []):
             if (isinstance(cat, dict)
-                    and cat.get("name") in ("Folder", "Heading")
+                    and cat.get("name") in ("Folder", "Heading", "Information")
                     and cat.get("type") == "ChoiceOptionReference"):
                 folder_ids.add(iid)
                 break
@@ -1753,7 +1758,7 @@ async def codebeamer_requirements_uncovered(
     testcase_ids = {
         iid for iid, tid in item_tracker.items()
         if tid in testcase_tracker_ids
-        and _item_status_name(item_by_id.get(iid, {})).lower() != "draft"
+        and _item_status_name(item_by_id.get(iid, {})).lower() not in ("draft", "obsolete", "unset")
     } - folder_ids
 
     if not include_security:
