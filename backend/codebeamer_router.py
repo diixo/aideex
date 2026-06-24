@@ -1452,14 +1452,22 @@ async def codebeamer_assessment_test_coverage(
         if tid:
             tracker_to_req_ids[int(tid)].add(iid)
 
-    coverage_ratio = (len(req_with_tests) / requirements_total) if requirements_total else 0.0
-    execution_ratio = (len(req_with_runs) / requirements_total) if requirements_total else 0.0
+    _COVERAGE_GRAPH_AREAS = {"SYS.2", "SWE.1"}
+    _ANALYZED_EXCLUDED = frozenset({"draft", "obsolete", "rejected"})
+    analyzed_ids = {
+        iid for iid in requirement_ids
+        if tracker_meta.get(item_tracker.get(iid), {}).get("process_area") in _COVERAGE_GRAPH_AREAS
+        and _item_status_name(item_by_id.get(iid, {})).lower() not in _ANALYZED_EXCLUDED
+    }
+    requirements_analyzed = len(analyzed_ids)
+
+    coverage_ratio = (len(req_with_tests & analyzed_ids) / requirements_analyzed) if requirements_analyzed else 0.0
+    execution_ratio = (len(req_with_runs & analyzed_ids) / requirements_analyzed) if requirements_analyzed else 0.0
     pass_rate = (runs_passed / runs_total) if runs_total else 0.0
     assessment_score = 0.45 * coverage_ratio + 0.30 * execution_ratio + 0.25 * pass_rate
-
     process_areas = sorted(
         area for area in process_req_total
-        if area != "UNMAPPED" and process_req_total[area] > 0
+        if area in _COVERAGE_GRAPH_AREAS and process_req_total[area] > 0
     )
     process_breakdown = []
     for area in process_areas:
@@ -1597,6 +1605,7 @@ async def codebeamer_assessment_test_coverage(
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "summary": {
             "requirements_total": requirements_total,
+            "requirements_analyzed": requirements_analyzed,
             "requirements_with_tests": len(req_with_tests),
             "requirements_with_runs": len(req_with_runs),
             "tests_total": tests_total,
