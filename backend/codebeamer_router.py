@@ -1239,7 +1239,18 @@ async def codebeamer_assessment_test_coverage(
         if tid in requirement_tracker_ids
         and _item_status_name(item_by_id.get(iid, {})).lower() == "draft"
     }
-    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids - draft_requirement_ids
+    rejected_requirement_ids = {
+        iid for iid, tid in item_tracker.items()
+        if tid in requirement_tracker_ids
+        and (item_by_id.get(iid, {}).get("typeName") or "").lower() == "requirement"
+        and _item_status_name(item_by_id.get(iid, {})).lower() == "rejected"
+    }
+    issue_type_ids = {
+        iid for iid, tid in item_tracker.items()
+        if tid in requirement_tracker_ids
+        and (item_by_id.get(iid, {}).get("typeName") or "").lower() == "issue"
+    }
+    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids - draft_requirement_ids - rejected_requirement_ids - issue_type_ids
     draft_testcase_ids = {
         iid for iid, tid in item_tracker.items()
         if tid in testcase_tracker_ids
