@@ -3,17 +3,17 @@
 ASPICE assessment/compliance checker for software development projects.
 
 
-## Run django-server:
-```bash
-py ui/manage.py runserver
-```
-
-
 ### Run Backend server:
 Run from root directory:
 
 ``` bash
 py -3.10 .\scripts\run_backend_server.py
+```
+
+
+## Run django-server:
+```bash
+py ui/manage.py runserver
 ```
 
 
