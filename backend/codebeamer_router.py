@@ -1229,15 +1229,15 @@ async def codebeamer_assessment_test_coverage(
                     return True
         return False
 
-    folder_ids = {iid for iid, raw in item_by_id.items() if _is_exclude_item(raw)}
+    exclude_ids = {iid for iid, raw in item_by_id.items() if _is_exclude_item(raw)}
 
     # Recompute item_refs in tracker_meta excluding folders
-    if folder_ids:
+    if exclude_ids:
         tracker_to_items: dict[int, set] = {}
         for iid, tid in item_tracker.items():
             tracker_to_items.setdefault(tid, set()).add(iid)
         for tid, meta in tracker_meta.items():
-            meta["item_refs"] = len(tracker_to_items.get(tid, set()) - folder_ids)
+            meta["item_refs"] = len(tracker_to_items.get(tid, set()) - exclude_ids)
 
     draft_requirement_ids = {
         iid for iid, tid in item_tracker.items()
@@ -1255,17 +1255,17 @@ async def codebeamer_assessment_test_coverage(
         if tid in requirement_tracker_ids
         and (item_by_id.get(iid, {}).get("typeName") or "").lower() == "issue"
     }
-    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids - draft_requirement_ids - rejected_requirement_ids - issue_type_ids
+    requirement_ids = {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - exclude_ids - draft_requirement_ids - rejected_requirement_ids - issue_type_ids
     excluded_testcase_ids = {
         iid for iid, tid in item_tracker.items()
         if tid in testcase_tracker_ids
         and _item_status_name(item_by_id.get(iid, {})).lower() in ("draft", "obsolete", "unset")
     }
-    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - folder_ids - excluded_testcase_ids
-    testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids} - folder_ids
-    testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids} - folder_ids
-    testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids} - folder_ids
-    defect_ids = {iid for iid, tid in item_tracker.items() if tid in defect_tracker_ids} - folder_ids
+    testcase_ids = {iid for iid, tid in item_tracker.items() if tid in testcase_tracker_ids} - exclude_ids - excluded_testcase_ids
+    testset_ids = {iid for iid, tid in item_tracker.items() if tid in testset_tracker_ids} - exclude_ids
+    testrun_ids = {iid for iid, tid in item_tracker.items() if tid in testrun_tracker_ids} - exclude_ids
+    testconf_ids = {iid for iid, tid in item_tracker.items() if tid in testconf_tracker_ids} - exclude_ids
+    defect_ids = {iid for iid, tid in item_tracker.items() if tid in defect_tracker_ids} - exclude_ids
 
     if not include_security:
         sec_tracker_ids = {
@@ -1458,7 +1458,19 @@ async def codebeamer_assessment_test_coverage(
     process_runs_passed: dict[str, int] = {area: len(s) for area, s in process_runs_passed_sets.items()}
     process_tests_total: dict[str, int] = {area: len(s) for area, s in process_tests_sets.items()}
 
-    requirements_total = len(requirement_ids)
+    folder_ids = {
+        iid for iid, raw in item_by_id.items()
+        if (raw.get("typeName") or "").lower() == "requirement"
+        and any(
+            isinstance(cat, dict)
+            and cat.get("name") == "Folder"
+            and cat.get("type") == "ChoiceOptionReference"
+            for cat in (raw.get("categories") or [])
+        )
+    }
+    requirements_total = len(
+        {iid for iid, tid in item_tracker.items() if tid in requirement_tracker_ids} - folder_ids
+    )
     tests_total = len(testcase_ids)
     runs_total = len(testrun_ids)
 
