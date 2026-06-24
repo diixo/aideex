@@ -1381,6 +1381,8 @@ async def codebeamer_assessment_test_coverage(
                             "message": "Failed test run has no linked defect/change item.",
                         })
 
+    _GAP_EXCLUDED_STATUSES = {"draft", "obsolete", "rejected", "unset", "open", "in review"}
+
     # Requirement-level checks.
     entities: list[dict] = []
     for req_id in requirement_ids:
@@ -1405,11 +1407,12 @@ async def codebeamer_assessment_test_coverage(
         req_tracker_area = tracker_meta.get(int(req_tracker_id or 0), {}).get("process_area", "UNMAPPED")
 
         process_req_total[req_tracker_area] += 1
+
         if linked_tests:
             req_with_tests.add(req_id)
             process_req_with_tests[req_tracker_area] += 1
             process_tests_sets[req_tracker_area] |= linked_tests
-        elif req_status != "in review":
+        elif req_status not in _GAP_EXCLUDED_STATUSES:
             gaps.append({
                 "gap_code": "REQ_NO_TESTCASE",
                 "severity": "error",
@@ -1427,7 +1430,7 @@ async def codebeamer_assessment_test_coverage(
                 outcome = _run_outcome(item_by_id.get(rid, {}))
                 if outcome == "passed":
                     process_runs_passed_sets[req_tracker_area].add(rid)
-        elif linked_tests and req_status != "in review":
+        elif linked_tests and req_status not in _GAP_EXCLUDED_STATUSES:
             gaps.append({
                 "gap_code": "REQ_NO_RUN_EVIDENCE",
                 "severity": "warning",
