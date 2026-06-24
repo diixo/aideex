@@ -1208,7 +1208,7 @@ async def codebeamer_assessment_test_coverage(
         if (meta.get("type_name") or "").lower() in {"bug", "issue"}
     }
 
-    def _is_folder_item(raw: dict) -> bool:
+    def _is_exclude_item(raw: dict) -> bool:
         type_name = (raw.get("typeName") or "").lower()
         if type_name in ("requirement", "testcase"):
             for cat in (raw.get("categories") or []):
@@ -1229,7 +1229,7 @@ async def codebeamer_assessment_test_coverage(
                     return True
         return False
 
-    folder_ids = {iid for iid, raw in item_by_id.items() if _is_folder_item(raw)}
+    folder_ids = {iid for iid, raw in item_by_id.items() if _is_exclude_item(raw)}
 
     # Recompute item_refs in tracker_meta excluding folders
     if folder_ids:
@@ -1391,6 +1391,7 @@ async def codebeamer_assessment_test_coverage(
         areas: set[str] = set()
         req_raw = item_by_id.get(req_id, {})
         req_name = str(req_raw.get("name") or req_id)
+        req_status = _item_status_name(req_raw).lower()
         req_tracker_id = item_tracker.get(req_id)
         req_tracker_name = tracker_meta.get(int(req_tracker_id or 0), {}).get("name", "")
         feature_key = _normalize_feature_key(req_tracker_name)
@@ -1408,7 +1409,7 @@ async def codebeamer_assessment_test_coverage(
             req_with_tests.add(req_id)
             process_req_with_tests[req_tracker_area] += 1
             process_tests_sets[req_tracker_area] |= linked_tests
-        else:
+        elif req_status != "in review":
             gaps.append({
                 "gap_code": "REQ_NO_TESTCASE",
                 "severity": "error",
@@ -1426,7 +1427,7 @@ async def codebeamer_assessment_test_coverage(
                 outcome = _run_outcome(item_by_id.get(rid, {}))
                 if outcome == "passed":
                     process_runs_passed_sets[req_tracker_area].add(rid)
-        elif linked_tests:
+        elif linked_tests and req_status != "in review":
             gaps.append({
                 "gap_code": "REQ_NO_RUN_EVIDENCE",
                 "severity": "warning",
