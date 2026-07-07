@@ -1130,6 +1130,13 @@ def codebeamer_assessment_coverage_download(request):
 
     breakdown = resp.get("process_breakdown") or []
     project_name = resp.get("project_name", str(project_id))
+    cb_host = (resp.get("cb_host") or credentials.get("cb_url", "")).rstrip("/")
+
+    # group req trackers by process_area for links
+    trackers_by_area: dict = {}
+    for t in (resp.get("req_tracker_breakdown") or []):
+        area = t.get("process_area", "")
+        trackers_by_area.setdefault(area, []).append(t)
 
     rows = ""
     for p in breakdown:
@@ -1141,9 +1148,18 @@ def codebeamer_assessment_coverage_download(request):
         runs_passed = p.get("runs_passed", 0)
         pass_rate = p.get("pass_rate", 0)
         coverage_pct = round(reqs_with_tests / reqs_total * 100, 1) if reqs_total else 0
+        tracker_links = ""
+        for t in trackers_by_area.get(area, []):
+            tid = t.get("tracker_id")
+            tname = t.get("tracker_name", str(tid))
+            if cb_host and tid:
+                tracker_links += f'<a href="{cb_host}/tracker/{tid}" target="_blank">{tname}</a><br>'
+            else:
+                tracker_links += f'{tname}<br>'
         rows += (
             f'<tr>'
             f'<td><b>{area}</b></td>'
+            f'<td>{tracker_links or "—"}</td>'
             f'<td>{reqs_with_tests}/{reqs_total}</td>'
             f'<td>{coverage_pct}%</td>'
             f'<td>{tests_total}</td>'
@@ -1165,7 +1181,7 @@ def codebeamer_assessment_coverage_download(request):
 <p class="text-muted">Total areas: {len(breakdown)}</p>
 <table class="table table-sm table-bordered table-striped">
 <thead class="table-light">
-<tr><th>Process Area</th><th>Reqs (with tests / total)</th><th>Coverage</th><th>Tests</th><th>Runs</th><th>Passed</th><th>Pass Rate</th></tr>
+<tr><th>Process Area</th><th>Trackers</th><th>Reqs (with tests / total)</th><th>Coverage</th><th>Tests</th><th>Runs</th><th>Passed</th><th>Pass Rate</th></tr>
 </thead>
 <tbody>
 {rows}
