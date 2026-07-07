@@ -7,7 +7,7 @@ ASPICE assessment/compliance checker for software development projects.
 Run from root directory:
 
 ``` bash
-py -3.10 .\scripts\run_backend_server.py
+py .\scripts\run_backend_server.py
 ```
 
 
